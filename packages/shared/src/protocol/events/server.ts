@@ -46,6 +46,7 @@ export const gameOrder = z.object({
    * the same way it refuses a map it cannot load.
    */
   gametype: z.string().check(z.minLength(1)),
+  scoreLimit: z.optional(z.number().check(z.int(), z.positive())),
   /** This game's cap, not the instance's: one process hosts several games. */
   maxPlayers: z.number().check(z.int(), z.positive()),
   durationSeconds: z.number().check(z.positive()),

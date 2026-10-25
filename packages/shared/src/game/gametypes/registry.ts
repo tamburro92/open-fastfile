@@ -15,13 +15,15 @@ import type { GameKey } from "../../dsl/resolved.js";
 import { chaseGametype } from "./chase.js";
 import { defaultGametype, DEFAULT_GAMETYPE } from "./default.js";
 import type { GametypeDecl, GametypeId } from "./declaration.js";
+import { ffaGametype, FFA_GAMETYPE } from "./ffa.js";
 import { zombiesBo2HordeGametype, zombiesGametype } from "./zombies.js";
 
-export { DEFAULT_GAMETYPE };
+export { DEFAULT_GAMETYPE, FFA_GAMETYPE };
 
 /** Every gametype, by id. */
 export const GAMETYPES: Readonly<Record<GametypeId, GametypeDecl>> = {
   [defaultGametype.id]: defaultGametype,
+  [ffaGametype.id]: ffaGametype,
   [chaseGametype.id]: chaseGametype,
   [zombiesGametype.id]: zombiesGametype,
   [zombiesBo2HordeGametype.id]: zombiesBo2HordeGametype,

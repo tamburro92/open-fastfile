@@ -199,6 +199,10 @@ export interface ServerContext<S = unknown> extends GameView {
   readonly memory: S;
   /** The world, with the verb that removes and restores its solids. */
   readonly world: ServerWorld;
+  /** Configured score limit for this match, if specified by lobby/order. */
+  readonly scoreLimit?: number;
+  /** Configured time limit (in seconds) for this match, if specified by lobby/order. */
+  readonly timeLimitSeconds?: number;
   /**
    * Put a player on a side, by a name the gametype's `teams` lists. Naming one it
    * does not throws, because putting them on side 0 instead is a wrong answer

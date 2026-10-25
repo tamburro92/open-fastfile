@@ -39,6 +39,8 @@ export const lobbyEvent = z.object({
    * because there is no such thing as a game with no rules.
    */
   gametype: z.string().check(z.minLength(1)),
+  scoreLimit: z.optional(z.number()),
+  timeLimit: z.optional(z.number()),
   status: lobbyStatus,
   /**
    * When the round starts, as an absolute unix-ms instant — not a remaining

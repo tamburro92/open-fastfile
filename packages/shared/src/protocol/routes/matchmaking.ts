@@ -88,6 +88,19 @@ export const lobbyGametypeRoute = defineRoute({
   result: json(ok),
 });
 
+/** Choose the game rules (score limit, time limit). The host's, and refused once the countdown is running. */
+export const lobbyRulesRoute = defineRoute({
+  method: "POST",
+  path: "/api/lobbies/:code/rules",
+  auth: "user",
+  params: z.object({ code: lobbyCode }),
+  input: z.object({
+    scoreLimit: z.optional(z.number().check(z.int(), z.positive())),
+    timeLimit: z.optional(z.number().check(z.int(), z.positive())),
+  }),
+  result: json(ok),
+});
+
 export const lobbyJoinRoute = defineRoute({
   method: "POST",
   path: "/api/lobbies/:code/join",
@@ -133,6 +146,7 @@ export const MATCHMAKING_ROUTES = {
   lobbyJoin: lobbyJoinRoute,
   lobbyMap: lobbyMapRoute,
   lobbyGametype: lobbyGametypeRoute,
+  lobbyRules: lobbyRulesRoute,
   lobbyStart: lobbyStartRoute,
   lobbyEnd: lobbyEndRoute,
   lobbyLeave: lobbyLeaveRoute,
