@@ -37,6 +37,7 @@ describe("Team Deathmatch script", () => {
     spawnedBots: { brain: string; team?: string }[];
     setMemory: (m: TdmState) => void;
     setNow: (n: number) => void;
+    addPlayer: (p: { id: string; bot: boolean; team: string; points: number }) => void;
   } {
     const counters: Record<string, number> = {};
     const points: Record<string, number> = {};
@@ -102,6 +103,9 @@ describe("Team Deathmatch script", () => {
       setNow: (n: number) => {
         currentNow = n;
       },
+      addPlayer: (p: { id: string; bot: boolean; team: string; points: number }) => {
+        players.push(p);
+      },
     };
   }
 
@@ -151,20 +155,18 @@ describe("Team Deathmatch script", () => {
   });
 
   it("awards +1 point to killer and +1 to killer's team score, 0 for suicide", () => {
-    const { ctx, points, teamScores, counters, setMemory } = fakeContext({ scoreLimit: 10 });
+    const { ctx, points, counters, setMemory, addPlayer } = fakeContext({ scoreLimit: 10 });
     const state = tdmScript.server!.init!(ctx) as TdmState;
     setMemory(state);
 
     // Player 1 dies of suicide:
     tdmScript.server!.playerDeath!(ctx, "p1", "p1", "bullet");
     expect(points["p1"]).toBeUndefined();
-    expect(teamScores["allies"]).toBeUndefined();
     expect(state.deaths.get("p1")).toBe(1);
 
     // Player 1 (allies) kills Player 2 (axis):
     tdmScript.server!.playerDeath!(ctx, "p2", "p1", "bullet");
     expect(points["p1"]).toBe(1);
-    expect(teamScores["allies"]).toBe(1);
     expect(counters.alliesScore).toBe(1);
     expect(state.alliesScore).toBe(1);
     expect(state.kills.get("p1")).toBe(1);
@@ -173,9 +175,16 @@ describe("Team Deathmatch script", () => {
     // Player 2 (axis) kills Player 1 (allies):
     tdmScript.server!.playerDeath!(ctx, "p1", "p2", "bullet");
     expect(points["p2"]).toBe(1);
-    expect(teamScores["axis"]).toBe(1);
     expect(counters.axisScore).toBe(1);
     expect(state.axisScore).toBe(1);
+
+    // Player 1 (allies) kills teammate Player 3 (allies) -> teamkill does not award points or team score:
+    addPlayer({ id: "p3", bot: false, team: "allies", points: 0 });
+    tdmScript.server!.playerDeath!(ctx, "p3", "p1", "bullet");
+    expect(points["p1"]).toBe(1);
+    expect(counters.alliesScore).toBe(1);
+    expect(state.alliesScore).toBe(1);
+    expect(state.deaths.get("p3")).toBe(1);
   });
 
   it("ends the match when team score limit is reached with post-game cooldown", () => {

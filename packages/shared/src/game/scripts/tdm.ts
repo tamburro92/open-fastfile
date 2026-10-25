@@ -93,19 +93,23 @@ export const tdmScript: Script = defineScript<TdmState>({
       state.deaths.set(victim, (state.deaths.get(victim) ?? 0) + 1);
 
       if (killer !== null && !isSuicide(victim, killer)) {
+        const killerTeam = ctx.player(killer)?.team;
+        const victimTeam = ctx.player(victim)?.team;
+        // In Call of Duty TDM, teamkills do not award kill points or team points:
+        if (killerTeam && victimTeam && killerTeam === victimTeam) {
+          return;
+        }
+
         const nextKills = (state.kills.get(killer) ?? 0) + 1;
         state.kills.set(killer, nextKills);
         // Only kill +1, strictly as requested:
         ctx.addPoints(killer, 1);
 
-        const killerTeam = ctx.player(killer)?.team;
         if (killerTeam === "allies") {
           state.alliesScore++;
-          ctx.score("allies", 1);
           ctx.setCounter("alliesScore", state.alliesScore);
         } else if (killerTeam === "axis") {
           state.axisScore++;
-          ctx.score("axis", 1);
           ctx.setCounter("axisScore", state.axisScore);
         }
 
