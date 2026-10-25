@@ -1,4 +1,10 @@
-import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS, LOBBY_MODES } from "../../app/uiBridge.js";
+import {
+  DEFAULT_FFA_SCORE_LIMIT,
+  DEFAULT_FFA_TIME_LIMIT_SECONDS,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+  LOBBY_MODES,
+} from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import { MenuColumn, MenuPanel, MenuScreen, useEscape, type MenuItem } from "../menu/Menu.js";
 import { MapPreview } from "./MapSelect.js";
@@ -21,9 +27,15 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
   const world = state.worlds.value.find((one) => one.slug === lobby?.map);
   useEscape(props.onBack);
 
+  const isTdm = lobby?.gametype === "tdm";
   const isFfa = lobby?.gametype === "ffa";
-  const scoreLimit = lobby?.scoreLimit ?? DEFAULT_FFA_SCORE_LIMIT;
-  const timeLimitMin = Math.round((lobby?.timeLimit ?? DEFAULT_FFA_TIME_LIMIT_SECONDS) / 60);
+  const isCustomizable = isTdm || isFfa;
+
+  const defaultScore = isTdm ? DEFAULT_TDM_SCORE_LIMIT : DEFAULT_FFA_SCORE_LIMIT;
+  const defaultTime = isTdm ? DEFAULT_TDM_TIME_LIMIT_SECONDS : DEFAULT_FFA_TIME_LIMIT_SECONDS;
+
+  const scoreLimit = lobby?.scoreLimit ?? defaultScore;
+  const timeLimitMin = Math.round((lobby?.timeLimit ?? defaultTime) / 60);
 
   const scoreLimitLabel = scoreLimit === 0 ? "Unlimited" : `${scoreLimit} Kills`;
   const timeLimitLabel = lobby?.timeLimit === 0 ? "Unlimited" : `${timeLimitMin} Minutes`;
@@ -37,11 +49,11 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
     },
     {
       label: "Game Rules",
-      description: isFfa
+      description: isCustomizable
         ? `Score limit: ${scoreLimitLabel}, Time limit: ${timeLimitLabel}.`
-        : `Configure kill and time limits for Free-for-All.`,
+        : `Configure kill and time limits for Team Deathmatch or Free-for-All.`,
       onSelect: () => {
-        if (!isFfa) {
+        if (!isCustomizable) {
           commands.setLobbyMode("ffa");
         }
         props.onOpen("rules");

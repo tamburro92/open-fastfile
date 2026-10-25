@@ -12,15 +12,37 @@ export function MatchEnd() {
 
   const entries = state.hud.scoreboard.value;
   const selfEntry = entries.find((e) => e.isSelf);
-  // In Call of Duty FFA, 1st place (and top 3) counts as victory; 1st place is the undisputed winner:
-  const isVictory = selfEntry && (selfEntry.rank === 1 || selfEntry.name === winner);
-  const subtitle = winner && !isVictory ? `${reason} • Winner: ${winner}` : reason;
+  const isTdm = state.lobby.value?.gametype === "tdm" || selfEntry?.team !== undefined;
+
+  let title: string;
+  let titleClass: string | undefined;
+  let subtitle: string;
+
+  if (isTdm) {
+    if (winner === "draw") {
+      title = "DRAW";
+      titleClass = styles.draw;
+      subtitle = `${reason} • Stalemate`;
+    } else if (selfEntry?.team && winner === selfEntry.team) {
+      title = "VICTORY";
+      titleClass = styles.victory;
+      subtitle = `${reason} • Team Victory`;
+    } else {
+      title = "DEFEAT";
+      titleClass = styles.defeat;
+      subtitle = `${reason} • ${winner ? winner.toUpperCase() : "Enemy"} Victory`;
+    }
+  } else {
+    // In Call of Duty FFA, 1st place (and top 3) counts as victory; 1st place is the undisputed winner:
+    const isVictory = selfEntry && (selfEntry.rank === 1 || selfEntry.name === winner);
+    title = isVictory ? "VICTORY" : "DEFEAT";
+    titleClass = isVictory ? styles.victory : styles.defeat;
+    subtitle = winner && !isVictory ? `${reason} • Winner: ${winner}` : reason;
+  }
 
   return (
     <div class={styles.bannerContainer} data-testid="match-end-banner">
-      <h1 class={isVictory ? styles.victory : styles.defeat}>
-        {isVictory ? "VICTORY" : "DEFEAT"}
-      </h1>
+      <h1 class={titleClass}>{title}</h1>
       <p class={styles.reason}>{subtitle}</p>
     </div>
   );

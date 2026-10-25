@@ -48,6 +48,8 @@ export class Hud {
   private readonly lines: { line: KillFeedEntry; at: number }[] = [];
   /** Player death tallies for the scoreboard. */
   private readonly playerDeaths = new Map<PlayerId, number>();
+  /** Current gametype declaration, if known. */
+  private gametype?: GametypeDecl;
 
   constructor(
     private readonly ui: UiState,
@@ -69,6 +71,7 @@ export class Hud {
     this.maxHealth = message.rules.maxHealth;
     this.noCountdown = !message.rules.timedRespawn;
     this.me = you;
+    this.gametype = gametype;
     this.connected = true;
     this.counterNames = gametype?.counters ?? [];
     this.keepsPoints = gametype?.points === true;
@@ -135,6 +138,17 @@ export class Hud {
           } else if (event.what === "ffaTimeUp") {
             this.ui.hud.matchWinner.value = event.player ? this.nameOf(event.player) : null;
             this.ui.hud.matchEndReason.value = "Time Limit Reached";
+          } else if (event.what === "tdmWinner") {
+            const team = event.team !== null && this.gametype ? (this.gametype.teams[event.team] ?? null) : null;
+            this.ui.hud.matchWinner.value = team;
+            this.ui.hud.matchEndReason.value = "Score Limit Reached";
+          } else if (event.what === "tdmTimeUp") {
+            const team = event.team !== null && this.gametype ? (this.gametype.teams[event.team] ?? null) : null;
+            this.ui.hud.matchWinner.value = team;
+            this.ui.hud.matchEndReason.value = "Time Limit Reached";
+          } else if (event.what === "tdmDraw") {
+            this.ui.hud.matchWinner.value = "draw";
+            this.ui.hud.matchEndReason.value = "Time Limit Reached";
           }
           break;
       }
@@ -148,7 +162,14 @@ export class Hud {
     if (!this.connected) {
       return;
     }
-    const entries: { id: string; name: string; score: number; deaths: number; isSelf: boolean }[] = [];
+    const teamOf = (teamIndex: number | null | undefined): string | undefined => {
+      if (teamIndex === null || teamIndex === undefined || !this.gametype?.teams) {
+        return undefined;
+      }
+      return this.gametype.teams[teamIndex];
+    };
+
+    const entries: { id: string; name: string; score: number; deaths: number; isSelf: boolean; team?: string }[] = [];
     if (self && this.me !== undefined) {
       entries.push({
         id: this.me,
@@ -156,6 +177,7 @@ export class Hud {
         score: self.points,
         deaths: this.playerDeaths.get(this.me) ?? 0,
         isSelf: true,
+        team: teamOf(self.team),
       });
     }
     for (const peer of others) {
@@ -165,6 +187,7 @@ export class Hud {
         score: peer.state.points,
         deaths: this.playerDeaths.get(peer.id) ?? 0,
         isSelf: false,
+        team: teamOf(peer.state.team),
       });
     }
 
@@ -198,6 +221,7 @@ export class Hud {
     this.noCountdown = false;
     this.counterNames = [];
     this.keepsPoints = false;
+    this.gametype = undefined;
     this.playerDeaths.clear();
     this.ui.hud.scoreboard.value = [];
     this.ui.hud.scoreboardOpen.value = false;

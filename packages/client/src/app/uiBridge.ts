@@ -10,10 +10,23 @@ import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel 
 import { defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout } from "@3d/shared/sim/loadout.js";
 import { CATEGORY_LABEL, CATEGORY_SLOT, WEAPON_CATEGORIES, type WeaponCategory } from "@3d/shared/sim/weaponCategory.js";
 import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
+import { TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/tdm.js";
 
 export type { Loadout, WeaponCategory };
 /** Re-exported through the bridge, which is the only module src/ui/ may import from the rest of the codebase. */
-export { CATEGORY_LABEL, CATEGORY_SLOT, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, WEAPON_CATEGORIES, DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS };
+export {
+  CATEGORY_LABEL,
+  CATEGORY_SLOT,
+  LOADOUT_COUNT,
+  LOADOUT_GAMES,
+  MAX_LOADOUT_ATTACHMENTS,
+  WEAPON_CATEGORIES,
+  DEFAULT_FFA_SCORE_LIMIT,
+  DEFAULT_FFA_TIME_LIMIT_SECONDS,
+  TDM_GAMETYPE,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+};
 
 export { LOBBY_MODES, type LobbyMode, type MenuBackdrop } from "./lobbyModes.js";
 
@@ -260,6 +273,7 @@ export interface ScoreboardEntry {
   score: number;
   deaths: number;
   isSelf: boolean;
+  team?: string;
 }
 
 export interface UiState {

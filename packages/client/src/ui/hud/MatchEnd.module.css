@@ -40,6 +40,16 @@
   text-transform: uppercase;
 }
 
+.draw {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #94a3b8;
+  text-shadow: 0 0 24px rgba(148, 163, 184, 0.6), 0 4px 10px rgba(0, 0, 0, 0.8);
+  margin: 0;
+  text-transform: uppercase;
+}
+
 .reason {
   margin-top: 6px;
   font-size: 1.1rem;

@@ -1,0 +1,94 @@
+.tdmHud {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: rgba(10, 14, 20, 0.8);
+  backdrop-filter: blur(4px);
+  border-left: 3px solid #38bdf8;
+  padding: 8px 14px;
+  color: #fff;
+  font-family: inherit;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.teamsRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.teamBlock {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.friendlyName {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #38bdf8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.friendlyScore {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #38bdf8;
+  text-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+.vsDivider {
+  color: #64748b;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.enemyName {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #f87171;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.enemyScore {
+  font-size: 1.25rem;
+  font-weight: 900;
+  color: #f87171;
+  text-shadow: 0 0 10px rgba(248, 113, 113, 0.4);
+}
+
+.limit {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  font-weight: 600;
+  margin-left: 2px;
+}
+
+.infoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  gap: 16px;
+}
+
+.timer {
+  color: #cbd5e1;
+}
+
+.personal {
+  color: #94a3b8;
+}
+
+.personalValue {
+  color: #ffffff;
+  font-weight: 700;
+}

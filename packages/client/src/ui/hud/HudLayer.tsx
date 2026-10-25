@@ -1,5 +1,6 @@
 import { useUi } from "../context.js";
 import { FfaHud } from "./FfaHud.js";
+import { TdmHud } from "./TdmHud.js";
 import styles from "./HudLayer.module.css";
 import { KillFeed } from "./KillFeed.js";
 import { MatchEnd } from "./MatchEnd.js";
@@ -30,6 +31,7 @@ export function HudLayer() {
       </div>
       <div class={styles.bottomLeft} data-region="bottom-left">
         <FfaHud />
+        <TdmHud />
         <Counters />
         <Health />
       </div>

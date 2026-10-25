@@ -1,5 +1,10 @@
 import { useState } from "preact/hooks";
-import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "../../app/uiBridge.js";
+import {
+  DEFAULT_FFA_SCORE_LIMIT,
+  DEFAULT_FFA_TIME_LIMIT_SECONDS,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+} from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import { MenuColumn, MenuPanel, MenuScreen, menuStyles, useEscape, type MenuItem } from "../menu/Menu.js";
 import { MenuArt } from "./MenuArt.js";
@@ -9,14 +14,16 @@ const SCORE_LIMITS = [
   { value: 0, label: "Unlimited", desc: "No kill limit. Match is decided by the time limit." },
   { value: 5, label: "5 Kills", desc: "Fast-paced match ending at 5 kills." },
   { value: 10, label: "10 Kills", desc: "Short match ending at 10 kills." },
-  { value: 15, label: "15 Kills", desc: "Match ends when a player reaches 15 kills." },
-  { value: 20, label: "20 Kills", desc: "Match ends when a player reaches 20 kills." },
-  { value: 25, label: "25 Kills", desc: "Match ends when a player reaches 25 kills." },
-  { value: 30, label: "30 Kills", desc: "Default Call of Duty FFA score limit." },
+  { value: 15, label: "15 Kills", desc: "Match ends when score reaches 15 kills." },
+  { value: 20, label: "20 Kills", desc: "Match ends when score reaches 20 kills." },
+  { value: 25, label: "25 Kills", desc: "Match ends when score reaches 25 kills." },
+  { value: 30, label: "30 Kills", desc: "Default Call of Duty Free-for-All score limit." },
   { value: 40, label: "40 Kills", desc: "Extended match ending at 40 kills." },
   { value: 50, label: "50 Kills", desc: "Endurance deathmatch ending at 50 kills." },
-  { value: 75, label: "75 Kills", desc: "Long deathmatch ending at 75 kills." },
-  { value: 100, label: "100 Kills", desc: "Marathon deathmatch ending at 100 kills." },
+  { value: 75, label: "75 Kills", desc: "Default Call of Duty Team Deathmatch score limit." },
+  { value: 100, label: "100 Kills", desc: "High kill target match ending at 100 kills." },
+  { value: 150, label: "150 Kills", desc: "Extended team match ending at 150 kills." },
+  { value: 200, label: "200 Kills", desc: "Marathon team match ending at 200 kills." },
 ];
 
 const TIME_LIMITS = [
@@ -24,7 +31,7 @@ const TIME_LIMITS = [
   { seconds: 150, label: "2.5 Minutes", desc: "Blitz round of 2.5 minutes." },
   { seconds: 300, label: "5 Minutes", desc: "Quick match of 5 minutes." },
   { seconds: 480, label: "8 Minutes", desc: "Match duration of 8 minutes." },
-  { seconds: 600, label: "10 Minutes", desc: "Default Call of Duty FFA time limit." },
+  { seconds: 600, label: "10 Minutes", desc: "Default Call of Duty match time limit." },
   { seconds: 900, label: "15 Minutes", desc: "Longer match duration of 15 minutes." },
   { seconds: 1200, label: "20 Minutes", desc: "Extended match duration of 20 minutes." },
   { seconds: 1800, label: "30 Minutes", desc: "Marathon match duration of 30 minutes." },
@@ -45,8 +52,12 @@ export function GameRules(props: { onBack: () => void }) {
     }
   });
 
-  const currentScore = lobby?.scoreLimit ?? DEFAULT_FFA_SCORE_LIMIT;
-  const currentTime = lobby?.timeLimit ?? DEFAULT_FFA_TIME_LIMIT_SECONDS;
+  const isTdm = lobby?.gametype === "tdm";
+  const defaultScore = isTdm ? DEFAULT_TDM_SCORE_LIMIT : DEFAULT_FFA_SCORE_LIMIT;
+  const defaultTime = isTdm ? DEFAULT_TDM_TIME_LIMIT_SECONDS : DEFAULT_FFA_TIME_LIMIT_SECONDS;
+
+  const currentScore = lobby?.scoreLimit ?? defaultScore;
+  const currentTime = lobby?.timeLimit ?? defaultTime;
 
   const scoreLabel = (s: number) => (s === 0 ? "Unlimited" : `${s} Kills`);
   const timeLabel = (sec: number) =>

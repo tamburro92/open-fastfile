@@ -9,9 +9,10 @@ import styles from "./Tally.module.css";
 export function Counters() {
   const { state } = useUi();
   const counters = state.hud.counters.value;
-  const isFfa = state.lobby.value?.gametype === "ffa";
-  const visible = isFfa
-    ? counters.filter((c) => c.name !== "scoreLimit" && c.name !== "timeLeft")
+  const isDeathmatch = state.lobby.value?.gametype === "ffa" || state.lobby.value?.gametype === "tdm";
+  const dmExcluded = ["scoreLimit", "timeLeft", "alliesScore", "axisScore"];
+  const visible = isDeathmatch
+    ? counters.filter((c) => !dmExcluded.includes(c.name))
     : counters;
 
   if (visible.length === 0) {
@@ -35,11 +36,11 @@ export function Counters() {
  */
 export function Points() {
   const { state } = useUi();
-  const isFfa = state.lobby.value?.gametype === "ffa";
+  const isDeathmatch = state.lobby.value?.gametype === "ffa" || state.lobby.value?.gametype === "tdm";
   const points = state.hud.points.value;
-  // In Free-for-All, the score is cleanly integrated into FfaHud and the Scoreboard,
+  // In Free-for-All and Team Deathmatch, the score is cleanly integrated into FfaHud/TdmHud and the Scoreboard,
   // rather than a floating arcade tally above weapon ammo (which is used in Zombies).
-  if (isFfa || points === null) {
+  if (isDeathmatch || points === null) {
     return null;
   }
   return (

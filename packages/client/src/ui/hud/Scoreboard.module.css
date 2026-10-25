@@ -144,3 +144,36 @@
   color: #64748b;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* Two-team TDM Scoreboard styles: */
+.teamSection {
+  margin-bottom: 6px;
+}
+
+.teamHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 16px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+}
+
+.alliesHeader {
+  border-left: 4px solid #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+}
+
+.axisHeader {
+  border-left: 4px solid #f87171;
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+.teamScore {
+  font-size: 1.15rem;
+  font-weight: 900;
+}
