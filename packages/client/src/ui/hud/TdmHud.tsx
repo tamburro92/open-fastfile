@@ -15,6 +15,10 @@ export function TdmHud() {
   const { state } = useUi();
   const lobby = state.lobby.value;
 
+  if (lobby && lobby.gametype === "ffa") {
+    return null;
+  }
+
   const isTdm = lobby?.gametype === "tdm";
   const counters = state.hud.counters.value;
   const alliesScoreCounter = counters.find((c) => c.name === "alliesScore");

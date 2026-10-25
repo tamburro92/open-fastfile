@@ -167,6 +167,8 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     // Duplicate raw counters and floating zombie points are suppressed in FFA:
     expect(screen.queryByTestId("hud-counters")).toBeNull();
     expect(screen.queryByTestId("hud-points")).toBeNull();
+    // TDM HUD must NOT be rendered in FFA:
+    expect(screen.queryByTestId("tdm-hud")).toBeNull();
   });
 
   it("renders leader score in FFA HUD when trailing behind 1st place", () => {

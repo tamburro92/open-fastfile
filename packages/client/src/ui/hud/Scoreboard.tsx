@@ -16,7 +16,7 @@ export function Scoreboard() {
   const lobby = state.lobby.value;
   const counters = state.hud.counters.value;
 
-  const isTdm = lobby?.gametype === "tdm" || entries.some((e) => e.team !== undefined);
+  const isTdm = lobby?.gametype === "tdm" || (lobby?.gametype !== "ffa" && entries.some((e) => e.team !== undefined));
   const defaultScoreLimit = isTdm ? 75 : 30;
   const scoreLimit = counters.find((c) => c.name === "scoreLimit")?.value ?? lobby?.scoreLimit ?? defaultScoreLimit;
   const timeLeftSec = counters.find((c) => c.name === "timeLeft")?.value;

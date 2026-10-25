@@ -136,6 +136,8 @@ describe("TDM In-Game HUD & Scoreboard", () => {
     // Duplicate counters and floating points suppressed in TDM:
     expect(screen.queryByTestId("hud-counters")).toBeNull();
     expect(screen.queryByTestId("hud-points")).toBeNull();
+    // FFA HUD must NOT be rendered in TDM:
+    expect(screen.queryByTestId("ffa-hud")).toBeNull();
   });
 
   it("renders two-team Tactical Scoreboard when opened", () => {

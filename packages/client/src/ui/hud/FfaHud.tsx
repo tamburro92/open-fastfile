@@ -31,9 +31,17 @@ export function FfaHud() {
   const { state } = useUi();
   const lobby = state.lobby.value;
 
-  // Only render for FFA matches or matches with ffa counters:
-  const isFfa = lobby?.gametype === "ffa";
+  // Never render in TDM or when team score counters are present
+  if (lobby && lobby.gametype !== "ffa") {
+    return null;
+  }
   const counters = state.hud.counters.value;
+  if (counters.some((c) => c.name === "alliesScore" || c.name === "axisScore")) {
+    return null;
+  }
+
+  // Only render for FFA matches or matches with scoreLimit counter
+  const isFfa = lobby?.gametype === "ffa";
   const scoreLimitCounter = counters.find((c) => c.name === "scoreLimit");
   const timeLeftCounter = counters.find((c) => c.name === "timeLeft");
 
