@@ -159,7 +159,7 @@ export class Match {
     // Before any other hook, so the first `combatRules` already has its state.
     const end = (reason: string): void => void (this.endedBy ??= reason);
     const verbs = serverVerbs({ index, roster, parts, spawns, damage, classes, scores, announcements, bots, zones, actors, nav, end });
-    scripts.start((memory) => serverContext(view, verbs, memory));
+    scripts.start((memory) => serverContext(view, verbs, memory, playing.scoreLimit, playing.durationSeconds));
     damage.askRules();
     classes.askRules();
 

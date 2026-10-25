@@ -201,6 +201,8 @@ export class Games {
         actorCollision: surfaces?.hasAiChannel ? surfaces.view(presence, "ai") : undefined,
         partView: surfaces ? (index) => surfaces.partView(index) : undefined,
         partBounds: surfaces ? (index) => surfaces.partBounds(index) : undefined,
+        scoreLimit: order.scoreLimit,
+        durationSeconds: order.durationSeconds,
       }),
       roster: new Map(order.players.map((player) => [player.id, player])),
       createdAt: at,

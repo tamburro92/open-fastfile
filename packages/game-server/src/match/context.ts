@@ -64,8 +64,14 @@ export function gameView(src: ViewSource): GameView {
 }
 
 /** A server hook's context: the view, the verbs, and the calling script's own state. */
-export function serverContext(view: GameView, verbs: ServerVerbs, memory: unknown): ServerContext {
-  return extend(extend(view, verbs), { memory });
+export function serverContext(
+  view: GameView,
+  verbs: ServerVerbs,
+  memory: unknown,
+  scoreLimit?: number,
+  timeLimitSeconds?: number,
+): ServerContext {
+  return extend(extend(view, verbs), { memory, scoreLimit, timeLimitSeconds });
 }
 
 /**

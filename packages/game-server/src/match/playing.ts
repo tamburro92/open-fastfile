@@ -48,4 +48,8 @@ export interface Playing {
   partView?: (index: number) => CapsuleWorld;
   /** A part's bounds (`CollisionWorld.partBounds`): where a solid with `use` is. Absent: no solid is usable. */
   partBounds?: (index: number) => Bounds | undefined;
+  /** Configured score limit (kills) for this match. */
+  scoreLimit?: number;
+  /** Configured time limit (duration) in seconds for this match. */
+  durationSeconds?: number;
 }
