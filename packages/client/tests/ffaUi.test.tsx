@@ -164,6 +164,9 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     expect(hudWidget.textContent).toContain("12");
     expect(hudWidget.textContent).toContain("/ 30");
     expect(hudWidget.textContent).toContain("7:30");
+    // Duplicate raw counters and floating zombie points are suppressed in FFA:
+    expect(screen.queryByTestId("hud-counters")).toBeNull();
+    expect(screen.queryByTestId("hud-points")).toBeNull();
   });
 
   it("renders leader score in FFA HUD when trailing behind 1st place", () => {
