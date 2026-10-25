@@ -12,16 +12,37 @@
 // `@3d/api` — which validates a lobby's gametype and runs nothing — must import
 // the other one. Enforced by `apiImports` in eslint.config.js.
 
-import { admits, admitsMap, gametype, GAMETYPES, DEFAULT_GAMETYPE, FFA_GAMETYPE } from "./gametypes/registry.js";
+import {
+  admits,
+  admitsMap,
+  gametype,
+  GAMETYPES,
+  DEFAULT_GAMETYPE,
+  FFA_GAMETYPE,
+  TDM_GAMETYPE,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+} from "./gametypes/registry.js";
 import type { GametypeId } from "./gametypes/declaration.js";
 import type { Script } from "./hooks.js";
 import { castScript } from "./scripts/cast.js";
 import { chaseScript } from "./scripts/chase.js";
 import { countdownScript } from "./scripts/countdown.js";
 import { ffaScript } from "./scripts/ffa.js";
+import { tdmScript } from "./scripts/tdm.js";
 import { zombiesScript } from "./scripts/zombies/base.js";
 
-export { DEFAULT_GAMETYPE, FFA_GAMETYPE, GAMETYPES, gametype, admits, admitsMap };
+export {
+  DEFAULT_GAMETYPE,
+  FFA_GAMETYPE,
+  TDM_GAMETYPE,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+  GAMETYPES,
+  gametype,
+  admits,
+  admitsMap,
+};
 
 /**
  * Every script, in the order they are asked.
@@ -31,7 +52,7 @@ export { DEFAULT_GAMETYPE, FFA_GAMETYPE, GAMETYPES, gametype, admits, admitsMap 
  * answers a question first: a gametype's own script goes before `cast`, whose
  * `playerSpawn` answers for every gametype and would otherwise always win.
  */
-export const SCRIPTS: readonly Script[] = [ffaScript, chaseScript, zombiesScript, castScript, countdownScript];
+export const SCRIPTS: readonly Script[] = [ffaScript, tdmScript, chaseScript, zombiesScript, castScript, countdownScript];
 
 /** The scripts a (gametype, map) pair runs, in `SCRIPTS` order. */
 export function scriptsFor(id: GametypeId, map: string): readonly Script[] {

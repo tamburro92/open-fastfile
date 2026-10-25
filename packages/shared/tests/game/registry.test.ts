@@ -85,20 +85,24 @@ describe("scriptsFor", () => {
 
   it("keeps SCRIPTS order, which is the order two scripts talk in", () => {
     const order = SCRIPTS.map((s) => s.id);
-    expect(scriptsFor("chase", "dome-mw3").map((s) => s.id)).toEqual(order.filter((id) => id !== "zombies" && id !== "ffa"));
-    expect(scriptsFor("zombies", "theater-bo1").map((s) => s.id)).toEqual(order.filter((id) => id !== "chase" && id !== "ffa"));
-    expect(scriptsFor("ffa", "dome-mw3").map((s) => s.id)).toEqual(order.filter((id) => id !== "chase" && id !== "zombies"));
+    expect(scriptsFor("chase", "dome-mw3").map((s) => s.id)).toEqual(order.filter((id) => id !== "zombies" && id !== "ffa" && id !== "tdm"));
+    expect(scriptsFor("zombies", "theater-bo1").map((s) => s.id)).toEqual(order.filter((id) => id !== "chase" && id !== "ffa" && id !== "tdm"));
+    expect(scriptsFor("ffa", "dome-mw3").map((s) => s.id)).toEqual(order.filter((id) => id !== "chase" && id !== "zombies" && id !== "tdm"));
+    expect(scriptsFor("tdm", "dome-mw3").map((s) => s.id)).toEqual(order.filter((id) => id !== "chase" && id !== "zombies" && id !== "ffa"));
     // A gametype's own script goes first, so its `playerSpawn` is asked before `cast`'s.
     expect(order.indexOf("chase")).toBeLessThan(order.indexOf("cast"));
     expect(order.indexOf("zombies")).toBeLessThan(order.indexOf("cast"));
     expect(order.indexOf("ffa")).toBeLessThan(order.indexOf("cast"));
+    expect(order.indexOf("tdm")).toBeLessThan(order.indexOf("cast"));
   });
 
   it("runs a gametype's own script only in that gametype", () => {
     expect(scriptsFor(DEFAULT_GAMETYPE, "dome-mw3").map((s) => s.id)).not.toContain("chase");
     expect(scriptsFor(DEFAULT_GAMETYPE, "dome-mw3").map((s) => s.id)).not.toContain("ffa");
+    expect(scriptsFor(DEFAULT_GAMETYPE, "dome-mw3").map((s) => s.id)).not.toContain("tdm");
     expect(scriptsFor("chase", "dome-mw3").map((s) => s.id)).toContain("chase");
     expect(scriptsFor("ffa", "dome-mw3").map((s) => s.id)).toContain("ffa");
+    expect(scriptsFor("tdm", "dome-mw3").map((s) => s.id)).toContain("tdm");
   });
 
   it("gives every script a unique id, since one addresses another by it", () => {

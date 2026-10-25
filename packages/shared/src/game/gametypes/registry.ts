@@ -16,13 +16,15 @@ import { chaseGametype } from "./chase.js";
 import { defaultGametype, DEFAULT_GAMETYPE } from "./default.js";
 import type { GametypeDecl, GametypeId } from "./declaration.js";
 import { ffaGametype, FFA_GAMETYPE } from "./ffa.js";
+import { tdmGametype, TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "./tdm.js";
 import { zombiesBo2HordeGametype, zombiesGametype } from "./zombies.js";
 
-export { DEFAULT_GAMETYPE, FFA_GAMETYPE };
+export { DEFAULT_GAMETYPE, FFA_GAMETYPE, TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS };
 
 /** Every gametype, by id. */
 export const GAMETYPES: Readonly<Record<GametypeId, GametypeDecl>> = {
   [defaultGametype.id]: defaultGametype,
+  [tdmGametype.id]: tdmGametype,
   [ffaGametype.id]: ffaGametype,
   [chaseGametype.id]: chaseGametype,
   [zombiesGametype.id]: zombiesGametype,
