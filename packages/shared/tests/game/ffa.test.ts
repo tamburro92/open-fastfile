@@ -6,6 +6,7 @@ import { GAMETYPES, gametype } from "../../src/game/gametypes/registry.js";
 import { ffaScript, type FfaState } from "../../src/game/scripts/ffa.js";
 import type { ServerContext } from "../../src/game/context.js";
 import type { PlayerId } from "../../src/net/messages/fields.js";
+import type { Announcement } from "../../src/game/announcement.js";
 
 describe("Free-for-All gametype declaration", () => {
   it("registers in GAMETYPES with expected attributes", () => {
@@ -26,22 +27,26 @@ describe("Free-for-All gametype declaration", () => {
 });
 
 describe("Free-for-All script", () => {
-  function fakeContext(overrides: Partial<ServerContext<any>> = {}): {
+  function fakeContext(overrides: Partial<ServerContext<FfaState>> = {}): {
     ctx: ServerContext<FfaState>;
     counters: Record<string, number>;
     points: Record<string, number>;
-    published: any[];
+    published: Announcement[];
     ended: string[];
     setMemory: (m: FfaState) => void;
+    setNow: (n: number) => void;
   } {
     const counters: Record<string, number> = {};
     const points: Record<string, number> = {};
-    const published: any[] = [];
+    const published: Announcement[] = [];
     const ended: string[] = [];
-    let mem: FfaState = undefined as any;
+    let mem: FfaState = undefined as unknown as FfaState;
+    let currentNow = 0;
 
     const ctx = {
-      now: 0,
+      get now() {
+        return currentNow;
+      },
       gametype: ffaGametype,
       players: [
         { id: "p1", bot: false, points: 0 },
@@ -55,7 +60,7 @@ describe("Free-for-All script", () => {
       addPoints: vi.fn((id: PlayerId, delta: number) => {
         points[id] = (points[id] ?? 0) + delta;
       }),
-      publish: vi.fn((announcement: any) => {
+      publish: vi.fn((announcement: Announcement) => {
         published.push(announcement);
       }),
       endMatch: vi.fn((reason: string) => {
@@ -75,6 +80,9 @@ describe("Free-for-All script", () => {
       ended,
       setMemory: (m: FfaState) => {
         mem = m;
+      },
+      setNow: (n: number) => {
+        currentNow = n;
       },
     };
   }
@@ -143,7 +151,7 @@ describe("Free-for-All script", () => {
   });
 
   it("ticks down the timer and ends match when time expires", () => {
-    const { ctx, counters, published, ended, setMemory } = fakeContext({ scoreLimit: 30, timeLimitSeconds: 10 });
+    const { ctx, counters, published, ended, setMemory, setNow } = fakeContext({ scoreLimit: 30, timeLimitSeconds: 10 });
     const state = ffaScript.server!.init!(ctx) as FfaState;
     setMemory(state);
 
@@ -151,19 +159,19 @@ describe("Free-for-All script", () => {
     ffaScript.server!.playerDeath!(ctx, "p2", "p1", "bullet");
 
     // First tick starts timer:
-    (ctx as any).now = 1;
+    setNow(1);
     ffaScript.server!.tick!(ctx, 1);
     expect(counters.timeLeft).toBe(10);
     expect(ended).toHaveLength(0);
 
     // 5 seconds elapsed:
-    (ctx as any).now = 6;
+    setNow(6);
     ffaScript.server!.tick!(ctx, 1);
     expect(counters.timeLeft).toBe(5);
     expect(ended).toHaveLength(0);
 
     // 10 seconds elapsed (time limit reached):
-    (ctx as any).now = 11;
+    setNow(11);
     ffaScript.server!.tick!(ctx, 1);
     expect(counters.timeLeft).toBe(0);
     expect(ended).toEqual(["timeLimitReached"]);
