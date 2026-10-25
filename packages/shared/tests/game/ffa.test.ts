@@ -135,22 +135,30 @@ describe("Free-for-All script", () => {
     expect(state.kills.get("p1")).toBe(2);
   });
 
-  it("ends the match when score limit is reached", () => {
-    const { ctx, published, ended, setMemory } = fakeContext({ scoreLimit: 2 });
+  it("ends the match when score limit is reached with post-game cooldown", () => {
+    const { ctx, published, ended, setMemory, setNow } = fakeContext({ scoreLimit: 2 });
     const state = ffaScript.server!.init!(ctx) as FfaState;
     setMemory(state);
 
     ffaScript.server!.playerDeath!(ctx, "p2", "p1", "bullet");
+    expect(state.ended).toBe(false);
     expect(ended).toHaveLength(0);
 
+    // Second kill reaches score limit:
     ffaScript.server!.playerDeath!(ctx, "p2", "p1", "bullet");
-    expect(ended).toEqual(["scoreLimitReached"]);
-    expect(published).toEqual([{ what: "ffaWinner", player: "p1", value: 2 }]);
-    expect(state.winner).toBe("p1");
     expect(state.ended).toBe(true);
+    expect(state.winner).toBe("p1");
+    expect(published).toEqual([{ what: "ffaWinner", player: "p1", value: 2 }]);
+    // Post-match period: match has not called endMatch yet so scoreboard stays up:
+    expect(ended).toHaveLength(0);
+
+    // After 5s post-match duration:
+    setNow(5);
+    ffaScript.server!.tick!(ctx, 1);
+    expect(ended).toEqual(["scoreLimitReached"]);
   });
 
-  it("ticks down the timer and ends match when time expires", () => {
+  it("ticks down the timer and ends match when time expires with post-game cooldown", () => {
     const { ctx, counters, published, ended, setMemory, setNow } = fakeContext({ scoreLimit: 30, timeLimitSeconds: 10 });
     const state = ffaScript.server!.init!(ctx) as FfaState;
     setMemory(state);
@@ -170,13 +178,40 @@ describe("Free-for-All script", () => {
     expect(counters.timeLeft).toBe(5);
     expect(ended).toHaveLength(0);
 
-    // 10 seconds elapsed (time limit reached):
+    // 10 seconds elapsed (time limit reached, winner announced):
     setNow(11);
     ffaScript.server!.tick!(ctx, 1);
     expect(counters.timeLeft).toBe(0);
-    expect(ended).toEqual(["timeLimitReached"]);
     expect(published).toEqual([{ what: "ffaTimeUp", player: "p1", value: 1 }]);
     expect(state.winner).toBe("p1");
     expect(state.ended).toBe(true);
+    // Post-game countdown:
+    expect(ended).toHaveLength(0);
+
+    // 5 seconds post-game cooldown passes:
+    setNow(16);
+    ffaScript.server!.tick!(ctx, 1);
+    expect(ended).toEqual(["timeLimitReached"]);
+  });
+
+  it("handles unlimited score limit and unlimited time limit correctly", () => {
+    const { ctx, counters, published, ended, setMemory, setNow } = fakeContext({ scoreLimit: 0, timeLimitSeconds: 0 });
+    const state = ffaScript.server!.init!(ctx) as FfaState;
+    setMemory(state);
+
+    // Player gets 50 kills with scoreLimit: 0:
+    for (let i = 0; i < 50; i++) {
+      ffaScript.server!.playerDeath!(ctx, "p2", "p1", "bullet");
+    }
+    expect(state.ended).toBe(false);
+    expect(ended).toHaveLength(0);
+
+    // Advance 1000 seconds with timeLimitSeconds: 0:
+    setNow(1000);
+    ffaScript.server!.tick!(ctx, 1);
+    expect(counters.timeLeft).toBe(0);
+    expect(state.ended).toBe(false);
+    expect(ended).toHaveLength(0);
+    expect(published).toHaveLength(0);
   });
 });

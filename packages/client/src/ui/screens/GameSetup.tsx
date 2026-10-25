@@ -15,14 +15,18 @@ export type SetupMenu = "setup" | "mode" | "map" | "rules";
  * its own in turn, and the panel shows what is chosen now.
  */
 export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: () => void }) {
-  const { state } = useUi();
+  const { state, commands } = useUi();
   const lobby = state.lobby.value;
   const mode = LOBBY_MODES.find((one) => one.id === lobby?.gametype);
   const world = state.worlds.value.find((one) => one.slug === lobby?.map);
   useEscape(props.onBack);
 
+  const isFfa = lobby?.gametype === "ffa";
   const scoreLimit = lobby?.scoreLimit ?? DEFAULT_FFA_SCORE_LIMIT;
   const timeLimitMin = Math.round((lobby?.timeLimit ?? DEFAULT_FFA_TIME_LIMIT_SECONDS) / 60);
+
+  const scoreLimitLabel = scoreLimit === 0 ? "Unlimited" : `${scoreLimit} Kills`;
+  const timeLimitLabel = lobby?.timeLimit === 0 ? "Unlimited" : `${timeLimitMin} Minutes`;
 
   const items: MenuItem[] = [
     { label: "Game Mode", description: `The rules this match is played by. Now: ${lobby?.mode ?? "none"}.`, onSelect: () => props.onOpen("mode") },
@@ -33,8 +37,15 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
     },
     {
       label: "Game Rules",
-      description: `Score limit: ${scoreLimit} kills, Time limit: ${timeLimitMin} mins.`,
-      onSelect: () => props.onOpen("rules"),
+      description: isFfa
+        ? `Score limit: ${scoreLimitLabel}, Time limit: ${timeLimitLabel}.`
+        : `Configure kill and time limits for Free-for-All.`,
+      onSelect: () => {
+        if (!isFfa) {
+          commands.setLobbyMode("ffa");
+        }
+        props.onOpen("rules");
+      },
     },
     { label: "Back", description: "Back to the lobby.", divider: true, onSelect: props.onBack },
   ];
@@ -49,7 +60,7 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
           <p class={styles.value}>{lobby?.mode ?? "—"}</p>
           {mode && <ModeDetails mode={mode} worlds={state.worlds.value} />}
           <h3 class={`${styles.label} ${styles.gap}`}>Game Rules</h3>
-          <p class={styles.value}>{scoreLimit} Kills / {timeLimitMin} Minutes</p>
+          <p class={styles.value}>{scoreLimitLabel} / {timeLimitLabel}</p>
           <h3 class={`${styles.label} ${styles.gap}`}>Map</h3>
           <p class={styles.value}>{world?.name ?? lobby?.map ?? "None chosen"}</p>
           {world && <MapPreview key={world.slug} world={world} hint={false} />}

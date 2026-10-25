@@ -22,10 +22,15 @@ export function Scoreboard() {
     if (totalSec === undefined) {
       return "—";
     }
+    if (totalSec === 0 && lobby?.timeLimit === 0) {
+      return "UNLIMITED";
+    }
     const m = Math.floor(totalSec / 60);
     const s = Math.floor(totalSec % 60);
     return `${m}:${s < 10 ? "0" : ""}${s}`;
   };
+
+  const limitText = scoreLimit === 0 ? "UNLIMITED" : String(scoreLimit);
 
   return (
     <div class={styles.overlay} data-testid="tactical-scoreboard">
@@ -38,7 +43,7 @@ export function Scoreboard() {
           </div>
           <div class={styles.infoItem}>
             <span>LIMIT:</span>
-            <span class={styles.infoVal}>{scoreLimit}</span>
+            <span class={styles.infoVal}>{limitText}</span>
           </div>
         </div>
       </div>

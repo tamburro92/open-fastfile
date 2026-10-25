@@ -81,6 +81,7 @@ describe("FFA Game Rules UI", () => {
     // Click Score Limit sub-menu
     fireEvent.click(screen.getByRole("button", { name: "Score Limit" }));
     expect(screen.getByRole("button", { name: "15 Kills" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Unlimited" })).toBeTruthy();
 
     // Select 15 Kills
     fireEvent.click(screen.getByRole("button", { name: "15 Kills" }));
@@ -99,6 +100,41 @@ describe("FFA Game Rules UI", () => {
       scoreLimit: DEFAULT_FFA_SCORE_LIMIT,
       timeLimit: 300,
     });
+  });
+
+  it("handles Escape in GameRules subtab to return to GameRules menu rather than exiting", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "lobby";
+      state.lobby.value = makeLobby();
+    });
+
+    fireEvent.click(screen.getByText("Game Setup"));
+    fireEvent.click(screen.getByRole("button", { name: "Game Rules" }));
+    fireEvent.click(screen.getByRole("button", { name: "Score Limit" }));
+
+    // In Score Limit sub-menu:
+    expect(screen.getByRole("button", { name: "30 Kills" })).toBeTruthy();
+
+    // Press Escape: returns to Game Rules menu rather than exiting
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByRole("button", { name: "Score Limit" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Time Limit" })).toBeTruthy();
+  });
+
+  it("automatically switches mode to FFA if Game Rules is clicked when another mode is selected", () => {
+    const { state, commands } = setup();
+    act(() => {
+      state.screen.value = "lobby";
+      state.lobby.value = makeLobby({
+        gametype: "default",
+        mode: "Free Roam",
+      });
+    });
+
+    fireEvent.click(screen.getByText("Game Setup"));
+    fireEvent.click(screen.getByRole("button", { name: "Game Rules" }));
+    expect(commands.setLobbyMode).toHaveBeenCalledWith("ffa");
   });
 });
 
@@ -128,6 +164,31 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     expect(hudWidget.textContent).toContain("12");
     expect(hudWidget.textContent).toContain("/ 30");
     expect(hudWidget.textContent).toContain("7:30");
+  });
+
+  it("renders leader score in FFA HUD when trailing behind 1st place", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.lobby.value = makeLobby({
+        playing: true,
+        scoreLimit: 30,
+        timeLimit: 600,
+      });
+      state.hud.counters.value = [
+        { name: "scoreLimit", value: 30 },
+        { name: "timeLeft", value: 300 },
+      ];
+      state.hud.scoreboard.value = [
+        { id: "2", rank: 1, name: "Price", score: 18, deaths: 2, isSelf: false },
+        { id: "1", rank: 2, name: "Soap", score: 11, deaths: 5, isSelf: true },
+      ];
+    });
+
+    const hudWidget = screen.getByTestId("ffa-hud");
+    expect(hudWidget.textContent).toContain("2ND");
+    expect(hudWidget.textContent).toContain("11");
+    expect(hudWidget.textContent).toContain("LEADER: 18");
   });
 
   it("renders the tactical Scoreboard when opened", () => {
@@ -183,7 +244,7 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     expect(banner.textContent).toContain("Soap reached the score limit!");
   });
 
-  it("renders MatchEnd banner with DEFEAT when someone else wins", () => {
+  it("renders MatchEnd banner with DEFEAT and names the winner when someone else wins", () => {
     const { state } = setup();
     act(() => {
       state.screen.value = "world";
@@ -198,6 +259,6 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     const banner = screen.getByTestId("match-end-banner");
     expect(banner).toBeTruthy();
     expect(banner.textContent).toContain("DEFEAT");
-    expect(banner.textContent).toContain("Price reached the score limit!");
+    expect(banner.textContent).toContain("Winner: Price");
   });
 });

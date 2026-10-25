@@ -12,11 +12,15 @@ import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS, FFA_GAMETYPE }
 import { defineScript, type Script } from "../hooks.js";
 import { castFor } from "../cast.js";
 
+export const POST_MATCH_SECONDS = 5;
+
 export interface FfaState {
   scoreLimit: number;
   timeLimitSeconds: number;
   startedAt: number | null;
   ended: boolean;
+  endedAt: number | null;
+  endReason: string | null;
   winner: PlayerId | null;
   kills: Map<PlayerId, number>;
   deaths: Map<PlayerId, number>;
@@ -37,6 +41,8 @@ export const ffaScript: Script = defineScript<FfaState>({
         timeLimitSeconds,
         startedAt: null,
         ended: false,
+        endedAt: null,
+        endReason: null,
         winner: null,
         kills: new Map(),
         deaths: new Map(),
@@ -70,39 +76,56 @@ export const ffaScript: Script = defineScript<FfaState>({
         // Only kill +1, strictly as requested:
         ctx.addPoints(killer, 1);
 
-        if (!state.ended && nextKills >= state.scoreLimit) {
+        if (!state.ended && state.scoreLimit > 0 && nextKills >= state.scoreLimit) {
           state.ended = true;
+          state.endedAt = ctx.now;
+          state.endReason = "scoreLimitReached";
           state.winner = killer;
           ctx.publish({ what: "ffaWinner", player: killer, value: nextKills });
-          ctx.endMatch("scoreLimitReached");
         }
       }
     },
     tick: (ctx) => {
       const state = ctx.memory;
+
+      // Allow 5-second post-game cooldown for players to view the tactical scoreboard and victory banner:
+      if (state.ended && state.endedAt !== null) {
+        if (ctx.now - state.endedAt >= POST_MATCH_SECONDS) {
+          ctx.endMatch(state.endReason ?? "matchOver");
+        }
+        return;
+      }
+
       if (state.startedAt === null && ctx.players.some((p) => !p.bot)) {
         state.startedAt = ctx.now;
       }
 
       if (state.startedAt !== null && !state.ended) {
-        const elapsed = ctx.now - state.startedAt;
-        const remaining = Math.max(0, state.timeLimitSeconds - elapsed);
-        ctx.setCounter("timeLeft", Math.ceil(remaining));
-        ctx.setCounter("scoreLimit", state.scoreLimit);
+        if (state.timeLimitSeconds > 0) {
+          const elapsed = ctx.now - state.startedAt;
+          const remaining = Math.max(0, state.timeLimitSeconds - elapsed);
+          ctx.setCounter("timeLeft", Math.ceil(remaining));
+          ctx.setCounter("scoreLimit", state.scoreLimit);
 
-        if (remaining <= 0) {
-          state.ended = true;
-          let maxKills = -1;
-          let winner: PlayerId | null = null;
-          for (const [id, kills] of state.kills.entries()) {
-            if (kills > maxKills) {
-              maxKills = kills;
-              winner = id;
+          if (remaining <= 0) {
+            state.ended = true;
+            state.endedAt = ctx.now;
+            state.endReason = "timeLimitReached";
+            let maxKills = -1;
+            let winner: PlayerId | null = null;
+            for (const [id, kills] of state.kills.entries()) {
+              if (kills > maxKills) {
+                maxKills = kills;
+                winner = id;
+              }
             }
+            state.winner = winner;
+            ctx.publish({ what: "ffaTimeUp", player: winner ?? undefined, value: Math.max(0, maxKills) });
           }
-          state.winner = winner;
-          ctx.publish({ what: "ffaTimeUp", player: winner ?? undefined, value: Math.max(0, maxKills) });
-          ctx.endMatch("timeLimitReached");
+        } else {
+          // Unlimited time:
+          ctx.setCounter("timeLeft", 0);
+          ctx.setCounter("scoreLimit", state.scoreLimit);
         }
       }
     },

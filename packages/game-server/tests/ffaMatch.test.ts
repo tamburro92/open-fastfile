@@ -145,6 +145,13 @@ describe("FFA Match in Game Server", () => {
 
     snap1 = match.snapshotFor(p1, snapshot.players);
     expect(snap1.players.find((p) => p.id === p1)?.state.points).toBe(2);
+    // During 5s post-match cooldown, players view the tactical scoreboard:
+    expect(match.ended).toBeUndefined();
+
+    // Advance 5 seconds (300 ticks) through post-match cooldown:
+    for (let i = 0; i < 300; i++) {
+      step();
+    }
     expect(match.ended).toBe("scoreLimitReached");
   });
 });

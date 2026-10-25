@@ -50,18 +50,20 @@ export function FfaHud() {
   const myScore = state.hud.points.value ?? selfEntry?.score ?? 0;
   const myRank = selfEntry?.rank ?? 1;
 
+  const timerText = timeLeft === 0 && lobby?.timeLimit === 0 ? "UNLIMITED" : formatTimer(timeLeft);
+
   return (
     <div class={styles.ffaHud} data-testid="ffa-hud">
       <div class={styles.topRow}>
         <span class={styles.rank}>{ordinal(myRank).toUpperCase()}</span>
         <span class={styles.score}>{myScore}</span>
-        <span class={styles.limit}>/ {scoreLimit}</span>
+        {scoreLimit > 0 && <span class={styles.limit}>/ {scoreLimit}</span>}
       </div>
       <div class={styles.bottomRow}>
-        {leaderEntry && !selfEntry?.isSelf && (
+        {leaderEntry && myRank > 1 && (
           <span class={styles.leader}>LEADER: {leaderEntry.score}</span>
         )}
-        <span class={styles.timer}>TIME: {formatTimer(timeLeft)}</span>
+        <span class={styles.timer}>TIME: {timerText}</span>
       </div>
     </div>
   );

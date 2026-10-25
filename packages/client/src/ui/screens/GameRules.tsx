@@ -5,35 +5,62 @@ import { MenuColumn, MenuPanel, MenuScreen, menuStyles, useEscape, type MenuItem
 import { MenuArt } from "./MenuArt.js";
 import styles from "./GameSetup.module.css";
 
-const SCORE_LIMITS = [5, 10, 15, 20, 25, 30, 40, 50];
+const SCORE_LIMITS = [
+  { value: 0, label: "Unlimited", desc: "No kill limit. Match is decided by the time limit." },
+  { value: 5, label: "5 Kills", desc: "Fast-paced match ending at 5 kills." },
+  { value: 10, label: "10 Kills", desc: "Short match ending at 10 kills." },
+  { value: 15, label: "15 Kills", desc: "Match ends when a player reaches 15 kills." },
+  { value: 20, label: "20 Kills", desc: "Match ends when a player reaches 20 kills." },
+  { value: 25, label: "25 Kills", desc: "Match ends when a player reaches 25 kills." },
+  { value: 30, label: "30 Kills", desc: "Default Call of Duty FFA score limit." },
+  { value: 40, label: "40 Kills", desc: "Extended match ending at 40 kills." },
+  { value: 50, label: "50 Kills", desc: "Endurance deathmatch ending at 50 kills." },
+  { value: 75, label: "75 Kills", desc: "Long deathmatch ending at 75 kills." },
+  { value: 100, label: "100 Kills", desc: "Marathon deathmatch ending at 100 kills." },
+];
+
 const TIME_LIMITS = [
-  { seconds: 150, label: "2.5 Minutes" },
-  { seconds: 300, label: "5 Minutes" },
-  { seconds: 480, label: "8 Minutes" },
-  { seconds: 600, label: "10 Minutes" },
-  { seconds: 900, label: "15 Minutes" },
-  { seconds: 1200, label: "20 Minutes" },
+  { seconds: 0, label: "Unlimited", desc: "No time limit. Match continues until score limit is reached." },
+  { seconds: 150, label: "2.5 Minutes", desc: "Blitz round of 2.5 minutes." },
+  { seconds: 300, label: "5 Minutes", desc: "Quick match of 5 minutes." },
+  { seconds: 480, label: "8 Minutes", desc: "Match duration of 8 minutes." },
+  { seconds: 600, label: "10 Minutes", desc: "Default Call of Duty FFA time limit." },
+  { seconds: 900, label: "15 Minutes", desc: "Longer match duration of 15 minutes." },
+  { seconds: 1200, label: "20 Minutes", desc: "Extended match duration of 20 minutes." },
+  { seconds: 1800, label: "30 Minutes", desc: "Marathon match duration of 30 minutes." },
 ];
 
 export function GameRules(props: { onBack: () => void }) {
   const { state, commands } = useUi();
   const lobby = state.lobby.value;
-  useEscape(props.onBack);
+
+  const [activeTab, setActiveTab] = useState<"menu" | "score" | "time">("menu");
+
+  // Esc goes back to sub-menu first, then exits to Game Setup:
+  useEscape(() => {
+    if (activeTab !== "menu") {
+      setActiveTab("menu");
+    } else {
+      props.onBack();
+    }
+  });
 
   const currentScore = lobby?.scoreLimit ?? DEFAULT_FFA_SCORE_LIMIT;
   const currentTime = lobby?.timeLimit ?? DEFAULT_FFA_TIME_LIMIT_SECONDS;
 
-  const [activeTab, setActiveTab] = useState<"menu" | "score" | "time">("menu");
+  const scoreLabel = (s: number) => (s === 0 ? "Unlimited" : `${s} Kills`);
+  const timeLabel = (sec: number) =>
+    TIME_LIMITS.find((t) => t.seconds === sec)?.label ?? (sec === 0 ? "Unlimited" : `${Math.round(sec / 60)} Minutes`);
 
   if (activeTab === "score") {
     const items: MenuItem[] = [
-      ...SCORE_LIMITS.map((score): MenuItem => ({
-        key: `score-${score}`,
-        label: `${score} Kills`,
-        description: score === DEFAULT_FFA_SCORE_LIMIT ? "Default Call of Duty FFA score limit." : `Match ends when a player reaches ${score} kills.`,
-        current: score === currentScore,
+      ...SCORE_LIMITS.map((opt): MenuItem => ({
+        key: `score-${opt.value}`,
+        label: opt.label,
+        description: opt.desc,
+        current: opt.value === currentScore,
         onSelect: () => {
-          commands.setLobbyRules({ scoreLimit: score, timeLimit: currentTime });
+          commands.setLobbyRules({ scoreLimit: opt.value, timeLimit: currentTime });
           setActiveTab("menu");
         },
       })),
@@ -47,7 +74,7 @@ export function GameRules(props: { onBack: () => void }) {
         <MenuPanel title="Score Limit">
           <div class={styles.body}>
             <p class={styles.desc}>The number of kills required to win the match.</p>
-            <p class={styles.label}>Current: {currentScore} Kills</p>
+            <p class={styles.label}>Current: {scoreLabel(currentScore)}</p>
             <p class={styles.hint}>
               Select<span class={menuStyles.key}>Enter</span>
             </p>
@@ -62,7 +89,7 @@ export function GameRules(props: { onBack: () => void }) {
       ...TIME_LIMITS.map((opt): MenuItem => ({
         key: `time-${opt.seconds}`,
         label: opt.label,
-        description: opt.seconds === DEFAULT_FFA_TIME_LIMIT_SECONDS ? "Default Call of Duty FFA time limit." : `Match ends after ${opt.label}.`,
+        description: opt.desc,
         current: opt.seconds === currentTime,
         onSelect: () => {
           commands.setLobbyRules({ scoreLimit: currentScore, timeLimit: opt.seconds });
@@ -79,9 +106,7 @@ export function GameRules(props: { onBack: () => void }) {
         <MenuPanel title="Time Limit">
           <div class={styles.body}>
             <p class={styles.desc}>The match duration before time expires.</p>
-            <p class={styles.label}>
-              Current: {TIME_LIMITS.find((t) => t.seconds === currentTime)?.label ?? `${Math.round(currentTime / 60)} Minutes`}
-            </p>
+            <p class={styles.label}>Current: {timeLabel(currentTime)}</p>
             <p class={styles.hint}>
               Select<span class={menuStyles.key}>Enter</span>
             </p>
@@ -94,12 +119,12 @@ export function GameRules(props: { onBack: () => void }) {
   const items: MenuItem[] = [
     {
       label: "Score Limit",
-      description: `Current: ${currentScore} kills. Set the kills needed to win.`,
+      description: `Current: ${scoreLabel(currentScore)}. Set the kills needed to win.`,
       onSelect: () => setActiveTab("score"),
     },
     {
       label: "Time Limit",
-      description: `Current: ${TIME_LIMITS.find((t) => t.seconds === currentTime)?.label ?? `${Math.round(currentTime / 60)} Minutes`}. Set match duration.`,
+      description: `Current: ${timeLabel(currentTime)}. Set match duration.`,
       onSelect: () => setActiveTab("time"),
     },
     { label: "Back", description: "Return to Game Setup.", divider: true, onSelect: props.onBack },
@@ -112,11 +137,9 @@ export function GameRules(props: { onBack: () => void }) {
       <MenuPanel title="Game Rules">
         <div class={styles.body}>
           <h3 class={styles.label}>Score Limit</h3>
-          <p class={styles.value}>{currentScore} Kills</p>
+          <p class={styles.value}>{scoreLabel(currentScore)}</p>
           <h3 class={`${styles.label} ${styles.gap}`}>Time Limit</h3>
-          <p class={styles.value}>
-            {TIME_LIMITS.find((t) => t.seconds === currentTime)?.label ?? `${Math.round(currentTime / 60)} Minutes`}
-          </p>
+          <p class={styles.value}>{timeLabel(currentTime)}</p>
         </div>
       </MenuPanel>
     </MenuScreen>
