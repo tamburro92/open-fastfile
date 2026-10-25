@@ -62,7 +62,9 @@ describe("FFA Lobby and Game Rules", () => {
     const hostPlayer = player("host-user");
     const created = await matchmaking.createLobby(hostPlayer.user, MAP);
     expect(created.ok).toBe(true);
-    if (!created.ok) return;
+    if (!created.ok) {
+      return;
+    }
 
     const setRes = matchmaking.setLobbyGametype(hostPlayer.user, created.code, FFA_GAMETYPE);
     expect(setRes).toEqual({ ok: true });
@@ -84,7 +86,9 @@ describe("FFA Lobby and Game Rules", () => {
     const hostPlayer = player("host-user");
     const created = await matchmaking.createLobby(hostPlayer.user, MAP);
     expect(created.ok).toBe(true);
-    if (!created.ok) return;
+    if (!created.ok) {
+      return;
+    }
 
     matchmaking.setLobbyGametype(hostPlayer.user, created.code, FFA_GAMETYPE);
 
@@ -95,7 +99,7 @@ describe("FFA Lobby and Game Rules", () => {
     });
     expect(rulesRes).toEqual({ ok: true });
 
-    let last = hostPlayer.last();
+    const last = hostPlayer.last();
     expect(last?.type).toBe("lobby");
     if (last?.type === "lobby") {
       expect(last.scoreLimit).toBe(15);

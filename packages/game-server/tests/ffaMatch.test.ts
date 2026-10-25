@@ -1,3 +1,5 @@
+import "reflect-metadata";
+
 // Tests for a match running Free-for-All gametype on the game server.
 
 import { describe, expect, it } from "vitest";
