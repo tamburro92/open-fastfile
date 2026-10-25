@@ -46,7 +46,13 @@ export class PauseController {
 
   bind(): void {
     const { input, firstPerson, animator } = this.systems;
-    input.on("toggleView", () => this.setMode(this.viewMode === "walk" ? "dollhouse" : "walk"));
+    input.on("toggleView", () => {
+      if (this.ui.lobby.value?.playing || this.ui.hud.scoreboard.value.length > 0) {
+        this.ui.hud.scoreboardOpen.value = !this.ui.hud.scoreboardOpen.value;
+      } else {
+        this.setMode(this.viewMode === "walk" ? "dollhouse" : "walk");
+      }
+    });
     input.on("menu", () => this.onMenuKey());
     // A pointer that unlocks (Esc, alt-tab) pauses a walk; one that locks resumes it.
     input.onLockChange((locked) => {

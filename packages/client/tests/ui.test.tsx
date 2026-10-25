@@ -35,6 +35,9 @@ function setup() {
     endLobby: vi.fn(),
     playHere: vi.fn(),
     leaveLobby: vi.fn(),
+    setLobbyRules: vi.fn(),
+    setScoreboardOpen: vi.fn(),
+    toggleScoreboard: vi.fn(),
   };
   render(<Root state={state} commands={commands} />);
   return { state, commands };

@@ -178,6 +178,14 @@ export class PlayerSession {
     this.attempt(asked, "could not change the mode");
   }
 
+  setLobbyRules(rules: { scoreLimit?: number; timeLimit?: number }): void {
+    const code = this.ui.lobby.value?.code;
+    if (code === undefined) {
+      return;
+    }
+    this.attempt(this.api.lobbyRules({ code }, rules), "could not update game rules");
+  }
+
   joinLobby(code: string): void {
     this.attempt(this.api.lobbyJoin({ code }), `could not join lobby ${code}`);
   }
@@ -251,6 +259,8 @@ export class PlayerSession {
           map: event.map,
           mode: gametype(event.gametype)?.display ?? event.gametype,
           gametype: event.gametype,
+          scoreLimit: event.scoreLimit,
+          timeLimit: event.timeLimit,
           playing,
           startsAt: event.startsAt,
           players: event.players,

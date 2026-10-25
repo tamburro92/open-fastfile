@@ -1,4 +1,4 @@
-import { LOBBY_MODES } from "../../app/uiBridge.js";
+import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS, LOBBY_MODES } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import { MenuColumn, MenuPanel, MenuScreen, useEscape, type MenuItem } from "../menu/Menu.js";
 import { MapPreview } from "./MapSelect.js";
@@ -7,7 +7,7 @@ import { ModeDetails } from "./ModeSelect.js";
 import styles from "./GameSetup.module.css";
 
 /** Which of Game Setup's menus is showing: its own, or one of the two it opens. */
-export type SetupMenu = "setup" | "mode" | "map";
+export type SetupMenu = "setup" | "mode" | "map" | "rules";
 
 /**
  * A private lobby's Game Setup, a menu of its own: the gametype first, since it
@@ -21,12 +21,20 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
   const world = state.worlds.value.find((one) => one.slug === lobby?.map);
   useEscape(props.onBack);
 
+  const scoreLimit = lobby?.scoreLimit ?? DEFAULT_FFA_SCORE_LIMIT;
+  const timeLimitMin = Math.round((lobby?.timeLimit ?? DEFAULT_FFA_TIME_LIMIT_SECONDS) / 60);
+
   const items: MenuItem[] = [
     { label: "Game Mode", description: `The rules this match is played by. Now: ${lobby?.mode ?? "none"}.`, onSelect: () => props.onOpen("mode") },
     {
       label: "Map",
       description: `Where this match is played. Now: ${world?.name ?? lobby?.map ?? "none chosen"}.`,
       onSelect: () => props.onOpen("map"),
+    },
+    {
+      label: "Game Rules",
+      description: `Score limit: ${scoreLimit} kills, Time limit: ${timeLimitMin} mins.`,
+      onSelect: () => props.onOpen("rules"),
     },
     { label: "Back", description: "Back to the lobby.", divider: true, onSelect: props.onBack },
   ];
@@ -40,6 +48,8 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
           <h3 class={styles.label}>Game Mode</h3>
           <p class={styles.value}>{lobby?.mode ?? "—"}</p>
           {mode && <ModeDetails mode={mode} worlds={state.worlds.value} />}
+          <h3 class={`${styles.label} ${styles.gap}`}>Game Rules</h3>
+          <p class={styles.value}>{scoreLimit} Kills / {timeLimitMin} Minutes</p>
           <h3 class={`${styles.label} ${styles.gap}`}>Map</h3>
           <p class={styles.value}>{world?.name ?? lobby?.map ?? "None chosen"}</p>
           {world && <MapPreview key={world.slug} world={world} hint={false} />}

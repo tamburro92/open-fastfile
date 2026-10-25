@@ -19,6 +19,7 @@ import type { PlayerState } from "@3d/shared/sim/player.js";
 import { DEFAULT_COMBAT_RULES } from "@3d/shared/game/rules.js";
 import type { WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
 import type { GametypeDecl } from "@3d/shared/game/gametypes/declaration.js";
+import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { HudCounter, HudPlayerInfo, KillFeedEntry, UiState } from "./uiBridge.js";
 
 /** Lines the feed keeps, and how long one stays. The games' own figures, near enough. */
@@ -45,6 +46,8 @@ export class Hud {
   private walking = false;
   /** The feed, newest first, with the moment each line arrived: the signal carries lines and not clocks. */
   private readonly lines: { line: KillFeedEntry; at: number }[] = [];
+  /** Player death tallies for the scoreboard. */
+  private readonly playerDeaths = new Map<PlayerId, number>();
 
   constructor(
     private readonly ui: UiState,
@@ -103,7 +106,7 @@ export class Hud {
    * true, and a kill feed that silently swallows a repeat looks exactly like one
    * that never had a repeat to swallow.
    */
-  snapshot(self: PlayerState | undefined, events: readonly GameEvent[], now: number): void {
+  snapshot(self: PlayerState | undefined, events: readonly GameEvent[], now: number, others: readonly PlayerSnapshot[] = []): void {
     if (self) {
       this.publish(self);
       const points = this.keepsPoints ? self.points : null;
@@ -120,13 +123,56 @@ export class Hud {
           this.ui.hud.hit.value = { id: event.id, lethal: event.lethal };
           break;
         case "death":
+          this.playerDeaths.set(event.victim, (this.playerDeaths.get(event.victim) ?? 0) + 1);
           this.addKill(event, now);
           break;
         case "spawn":
           break; // the HUD has nothing to say about a body on the floor
+        case "announce":
+          if (event.what === "ffaWinner") {
+            this.ui.hud.matchWinner.value = event.player ? this.nameOf(event.player) : null;
+            this.ui.hud.matchEndReason.value = "Score Limit Reached";
+          } else if (event.what === "ffaTimeUp") {
+            this.ui.hud.matchWinner.value = event.player ? this.nameOf(event.player) : null;
+            this.ui.hud.matchEndReason.value = "Time Limit Reached";
+          }
+          break;
       }
     }
+    this.updateScoreboard(self, others);
     this.expire(now);
+  }
+
+  /** Update the tactical scoreboard ranking. */
+  private updateScoreboard(self: PlayerState | undefined, others: readonly PlayerSnapshot[]): void {
+    if (!this.connected) {
+      return;
+    }
+    const entries: { id: string; name: string; score: number; deaths: number; isSelf: boolean }[] = [];
+    if (self && this.me !== undefined) {
+      entries.push({
+        id: this.me,
+        name: this.nameOf(this.me),
+        score: self.points,
+        deaths: this.playerDeaths.get(this.me) ?? 0,
+        isSelf: true,
+      });
+    }
+    for (const peer of others) {
+      entries.push({
+        id: peer.id,
+        name: this.nameOf(peer.id),
+        score: peer.state.points,
+        deaths: this.playerDeaths.get(peer.id) ?? 0,
+        isSelf: false,
+      });
+    }
+
+    entries.sort((a, b) => b.score - a.score || a.deaths - b.deaths);
+    this.ui.hud.scoreboard.value = entries.map((entry, idx) => ({
+      rank: idx + 1,
+      ...entry,
+    }));
   }
 
   /**
@@ -152,6 +198,11 @@ export class Hud {
     this.noCountdown = false;
     this.counterNames = [];
     this.keepsPoints = false;
+    this.playerDeaths.clear();
+    this.ui.hud.scoreboard.value = [];
+    this.ui.hud.scoreboardOpen.value = false;
+    this.ui.hud.matchWinner.value = null;
+    this.ui.hud.matchEndReason.value = null;
     this.ui.hud.points.value = null;
     this.ui.hud.counters.value = [];
     this.lines.length = 0;

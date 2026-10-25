@@ -299,7 +299,7 @@ export class MatchController {
     // Once per server tick, never per frame: a corpse's step count is
     // `tick - spawnTick` and every end has to arrive at the same number.
     corpses.step(tick);
-    hud.snapshot(self, events, performance.now());
+    hud.snapshot(self, events, performance.now(), others);
     hud.counters(counters);
     // The menu's marks: a waiting class is the one in hand once they are up.
     // The weapons themselves arrive in `self` (`PlayerState.armed`).

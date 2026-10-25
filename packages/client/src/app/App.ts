@@ -272,6 +272,13 @@ export class App {
       },
       setLobbyMap: (map) => playerSession.setLobbyMap(map),
       setLobbyMode: (id) => playerSession.setLobbyMode(id),
+      setLobbyRules: (rules) => playerSession.setLobbyRules(rules),
+      setScoreboardOpen: (open) => {
+        this.ui.hud.scoreboardOpen.value = open;
+      },
+      toggleScoreboard: () => {
+        this.ui.hud.scoreboardOpen.value = !this.ui.hud.scoreboardOpen.value;
+      },
       joinLobby: (code) => {
         screens.show("lobby");
         playerSession.joinLobby(code);

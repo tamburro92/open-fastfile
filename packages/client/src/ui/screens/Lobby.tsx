@@ -3,6 +3,7 @@ import type { WorldEntry } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import { MenuColumn, MenuScreen, MenuPanel, menuStyles, useEscape, type MenuItem } from "../menu/Menu.js";
 import { GameSetup, type SetupMenu } from "./GameSetup.js";
+import { GameRules } from "./GameRules.js";
 import { MapSelect } from "./MapSelect.js";
 import { MenuArt } from "./MenuArt.js";
 import { ModeSelect } from "./ModeSelect.js";
@@ -33,6 +34,8 @@ export function Lobby() {
       return <ModeSelect onBack={() => setMenu("setup")} />;
     case "map":
       return <MapSelect onBack={() => setMenu("setup")} />;
+    case "rules":
+      return <GameRules onBack={() => setMenu("setup")} />;
     case null:
       return <LobbyMenu onSetup={() => setMenu("setup")} />;
   }

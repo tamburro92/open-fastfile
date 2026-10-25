@@ -1,0 +1,51 @@
+.bannerContainer {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+  z-index: 120;
+  pointer-events: none;
+  animation: bannerDrop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes bannerDrop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -20px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.victory {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #38ef7d;
+  text-shadow: 0 0 24px rgba(56, 239, 125, 0.6), 0 4px 10px rgba(0, 0, 0, 0.8);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.defeat {
+  font-size: 3.5rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  color: #ef4444;
+  text-shadow: 0 0 24px rgba(239, 68, 68, 0.6), 0 4px 10px rgba(0, 0, 0, 0.8);
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.reason {
+  margin-top: 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #e2e8f0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
+}

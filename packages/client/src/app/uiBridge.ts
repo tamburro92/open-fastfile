@@ -9,10 +9,11 @@ import { DEFAULT_SENSITIVITY, SENSITIVITY_RANGE } from "../input/sensitivity.js"
 import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel } from "../engine/audio/mixer.js";
 import { defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout } from "@3d/shared/sim/loadout.js";
 import { CATEGORY_LABEL, CATEGORY_SLOT, WEAPON_CATEGORIES, type WeaponCategory } from "@3d/shared/sim/weaponCategory.js";
+import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
 
 export type { Loadout, WeaponCategory };
 /** Re-exported through the bridge, which is the only module src/ui/ may import from the rest of the codebase. */
-export { CATEGORY_LABEL, CATEGORY_SLOT, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, WEAPON_CATEGORIES };
+export { CATEGORY_LABEL, CATEGORY_SLOT, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, WEAPON_CATEGORIES, DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS };
 
 export { LOBBY_MODES, type LobbyMode, type MenuBackdrop } from "./lobbyModes.js";
 
@@ -91,6 +92,10 @@ export interface LobbyInfo {
   mode: string;
   /** The same, by id: one of `LOBBY_MODES`, or an id this build does not know. */
   gametype: string;
+  /** Custom score limit in kills, or undefined for the mode's default. */
+  scoreLimit?: number;
+  /** Custom time limit in seconds, or undefined for the mode's default. */
+  timeLimit?: number;
   /** Whether its game is running — the player is in the world, not here. */
   playing: boolean;
   /**
@@ -247,6 +252,16 @@ export interface UseFocusInfo {
   thing: { kind: "trigger" | "solid"; index: number; tags: readonly string[] };
 }
 
+/** One player's entry on the tactical scoreboard. */
+export interface ScoreboardEntry {
+  rank: number;
+  id: string;
+  name: string;
+  score: number;
+  deaths: number;
+  isSelf: boolean;
+}
+
 export interface UiState {
   screen: Signal<Screen>;
   worlds: Signal<WorldEntry[]>;
@@ -346,6 +361,14 @@ export interface UiState {
     points: Signal<number | null>;
     /** The gametype's counters, in its declaration's order; empty where it declares none. */
     counters: Signal<HudCounter[]>;
+    /** Whether the tactical scoreboard overlay is showing (Tab key). */
+    scoreboardOpen: Signal<boolean>;
+    /** Real-time ranked player standings. */
+    scoreboard: Signal<ScoreboardEntry[]>;
+    /** Winner name/id when the match concludes, or null while active. */
+    matchWinner: Signal<string | null>;
+    /** Why the match ended ("scoreLimitReached", "timeLimitReached", etc.). */
+    matchEndReason: Signal<string | null>;
   };
   debug: {
     /** Whether dev panels are available at all (development builds). */
@@ -407,6 +430,11 @@ export interface UiCommands {
    * the gametype is not played on, the map moves to the first one it is.
    */
   setLobbyMode(id: string): void;
+  /** Choose game rules (score limit, time limit). The host only; the api refuses anyone else. */
+  setLobbyRules(rules: { scoreLimit?: number; timeLimit?: number }): void;
+  /** Open or close the in-game scoreboard. */
+  setScoreboardOpen(open: boolean): void;
+  toggleScoreboard(): void;
   joinLobby(code: string): void;
   /** Arm the countdown. The host only; the api refuses anyone else. */
   startLobby(): void;
@@ -458,6 +486,10 @@ export function createUiState(): UiState {
       use: signal(null),
       points: signal(null),
       counters: signal<HudCounter[]>([]),
+      scoreboardOpen: signal(false),
+      scoreboard: signal<ScoreboardEntry[]>([]),
+      matchWinner: signal<string | null>(null),
+      matchEndReason: signal<string | null>(null),
     },
     debug: {
       enabled: signal(false),

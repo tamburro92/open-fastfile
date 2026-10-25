@@ -1,8 +1,11 @@
 import { useUi } from "../context.js";
+import { FfaHud } from "./FfaHud.js";
 import styles from "./HudLayer.module.css";
 import { KillFeed } from "./KillFeed.js";
+import { MatchEnd } from "./MatchEnd.js";
 import { Minimap } from "./Minimap.js";
 import { Reticle } from "./Reticle.js";
+import { Scoreboard } from "./Scoreboard.js";
 import { UsePrompt } from "./UsePrompt.js";
 import { Counters, Points } from "./Tally.js";
 import { Ammo, Health } from "./Vitals.js";
@@ -26,6 +29,7 @@ export function HudLayer() {
         <KillFeed />
       </div>
       <div class={styles.bottomLeft} data-region="bottom-left">
+        <FfaHud />
         <Counters />
         <Health />
       </div>
@@ -36,6 +40,8 @@ export function HudLayer() {
       </div>
       <Reticle />
       <UsePrompt />
+      <Scoreboard />
+      <MatchEnd />
       <Toast />
     </div>
   );

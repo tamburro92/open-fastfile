@@ -1,0 +1,81 @@
+import { useUi } from "../context.js";
+import styles from "./Scoreboard.module.css";
+
+export function Scoreboard() {
+  const { state } = useUi();
+  const open = state.hud.scoreboardOpen.value;
+  const winner = state.hud.matchWinner.value;
+
+  // Show if Tab is pressed/open or if the match has concluded
+  if (!open && !winner) {
+    return null;
+  }
+
+  const entries = state.hud.scoreboard.value;
+  const lobby = state.lobby.value;
+  const counters = state.hud.counters.value;
+
+  const scoreLimit = counters.find((c) => c.name === "scoreLimit")?.value ?? lobby?.scoreLimit ?? 30;
+  const timeLeftSec = counters.find((c) => c.name === "timeLeft")?.value;
+
+  const formatTimer = (totalSec?: number) => {
+    if (totalSec === undefined) {
+      return "—";
+    }
+    const m = Math.floor(totalSec / 60);
+    const s = Math.floor(totalSec % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  };
+
+  return (
+    <div class={styles.overlay} data-testid="tactical-scoreboard">
+      <div class={styles.header}>
+        <h2 class={styles.modeTitle}>{lobby?.mode ?? "Free-for-All"}</h2>
+        <div class={styles.matchInfo}>
+          <div class={styles.infoItem}>
+            <span>TIME:</span>
+            <span class={styles.infoVal}>{formatTimer(timeLeftSec)}</span>
+          </div>
+          <div class={styles.infoItem}>
+            <span>LIMIT:</span>
+            <span class={styles.infoVal}>{scoreLimit}</span>
+          </div>
+        </div>
+      </div>
+
+      <table class={styles.table}>
+        <thead>
+          <tr>
+            <th class={styles.th}>POS</th>
+            <th class={styles.th}>PLAYER</th>
+            <th class={`${styles.th} ${styles.thRight}`}>SCORE</th>
+            <th class={`${styles.th} ${styles.thRight}`}>DEATHS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.length === 0 ? (
+            <tr class={styles.row}>
+              <td class={styles.td} colspan={4} style={{ textAlign: "center", color: "#64748b" }}>
+                Waiting for players...
+              </td>
+            </tr>
+          ) : (
+            entries.map((entry) => (
+              <tr key={entry.id} class={`${styles.row} ${entry.isSelf ? styles.selfRow : ""}`}>
+                <td class={`${styles.td} ${styles.rank}`}>#{entry.rank}</td>
+                <td class={`${styles.td} ${styles.name}`}>
+                  {entry.name}
+                  {entry.isSelf && <span class={styles.youBadge}>YOU</span>}
+                </td>
+                <td class={`${styles.td} ${styles.tdRight}`}>{entry.score}</td>
+                <td class={`${styles.td} ${styles.tdRight}`}>{entry.deaths}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+
+      <div class={styles.footer}>Call of Duty Tactical Scoreboard • Tab to Toggle</div>
+    </div>
+  );
+}
