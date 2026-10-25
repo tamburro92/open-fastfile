@@ -22,8 +22,9 @@
 // `tick()` owns no timer: MatchmakingLoop (matchmaking/loop.ts) drives it, and a
 // test drives it by hand. Nothing in here can hold a process open.
 
-import { admitsMap, DEFAULT_GAMETYPE, FFA_GAMETYPE, gametype } from "@3d/shared/game/gametypes/registry.js";
+import { admitsMap, DEFAULT_GAMETYPE, FFA_GAMETYPE, TDM_GAMETYPE, gametype } from "@3d/shared/game/gametypes/registry.js";
 import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
+import { DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/tdm.js";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { inject, singleton } from "tsyringe";
@@ -202,8 +203,15 @@ export class Matchmaker {
       }
       lobby.gametype = decl.id;
       if (decl.id === FFA_GAMETYPE) {
-        lobby.scoreLimit ??= DEFAULT_FFA_SCORE_LIMIT;
+        if (lobby.scoreLimit === undefined || lobby.scoreLimit === DEFAULT_TDM_SCORE_LIMIT) {
+          lobby.scoreLimit = DEFAULT_FFA_SCORE_LIMIT;
+        }
         lobby.timeLimit ??= DEFAULT_FFA_TIME_LIMIT_SECONDS;
+      } else if (decl.id === TDM_GAMETYPE) {
+        if (lobby.scoreLimit === undefined || lobby.scoreLimit === DEFAULT_FFA_SCORE_LIMIT) {
+          lobby.scoreLimit = DEFAULT_TDM_SCORE_LIMIT;
+        }
+        lobby.timeLimit ??= DEFAULT_TDM_TIME_LIMIT_SECONDS;
       }
       this.publishLobby(lobby);
       return { ok: true };
