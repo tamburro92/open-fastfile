@@ -48,6 +48,10 @@ export interface Lobby {
    * opens rather than null until someone chooses.
    */
   gametype: GametypeId;
+  /** Custom score limit, or undefined for the mode's default. */
+  scoreLimit?: number;
+  /** Custom time limit (duration) in seconds, or undefined for the mode's default. */
+  timeLimit?: number;
   status: LobbyStatus;
   /** Absolute unix ms. Set means counting down. */
   startsAt: number | null;

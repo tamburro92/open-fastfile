@@ -22,7 +22,8 @@
 // `tick()` owns no timer: MatchmakingLoop (matchmaking/loop.ts) drives it, and a
 // test drives it by hand. Nothing in here can hold a process open.
 
-import { admitsMap, DEFAULT_GAMETYPE, gametype } from "@3d/shared/game/gametypes/registry.js";
+import { admitsMap, DEFAULT_GAMETYPE, FFA_GAMETYPE, gametype } from "@3d/shared/game/gametypes/registry.js";
+import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { inject, singleton } from "tsyringe";
@@ -200,6 +201,23 @@ export class Matchmaker {
         return { ok: false, why: "that gametype is not played on that map" };
       }
       lobby.gametype = decl.id;
+      if (decl.id === FFA_GAMETYPE) {
+        lobby.scoreLimit ??= DEFAULT_FFA_SCORE_LIMIT;
+        lobby.timeLimit ??= DEFAULT_FFA_TIME_LIMIT_SECONDS;
+      }
+      this.publishLobby(lobby);
+      return { ok: true };
+    });
+  }
+
+  setLobbyRules(user: SessionUser, code: string, rules: { scoreLimit?: number; timeLimit?: number }): Done {
+    return this.hostCommand(user, code, (lobby) => {
+      if (rules.scoreLimit !== undefined) {
+        lobby.scoreLimit = rules.scoreLimit;
+      }
+      if (rules.timeLimit !== undefined) {
+        lobby.timeLimit = rules.timeLimit;
+      }
       this.publishLobby(lobby);
       return { ok: true };
     });
@@ -402,6 +420,8 @@ export class Matchmaker {
       visibility: lobby.visibility,
       map: lobby.map,
       gametype: lobby.gametype,
+      scoreLimit: lobby.scoreLimit,
+      timeLimit: lobby.timeLimit,
       status: lobby.status,
       startsAt: lobby.startsAt,
       players: lobby.users.map((member): LobbyPlayer => ({ id: member.id, username: member.username, host: member.userId === lobby.hostUserId })),
@@ -448,8 +468,9 @@ export class Matchmaker {
       gameId: lobby.gameId!,
       map: lobby.map!,
       gametype: lobby.gametype,
+      scoreLimit: lobby.scoreLimit,
       maxPlayers: this.config.lobbySize,
-      durationSeconds: this.config.gameDurationSeconds,
+      durationSeconds: lobby.timeLimit ?? this.config.gameDurationSeconds,
       players: lobby.users.map((member) => ({
         id: member.id,
         authorizationKey: member.authorizationKey,

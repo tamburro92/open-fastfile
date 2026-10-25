@@ -16,6 +16,7 @@ import {
   lobbyJoinRoute,
   lobbyLeaveRoute,
   lobbyGametypeRoute,
+  lobbyRulesRoute,
   lobbyMapRoute,
   lobbyStartRoute,
   queueJoinRoute,
@@ -120,6 +121,11 @@ export class MatchmakingRoutes implements RouteGroup {
 
     this.mount.route(app, lobbyGametypeRoute, ({ user, params: { code }, body }) => {
       const done = this.matchmaker.setLobbyGametype(user!, code, body.gametype);
+      return done.ok ? ok : refuse(done.why);
+    });
+
+    this.mount.route(app, lobbyRulesRoute, ({ user, params: { code }, body }) => {
+      const done = this.matchmaker.setLobbyRules(user!, code, body);
       return done.ok ? ok : refuse(done.why);
     });
 

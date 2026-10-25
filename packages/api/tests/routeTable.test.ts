@@ -23,6 +23,7 @@ import {
   lobbyJoinRoute,
   lobbyLeaveRoute,
   lobbyGametypeRoute,
+  lobbyRulesRoute,
   lobbyMapRoute,
   lobbyStartRoute,
   queueJoinRoute,
@@ -119,6 +120,10 @@ const CASES: { [K in keyof ApiRoutes]: { url: string; init?: RequestInit } } = {
   lobbyGametype: {
     url: routePath(lobbyGametypeRoute, { code }),
     init: post({ headers: { "Content-Type": "application/json", ...session.headers }, body: JSON.stringify({ gametype: DEFAULT_GAMETYPE }) }),
+  },
+  lobbyRules: {
+    url: routePath(lobbyRulesRoute, { code }),
+    init: post({ headers: { "Content-Type": "application/json", ...session.headers }, body: JSON.stringify({ scoreLimit: 30, timeLimit: 600 }) }),
   },
   lobbyStart: { url: routePath(lobbyStartRoute, { code }), init: post(session) },
   // After lobbyStart, which is what gives it a countdown to stop.
