@@ -6,6 +6,9 @@ import type { InputMessage } from "@3d/shared/net/messages/input.js";
 import type { ActorId } from "@3d/shared/game/actors/actor.js";
 import { shotDamage, type CombatRules } from "@3d/shared/game/rules.js";
 import { couldHitBody } from "@3d/shared/rig/hitboxes.js";
+import { rayBox } from "@3d/shared/sim/hit.js";
+import { RADIUS, STAND_HEIGHT } from "@3d/shared/sim/movementState.js";
+import { CROUCH_HEIGHT, PRONE_HEIGHT } from "@3d/shared/sim/stance.js";
 import type { CapsuleWorld, RayHit, Vec3 } from "@3d/shared/sim/capsule.js";
 import type { HitLocation } from "@3d/shared/sim/hitLocations.js";
 import { createMovement, type MovementState } from "@3d/shared/sim/movement.js";
@@ -81,6 +84,8 @@ export interface Heat {
   ads: number;
 }
 
+const IDENTITY: readonly number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
+
 export class Shots {
   /** Every shot this tick's replay fired, in the order they left. Cleared at the top of each tick. */
   readonly fired: FiredShot[] = [];
@@ -91,6 +96,8 @@ export class Shots {
   private readonly rewound: MovementState = createMovement({ x: 0, y: 0, z: 0 }, 0, 0);
   private readonly mapHit: RayHit = { distance: 0, normal: { x: 0, y: 0, z: 0 }, kind: "map", surface: DEFAULT_SURFACE };
   private readonly shotEnd: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly boxMin: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly boxMax: Vec3 = { x: 0, y: 0, z: 0 };
   /** Where a shot leaves along, refilled per round: the shooter's intent plus the kick. */
   private readonly shotAim: Aim = { yaw: 0, pitch: 0 };
   private readonly shotDirection: Vec3 = { x: 0, y: 0, z: 0 };
@@ -239,7 +246,7 @@ export class Shots {
       // every one of their shots would stop on their own chest. A body waiting to
       // respawn is not there to be shot either — it would stop a round meant for
       // whoever is behind it.
-      if (member.id === shooter || member.body === undefined || member.player.dead) {
+      if (member.id === shooter || member.player.dead) {
         continue;
       }
       const rewound = this.rewinder.sample(member.history, at, this.rewound);
@@ -250,18 +257,36 @@ export class Shots {
       // The broad phase, against where a pose can reach rather than a pose — posing
       // is the expensive half and almost nobody survives this. The stance decides
       // the reach: a lying body is not inside the capsule that walks.
-      if (couldHitBody(from, to, rewound) === null) {
+      const hitFraction = couldHitBody(from, to, rewound);
+      if (hitFraction === null) {
         continue;
       }
 
-      // The weapon in their hands now rather than the one they held at the moment
-      // rewound to, which is what the client draws a peer with as well: the pose
-      // needs a weapon's state and the history keeps only a `MovementState`.
-      poseBody(member.body, rewound, member.player.weapon?.data ?? null);
-      const hit = member.body.boxes.trace(from, to);
-      if (hit !== null && hit.fraction < nearest) {
-        nearest = hit.fraction;
-        best = { kind: "player", id: member.id, bone: hit.bone, location: hit.location, distance: hit.fraction * range };
+      if (member.body !== undefined) {
+        // The weapon in their hands now rather than the one they held at the moment
+        // rewound to, which is what the client draws a peer with as well: the pose
+        // needs a weapon's state and the history keeps only a `MovementState`.
+        poseBody(member.body, rewound, member.player.weapon?.data ?? null);
+        const hit = member.body.boxes.trace(from, to);
+        if (hit !== null && hit.fraction < nearest) {
+          nearest = hit.fraction;
+          best = { kind: "player", id: member.id, bone: hit.bone, location: hit.location, distance: hit.fraction * range };
+        }
+      } else {
+        // Capsule fallback when a player has no loaded skeletal body (e.g. missing asset or stand-in):
+        const { feet, stance } = rewound;
+        const h = stance.kind === "prone" ? PRONE_HEIGHT : stance.kind === "crouch" ? CROUCH_HEIGHT : STAND_HEIGHT;
+        this.boxMin.x = feet.x - RADIUS;
+        this.boxMin.y = feet.y;
+        this.boxMin.z = feet.z - RADIUS;
+        this.boxMax.x = feet.x + RADIUS;
+        this.boxMax.y = feet.y + h;
+        this.boxMax.z = feet.z + RADIUS;
+        const fraction = rayBox(from, to, IDENTITY, this.boxMin, this.boxMax);
+        if (fraction !== null && fraction < nearest) {
+          nearest = fraction;
+          best = { kind: "player", id: member.id, bone: "", location: "torsoUpper", distance: fraction * range };
+        }
       }
     }
     if (this.actors.size > 0) {

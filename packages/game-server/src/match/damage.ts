@@ -239,7 +239,8 @@ export class Damage {
       return true;
     }
     const shooter = this.roster.get(by)?.player.side ?? null;
-    return shooter === null || shooter !== (this.roster.get(id)?.player.side ?? null);
+    const victim = this.roster.get(id)?.player.side ?? null;
+    return shooter === null || victim === null || shooter !== victim;
   }
 
   /**
