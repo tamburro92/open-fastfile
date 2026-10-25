@@ -15,7 +15,7 @@ export const DEFAULT_FFA_TIME_LIMIT_SECONDS = 600;
 
 export const ffaGametype: GametypeDecl = {
   id: FFA_GAMETYPE,
-  display: "Free-for-All",
+  display: "Deathmatch",
   description: "Individual deathmatch. Eliminate opponents to reach the score limit before time expires.",
   // Empty means free-for-all: every player is their own side, and nothing asks
   // the map for a team's spawns.

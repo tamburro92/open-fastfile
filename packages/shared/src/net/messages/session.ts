@@ -162,6 +162,23 @@ export interface ClassChosenMessage {
 export const classChosenMessage = struct({ index: uint(3), timing: enumOf(CLASS_TIMINGS) as Codec<ClassTiming> }) satisfies Codec<ClassChosenMessage>;
 
 /**
+ * Team to play on in a team gametype (e.g. "allies", "axis", or "auto").
+ * In Call of Duty, players choose team on entry or switch teams from the pause menu.
+ */
+export interface ChooseTeamMessage {
+  team: string;
+}
+
+export const chooseTeamMessage = struct({ team: str(16) }) satisfies Codec<ChooseTeamMessage>;
+
+/** The server's answer to `chooseTeam`: the confirmed team assigned to the player. */
+export interface TeamChosenMessage {
+  team: string;
+}
+
+export const teamChosenMessage = struct({ team: str(16) }) satisfies Codec<TeamChosenMessage>;
+
+/**
  * The join will not be answered, and why. Costs one datagram and saves the
  * client a ten-second silence it cannot tell from a dead network — a bad key, a
  * full game and an unknown game all look identical without it.

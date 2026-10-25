@@ -86,7 +86,7 @@ function game(id: string, scripts: Script[] = []): GameInstance {
   });
   // Spawned here rather than by a class choice: what is under test is the tick.
   match.join(PLAYER);
-  return { id, map: "flat", worldHash: "w", match, roster: new Map(), createdAt: 0, durationMs: 600_000, joined: true, choosing: new Set() };
+  return { id, map: "flat", worldHash: "w", match, roster: new Map(), createdAt: 0, durationMs: 600_000, joined: true, choosing: new Set(), chosenTeam: new Map() };
 }
 
 /** A geckos channel as `NetServer` uses one: a raw handler to feed, and what it was sent. */

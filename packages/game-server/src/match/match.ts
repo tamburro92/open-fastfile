@@ -300,8 +300,38 @@ export class Match {
    * different gun in their hands. A player with no class, or one naming nothing
    * this instance has, falls back to the gametype's default weapon.
    */
-  join(id: PlayerId, loadout?: Loadout, engine = "", index?: number): ClassTiming {
-    return this.admit(id, loadout, engine, index, undefined, undefined);
+  join(id: PlayerId, loadout?: Loadout, engine = "", index?: number, side?: number): ClassTiming {
+    return this.admit(id, loadout, engine, index, side, undefined);
+  }
+
+  /** Change a player's team in a team match. */
+  setTeam(id: PlayerId, team: string): void {
+    this.roster.setTeam(id, team);
+  }
+
+  /** Side index recommended by the balancing algorithm for the next player. */
+  sideFor(): number | null {
+    return this.roster.sideFor();
+  }
+
+  /** Team name of a player, if in a team match. */
+  teamOf(id: PlayerId): TeamId | undefined {
+    return this.roster.teamOf(id);
+  }
+
+  /** Eliminate a player when changing team while alive (Call of Duty standard behavior). */
+  killForTeamSwitch(id: PlayerId): void {
+    const member = this.roster.get(id);
+    if (!member || member.player.dead) {
+      return;
+    }
+    this.damage.hurt({
+      id,
+      amount: 9999,
+      by: null,
+      cause: "script",
+      certain: true,
+    });
   }
 
   /** Add a bot, and return the id it was given (`MatchBots.add`). */

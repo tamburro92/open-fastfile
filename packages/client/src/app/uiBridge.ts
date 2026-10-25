@@ -59,6 +59,7 @@ export type Screen = "auth" | "menu" | "lobby" | "classes" | "loading" | "world"
  * takes effect at their next spawn.
  */
 export type ClassChoice = "spawn" | "change";
+export type TeamChoice = "spawn" | "change";
 
 /** One attachment a weapon offers, named for a player rather than for the game's localisation table. */
 export interface UiAttachment {
@@ -296,6 +297,12 @@ export interface UiState {
   selectedLoadout: Signal<number>;
   /** null: the in-match class menu is not up. */
   classChoice: Signal<ClassChoice | null>;
+  /** null: the in-match team menu is not up. */
+  teamChoice: Signal<TeamChoice | null>;
+  /** Teams in this match (e.g. ["allies", "axis"]). */
+  teams: Signal<readonly string[]>;
+  /** The player's active team ("allies", "axis", or null). */
+  currentTeam: Signal<string | null>;
   /** The class this player is playing in a match, by index; null outside one, or before they have chosen. */
   playingClass: Signal<number | null>;
   /** A class chosen mid-life, waiting for the next spawn; null when there is none. */
@@ -428,6 +435,11 @@ export interface UiCommands {
   /** In a match, from the pause menu: open or close the class menu. */
   openClassChoice(): void;
   closeClassChoice(): void;
+  /** In a match: choose a team ("allies", "axis", "auto"). */
+  chooseTeam(team: string): void;
+  /** In a match, from the pause menu: open or close the team menu. */
+  openTeamChoice(): void;
+  closeTeamChoice(): void;
 
   signIn(username: string, password: string): void;
   register(username: string, password: string): void;
@@ -471,6 +483,9 @@ export function createUiState(): UiState {
     loadouts: signal<Loadout[]>(defaultLoadouts()),
     selectedLoadout: signal(0),
     classChoice: signal(null),
+    teamChoice: signal(null),
+    teams: signal<readonly string[]>([]),
+    currentTeam: signal(null),
     playingClass: signal(null),
     pendingClass: signal(null),
     canChooseClass: signal(false),

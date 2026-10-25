@@ -141,6 +141,27 @@ export class MatchController {
     }
   }
 
+  /** A team, chosen in the team menu. In Call of Duty: on join or from the pause menu. */
+  chooseTeam(team: string): void {
+    const { ui } = this.parts;
+    if (!this.connection) {
+      return;
+    }
+    this.connection.chooseTeam(team);
+    ui.currentTeam.value = team;
+    ui.teamChoice.value = null;
+    // After picking a team, proceed to Choose Class:
+    ui.classChoice.value = "spawn";
+  }
+
+  openTeamChoice(): void {
+    this.parts.ui.teamChoice.value = "change";
+  }
+
+  closeTeamChoice(): void {
+    this.parts.ui.teamChoice.value = null;
+  }
+
   /** The scripts' view of the match as of the newest snapshot: the clock, the roster and which of them is us. */
   surroundings(session: WorldSession, world: NonNullable<WorldSession["world"]>): ScriptSurroundings {
     const { players, tick, values } = this.roster;
@@ -202,6 +223,10 @@ export class MatchController {
           // where they fell on this end too, so the prediction stops where the
           // server's replay does (`FallOut`).
           firstPerson.player.setFallOut("die");
+          const gametypeDecl = gametype(joined.gametype);
+          const hasTeams = (gametypeDecl?.teams?.length ?? 0) > 0;
+          ui.teams.value = gametypeDecl?.teams ?? [];
+
           if (joined.spawned) {
             // In already: a reconnect after a hot reload, or a gametype with no
             // classes to choose. Nothing left to wait for.
@@ -210,16 +235,25 @@ export class MatchController {
             // The server kept our class; the last one chosen is the best guess at which it was.
             ui.playingClass.value = joined.classes ? ui.selectedLoadout.value : null;
           } else {
-            // Seated, not spawned: nothing happens in this game until a class is
-            // chosen, so the class menu goes up over everything else.
-            ui.classChoice.value = "spawn";
-            pause.holdForClass();
+            // Seated, not spawned: in a team gametype (e.g. TDM), prompt for team selection first;
+            // otherwise directly prompt for class selection:
+            if (hasTeams) {
+              ui.teamChoice.value = "spawn";
+              pause.holdForClass();
+            } else {
+              ui.classChoice.value = "spawn";
+              pause.holdForClass();
+            }
           }
         },
         onSnapshot: (snapshot) => this.snapshot(snapshot),
         // SHOTTRACE (docs/engine/diagnostics-shottrace.md): the server's own
         // account of a round this player fired, drawn beside this client's.
         onShotTrace: (trace) => dev.serverShotTrace(trace),
+        onTeamChosen: (team) => {
+          console.info(`[net] team chosen: ${team}`);
+          ui.currentTeam.value = team;
+        },
         onClassChosen: (index, timing) => {
           console.info(`[net] class ${index + 1}: ${timing}`);
           const said = classes.answered(index, timing, ui.loadouts.value[index]?.name ?? `Class ${index + 1}`);

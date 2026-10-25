@@ -49,11 +49,15 @@ import { shotTraceMessage, type ShotTraceMessage } from "./messages/shotTrace.js
 import {
   chooseClassMessage,
   classChosenMessage,
+  chooseTeamMessage,
+  teamChosenMessage,
   joinedMessage,
   joinMessage,
   refusedMessage,
   type ChooseClassMessage,
   type ClassChosenMessage,
+  type ChooseTeamMessage,
+  type TeamChosenMessage,
   type JoinedMessage,
   type JoinMessage,
   type RefusedMessage,
@@ -84,6 +88,8 @@ export const MessageType = {
   shotTrace: 6,
   chooseClass: 7,
   classChosen: 8,
+  chooseTeam: 9,
+  teamChosen: 10,
 } as const;
 
 export type MessageType = (typeof MessageType)[keyof typeof MessageType];
@@ -97,6 +103,8 @@ interface Messages {
   [MessageType.shotTrace]: ShotTraceMessage; // SHOTTRACE
   [MessageType.chooseClass]: ChooseClassMessage;
   [MessageType.classChosen]: ClassChosenMessage;
+  [MessageType.chooseTeam]: ChooseTeamMessage;
+  [MessageType.teamChosen]: TeamChosenMessage;
 }
 
 const SCHEMAS = {
@@ -108,6 +116,8 @@ const SCHEMAS = {
   [MessageType.shotTrace]: shotTraceMessage, // SHOTTRACE
   [MessageType.chooseClass]: chooseClassMessage,
   [MessageType.classChosen]: classChosenMessage,
+  [MessageType.chooseTeam]: chooseTeamMessage,
+  [MessageType.teamChosen]: teamChosenMessage,
 } as const satisfies { [K in MessageType]: Codec<Messages[K]> };
 
 /** A decoded packet, discriminated so a `switch` on `type` narrows `message`. */

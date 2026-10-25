@@ -17,7 +17,7 @@ const SCORE_LIMITS = [
   { value: 15, label: "15 Kills", desc: "Match ends when score reaches 15 kills." },
   { value: 20, label: "20 Kills", desc: "Match ends when score reaches 20 kills." },
   { value: 25, label: "25 Kills", desc: "Match ends when score reaches 25 kills." },
-  { value: 30, label: "30 Kills", desc: "Default Call of Duty Free-for-All score limit." },
+  { value: 30, label: "30 Kills", desc: "Default Call of Duty Deathmatch score limit." },
   { value: 40, label: "40 Kills", desc: "Extended match ending at 40 kills." },
   { value: 50, label: "50 Kills", desc: "Endurance deathmatch ending at 50 kills." },
   { value: 75, label: "75 Kills", desc: "Default Call of Duty Team Deathmatch score limit." },

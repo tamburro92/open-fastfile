@@ -6,6 +6,7 @@ import { UiContext, useUi } from "./context.js";
 import { DebugOverlay } from "./debug/DebugOverlay.js";
 import { HudLayer } from "./hud/HudLayer.js";
 import { ChooseClass } from "./screens/ChooseClass.js";
+import { ChooseTeam } from "./screens/ChooseTeam.js";
 import { CreateClass } from "./screens/CreateClass.js";
 import { Elsewhere } from "./screens/Elsewhere.js";
 import { ErrorScreen } from "./screens/ErrorScreen.js";
@@ -58,6 +59,10 @@ function Screen() {
  */
 function WorldOverlay() {
   const { state } = useUi();
+
+  if (state.teamChoice.value !== null) {
+    return <ChooseTeam />;
+  }
 
   if (state.classChoice.value !== null) {
     return <ChooseClass />;

@@ -254,6 +254,15 @@ export class App {
           this.ui.classChoice.value = null;
         }
       },
+      chooseTeam: (team) => this.match.chooseTeam(team),
+      openTeamChoice: () => {
+        this.ui.teamChoice.value = "change";
+      },
+      closeTeamChoice: () => {
+        if (this.ui.teamChoice.value === "change") {
+          this.ui.teamChoice.value = null;
+        }
+      },
 
       signIn: (username, password) => void playerSession.signIn(username, password).then((ok) => ok && this.afterSignIn()),
       register: (username, password) => void playerSession.register(username, password).then((ok) => ok && this.afterSignIn()),

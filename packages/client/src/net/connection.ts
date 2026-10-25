@@ -77,6 +77,8 @@ export interface ConnectionEvents {
    * now, waiting for their next spawn, or refused (`ClassTiming`).
    */
   onClassChosen?: (index: number, timing: ClassTiming) => void;
+  /** The server's confirmation of the team this player was put on. */
+  onTeamChosen?: (team: string) => void;
   /**
    * The match could not be joined — an unreachable server, a refused join, one
    * that never answered — and nothing more will be tried. The world plays on
@@ -256,6 +258,16 @@ export class Connection {
     this.choosing = { index, timer: setInterval(ask, JOIN_RETRY_MS) };
   }
 
+  /**
+   * Ask to play on a specific team in a team match (e.g. "allies", "axis", "auto").
+   */
+  chooseTeam(team: string): void {
+    if (!this.joined) {
+      return;
+    }
+    this.emit(encodePacket(MessageType.chooseTeam, { team }));
+  }
+
   private stopChoosing(): void {
     if (this.choosing) {
       clearInterval(this.choosing.timer);
@@ -359,6 +371,9 @@ export class Connection {
           this.stopChoosing();
           this.events.onClassChosen?.(packet.message.index, packet.message.timing);
         }
+        return;
+      case MessageType.teamChosen:
+        this.events.onTeamChosen?.(packet.message.team);
         return;
       case MessageType.refused:
         // Said out loud rather than left as ten seconds of silence the player

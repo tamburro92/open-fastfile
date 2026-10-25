@@ -75,7 +75,7 @@ export function Scoreboard() {
   return (
     <div class={styles.overlay} data-testid="tactical-scoreboard">
       <div class={styles.header}>
-        <h2 class={styles.modeTitle}>{lobby?.mode ?? (isTdm ? "Team Deathmatch" : "Free-for-All")}</h2>
+        <h2 class={styles.modeTitle}>{lobby?.mode ?? (isTdm ? "Team Deathmatch" : "Deathmatch")}</h2>
         <div class={styles.matchInfo}>
           <div class={styles.infoItem}>
             <span>TIME:</span>

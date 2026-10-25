@@ -51,7 +51,7 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
       label: "Game Rules",
       description: isCustomizable
         ? `Score limit: ${scoreLimitLabel}, Time limit: ${timeLimitLabel}.`
-        : `Configure kill and time limits for Team Deathmatch or Free-for-All.`,
+        : `Configure kill and time limits for Deathmatch or Team Deathmatch.`,
       onSelect: () => {
         if (!isCustomizable) {
           commands.setLobbyMode("ffa");

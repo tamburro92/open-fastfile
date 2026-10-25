@@ -31,7 +31,18 @@ function roundTrip(message: ShotTraceMessage): ShotTraceMessage {
 describe("the shot trace message", () => {
   it("was appended, so every message that existed before it kept its number", () => {
     // 4 is unassigned: a number is never reused.
-    expect(MessageType).toEqual({ join: 0, joined: 1, input: 2, snapshot: 3, refused: 5, shotTrace: 6, chooseClass: 7, classChosen: 8 });
+    expect(MessageType).toEqual({
+      join: 0,
+      joined: 1,
+      input: 2,
+      snapshot: 3,
+      refused: 5,
+      shotTrace: 6,
+      chooseClass: 7,
+      classChosen: 8,
+      chooseTeam: 9,
+      teamChosen: 10,
+    });
   });
 
   it("carries every field back, and the fields are distinguishable from each other", () => {

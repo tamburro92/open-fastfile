@@ -43,6 +43,8 @@ export interface GameInstance {
    * empty one and ended under them.
    */
   readonly choosing: Set<PlayerId>;
+  /** The side/team chosen by a player before spawning or when switching teams. */
+  readonly chosenTeam: Map<PlayerId, number>;
 }
 
 /**
@@ -209,6 +211,7 @@ export class Games {
       durationMs: order.durationSeconds * 1000,
       joined: false,
       choosing: new Set(),
+      chosenTeam: new Map(),
     };
 
     // How this game builds dynamics, if anything ever asks it to. Not called here:

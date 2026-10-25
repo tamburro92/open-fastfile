@@ -13,6 +13,7 @@ describe("Free-for-All gametype declaration", () => {
     expect(gametype(FFA_GAMETYPE)).toBeDefined();
     expect(GAMETYPES[FFA_GAMETYPE]).toBe(ffaGametype);
     expect(ffaGametype.id).toBe("ffa");
+    expect(ffaGametype.display).toBe("Deathmatch");
     expect(ffaGametype.teams).toEqual([]);
     expect(ffaGametype.spawnMode).toBe("dm");
     expect(ffaGametype.mode).toBe("dm");

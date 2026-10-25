@@ -38,6 +38,9 @@ function setup() {
     chooseClass: vi.fn(),
     openClassChoice: vi.fn(),
     closeClassChoice: vi.fn(),
+    chooseTeam: vi.fn(),
+    openTeamChoice: vi.fn(),
+    closeTeamChoice: vi.fn(),
     signIn: vi.fn(),
     register: vi.fn(),
     signOut: vi.fn(),
@@ -224,5 +227,39 @@ describe("TDM In-Game HUD & Scoreboard", () => {
     expect(banner).toBeTruthy();
     expect(banner.textContent).toContain("DRAW");
     expect(banner.textContent).toContain("Stalemate");
+  });
+
+  it("renders ChooseTeam screen on entry and allows picking Allies or Axis", () => {
+    const { state, commands } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.teams.value = ["allies", "axis"];
+      state.teamChoice.value = "spawn";
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose Team" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Auto-Assign" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Allies" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Axis" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Allies" }));
+    expect(commands.chooseTeam).toHaveBeenCalledWith("allies");
+  });
+
+  it("renders Change Team option in PauseMenu and allows switching teams mid-game", () => {
+    const { state, commands } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.paused.value = true;
+      state.teams.value = ["allies", "axis"];
+      state.canChooseClass.value = true;
+      state.currentTeam.value = "allies";
+    });
+
+    const changeTeamBtn = screen.getByRole("button", { name: "Change Team" });
+    expect(changeTeamBtn).toBeTruthy();
+
+    fireEvent.click(changeTeamBtn);
+    expect(commands.openTeamChoice).toHaveBeenCalled();
   });
 });

@@ -354,4 +354,51 @@ describe("TDM Match in Game Server", () => {
     // Axis score remains 0:
     expect(snap.counters[1]).toBe(0);
   });
+
+  it("allows player to choose team on join and switch teams mid-match", () => {
+    const match = new Match(ground, testWorld(), 60, 8, new WeaponRegistry([]), {
+      map: "test-map",
+      gametype: tdmGametype,
+      scoreLimit: 75,
+      durationSeconds: 600,
+      catalogue: catalogueViewOf({ version: CATALOG_VERSION }, new WeaponRegistry([])),
+      bodies: NO_BODIES,
+      scripts: [tdmScript],
+    });
+
+    const p1: PlayerId = "p1";
+    // Join explicitly on side 1 (Axis):
+    match.join(p1, testLoadout(), "", 0, 1);
+
+    let seq = 0;
+    const message = (input = idleInput(0, 0)): InputMessage => ({
+      seq: ++seq,
+      dt: 1 / 60,
+      input,
+      claim: { x: 0, y: 0, z: 0 },
+      drawn: { tick: 0, frac: 0 },
+    });
+
+    match.receive(p1, message());
+    match.step();
+
+    const snap = match.snapshotFor(p1, match.step().players);
+    // Confirm player is on Axis (team 1):
+    expect(snap.players.find((p) => p.id === p1)?.state.team).toBe(1);
+    expect(snap.players.find((p) => p.id === p1)?.state.dead).toBe(false);
+    expect(snap.players.find((p) => p.id === p1)?.state.health).toBe(100);
+
+    // Player switches team mid-match to Allies:
+    match.setTeam(p1, "allies");
+    match.killForTeamSwitch(p1);
+    match.receive(p1, message());
+    match.step();
+
+    const snapSwitched = match.snapshotFor(p1, match.step().players);
+    const p1Switched = snapSwitched.players.find((p) => p.id === p1)?.state;
+    // Confirm player team changed to Allies (team 0):
+    expect(p1Switched?.team).toBe(0);
+    // Changing team while alive eliminates the player so they respawn on new team:
+    expect(p1Switched?.dead).toBe(true);
+  });
 });

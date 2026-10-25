@@ -195,6 +195,13 @@ export class NetServer {
           }
           return;
         }
+        case MessageType.chooseTeam: {
+          const seat = this.seats.get(socket);
+          if (seat) {
+            this.chooseTeam(seat, packet.message.team);
+          }
+          return;
+        }
         default:
           // joined, snapshot, refused and classChosen are ours to send, not to receive.
           return;
@@ -316,7 +323,8 @@ export class NetServer {
         return; // no room to spawn into; they are still choosing, and may ask again
       }
       game.choosing.delete(seat.playerId);
-      timing = game.match.join(seat.playerId, loadout, seat.engine, index);
+      const chosenSide = game.chosenTeam.get(seat.playerId);
+      timing = game.match.join(seat.playerId, loadout, seat.engine, index, chosenSide);
       const as = timing === "refuse" ? "without a class (refused)" : `as "${loadout.name}"`;
       console.log(`  + player ${seat.playerId} spawned in game ${game.id} ${as} (${game.match.size} in it)`);
     } else {
@@ -325,6 +333,43 @@ export class NetServer {
       timing = game.match.chooseLoadout(seat.playerId, loadout, index);
     }
     send(seat.channel, encodePacket(MessageType.classChosen, { index, timing }));
+  }
+
+  /**
+   * The team a player chooses in a team gametype (e.g. TDM): on joining before
+   * spawning, or from the pause menu mid-match to switch teams (Call of Duty behavior).
+   */
+  private chooseTeam(seat: Seat, teamName: string): void {
+    const game = this.games.get(seat.gameId);
+    if (!game) {
+      return;
+    }
+    const teams = game.match.gametype.teams;
+    if (teams.length === 0) {
+      return;
+    }
+
+    let side: number;
+    let resolvedTeam: string;
+    if (teamName === "auto") {
+      side = game.match.sideFor() ?? 0;
+      resolvedTeam = teams[side] ?? teams[0]!;
+    } else {
+      const idx = teams.indexOf(teamName);
+      side = idx >= 0 ? idx : 0;
+      resolvedTeam = teams[side]!;
+    }
+
+    game.chosenTeam.set(seat.playerId, side);
+
+    if (game.match.has(seat.playerId)) {
+      // Switching teams mid-game:
+      game.match.setTeam(seat.playerId, resolvedTeam);
+      game.match.killForTeamSwitch(seat.playerId);
+      game.choosing.add(seat.playerId);
+    }
+
+    send(seat.channel, encodePacket(MessageType.teamChosen, { team: resolvedTeam }));
   }
 
   /**
