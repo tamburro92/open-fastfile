@@ -10,7 +10,15 @@
 // the same people in it. That is why membership is not cleared anywhere in here
 // except by someone leaving.
 
-import { DEFAULT_GAMETYPE } from "@3d/shared/game/gametypes/registry.js";
+import {
+  DEFAULT_GAMETYPE,
+  DEFAULT_FFA_SCORE_LIMIT,
+  DEFAULT_FFA_TIME_LIMIT_SECONDS,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+  FFA_GAMETYPE,
+  TDM_GAMETYPE,
+} from "@3d/shared/game/gametypes/registry.js";
 import type { GametypeId } from "@3d/shared/game/gametypes/declaration.js";
 import { singleton } from "tsyringe";
 import { newAuthorizationKey, newLobbyCode, newPlayerId } from "./ids.js";
@@ -74,7 +82,13 @@ export class Lobbies {
   private readonly byCode = new Map<string, Lobby>();
   private readonly userLobby = new Map<string, string>();
 
-  open(visibility: LobbyVisibility, host: { id: string; username: string }, map: string | null, now: number): Lobby {
+  open(
+    visibility: LobbyVisibility,
+    host: { id: string; username: string },
+    map: string | null,
+    now: number,
+    gametypeId: GametypeId = DEFAULT_GAMETYPE,
+  ): Lobby {
     let code = newLobbyCode();
     while (this.byCode.has(code)) {
       code = newLobbyCode();
@@ -85,7 +99,19 @@ export class Lobbies {
       hostUserId: host.id,
       openedAt: now,
       map,
-      gametype: DEFAULT_GAMETYPE,
+      gametype: gametypeId,
+      scoreLimit:
+        gametypeId === TDM_GAMETYPE
+          ? DEFAULT_TDM_SCORE_LIMIT
+          : gametypeId === FFA_GAMETYPE
+            ? DEFAULT_FFA_SCORE_LIMIT
+            : undefined,
+      timeLimit:
+        gametypeId === TDM_GAMETYPE
+          ? DEFAULT_TDM_TIME_LIMIT_SECONDS
+          : gametypeId === FFA_GAMETYPE
+            ? DEFAULT_FFA_TIME_LIMIT_SECONDS
+            : undefined,
       status: "open",
       startsAt: null,
       serverId: null,

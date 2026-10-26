@@ -49,12 +49,26 @@
 }
 
 .cardCategory,
+.cardMode,
 .nomap {
   margin: 6px 0 0;
   font-size: calc(13px * var(--menu-scale));
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--menu-text-dim);
+}
+
+.cardRules {
+  margin: 3px 0 0;
+  font-size: calc(12px * var(--menu-scale));
+  letter-spacing: 0.04em;
+  color: var(--menu-text-dim);
+  text-align: right;
+  opacity: 0.85;
+}
+
+.modeSummary {
+  text-align: right;
 }
 
 .nomap {

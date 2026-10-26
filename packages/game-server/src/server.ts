@@ -134,6 +134,9 @@ export class GameServer {
       case "gameCreate":
         await this.stand(event.game);
         return;
+      case "gamePlayerAdd":
+        this.games.addPlayer(event.gameId, event.player);
+        return;
       case "gameEnd":
         this.games.drop(event.gameId);
         return;

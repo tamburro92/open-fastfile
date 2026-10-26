@@ -293,4 +293,26 @@ describe("TDM In-Game HUD & Scoreboard", () => {
 
     expect(screen.queryByRole("button", { name: "Change Team" })).toBeNull();
   });
+
+  it("displays rules summary on Lobby card for Team Deathmatch", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "lobby";
+      state.lobby.value = makeLobby({ gametype: "tdm", scoreLimit: 75, timeLimit: 600 });
+    });
+
+    expect(screen.getByText("Team Deathmatch")).toBeTruthy();
+    expect(screen.getByText("75 Kills • 10 Mins")).toBeTruthy();
+  });
+
+  it("displays rules summary on Lobby card for Deathmatch and updates with custom limits", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "lobby";
+      state.lobby.value = makeLobby({ gametype: "ffa", mode: "Deathmatch", scoreLimit: 15, timeLimit: 300 });
+    });
+
+    expect(screen.getByText("Deathmatch")).toBeTruthy();
+    expect(screen.getByText("15 Kills • 5 Mins")).toBeTruthy();
+  });
 });

@@ -32,7 +32,7 @@ export interface GameInstance {
    * playerId → what the api said about that player: the key they must present,
    * and the class they chose. From the authority, never minted here.
    */
-  readonly roster: ReadonlyMap<PlayerId, GameOrderPlayer>;
+  readonly roster: Map<PlayerId, GameOrderPlayer>;
   readonly createdAt: number;
   readonly durationMs: number;
   /** Whether anyone has ever been in it, which is what tells "over" from "not started". */
@@ -132,6 +132,9 @@ export class Games {
   async create(order: GameOrder, at: number = this.now()): Promise<GameInstance | undefined> {
     const existing = this.instances.get(order.gameId);
     if (existing) {
+      for (const player of order.players) {
+        existing.roster.set(player.id, player);
+      }
       return existing;
     }
 
@@ -291,6 +294,16 @@ export class Games {
       this.drop(id);
     }
     return gone;
+  }
+
+  /** Adds an authorized player to a running game's roster (join-in-progress). */
+  addPlayer(id: string, player: GameOrderPlayer): boolean {
+    const game = this.instances.get(id);
+    if (!game) {
+      return false;
+    }
+    game.roster.set(player.id, player);
+    return true;
   }
 
   /** Whether this player may join this game. */

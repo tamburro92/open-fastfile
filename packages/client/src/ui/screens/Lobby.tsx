@@ -1,5 +1,12 @@
 import { useEffect, useState } from "preact/hooks";
-import type { WorldEntry } from "../../app/uiBridge.js";
+import {
+  DEFAULT_FFA_SCORE_LIMIT,
+  DEFAULT_FFA_TIME_LIMIT_SECONDS,
+  DEFAULT_TDM_SCORE_LIMIT,
+  DEFAULT_TDM_TIME_LIMIT_SECONDS,
+  type LobbyInfo,
+  type WorldEntry,
+} from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import { MenuColumn, MenuScreen, MenuPanel, menuStyles, useEscape, type MenuItem } from "../menu/Menu.js";
 import { GameSetup, type SetupMenu } from "./GameSetup.js";
@@ -78,7 +85,12 @@ function LobbyMenu(props: { onSetup: () => void }) {
       <MenuArt />
       <MenuColumn title={lobby?.private ? "Private Match" : "Find Game"} items={items}>
         <MapCard world={chosen} slug={lobby?.map ?? null} />
-        {lobby && <p class={styles.cardCategory}>{lobby.mode}</p>}
+        {lobby && (
+          <div class={styles.modeSummary}>
+            <p class={styles.cardMode} data-testid="lobby-mode">{lobby.mode}</p>
+            {formatRulesSummary(lobby) && <p class={styles.cardRules} data-testid="lobby-rules">{formatRulesSummary(lobby)}</p>}
+          </div>
+        )}
       </MenuColumn>
       <MenuPanel title={lobby ? `${lobby.players.length} in the lobby` : "Searching"}>
         <div class={styles.body}>
@@ -205,6 +217,21 @@ function Status() {
     return <p class={styles.status}>{lobby.map === null ? "Waiting for the host to choose a map." : "Waiting for the host."}</p>;
   }
   return <p class={styles.status}>Waiting for more players…</p>;
+}
+
+function formatRulesSummary(lobby: LobbyInfo): string | null {
+  const isTdm = lobby.gametype === "tdm";
+  const isFfa = lobby.gametype === "ffa";
+  if (!isTdm && !isFfa) {
+    return null;
+  }
+  const defaultScore = isTdm ? DEFAULT_TDM_SCORE_LIMIT : DEFAULT_FFA_SCORE_LIMIT;
+  const defaultTime = isTdm ? DEFAULT_TDM_TIME_LIMIT_SECONDS : DEFAULT_FFA_TIME_LIMIT_SECONDS;
+  const score = lobby.scoreLimit ?? defaultScore;
+  const time = lobby.timeLimit ?? defaultTime;
+  const scoreText = score === 0 ? "Unlimited" : `${score} Kills`;
+  const timeText = time === 0 ? "Unlimited" : `${Math.round(time / 60)} Mins`;
+  return `${scoreText} • ${timeText}`;
 }
 
 /**

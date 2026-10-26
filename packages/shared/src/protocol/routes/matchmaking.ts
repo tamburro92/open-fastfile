@@ -57,7 +57,7 @@ export const lobbyCreateRoute = defineRoute({
   method: "POST",
   path: "/api/lobbies",
   auth: "user",
-  input: z.object({ map: z.optional(worldSlug) }),
+  input: z.object({ map: z.optional(worldSlug), gametype: z.optional(z.string()) }),
   result: json(lobbyRef),
 });
 

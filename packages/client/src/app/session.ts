@@ -142,9 +142,13 @@ export class PlayerSession {
   }
 
   createPrivateLobby(): void {
-    // No map: a private match picks one *in* the lobby, so everyone already
-    // there watches the host choose.
-    this.attempt(this.api.lobbyCreate({}), "could not make a lobby");
+    // In Call of Duty (MW/MW2/BO), creating a Private Match pre-selects Team Deathmatch
+    // on the default multiplayer map, so the host can start immediately or customize settings.
+    const defaultMap = this.ui.worlds.value[0]?.slug;
+    this.attempt(
+      this.api.lobbyCreate(defaultMap ? { map: defaultMap, gametype: "tdm" } : { gametype: "tdm" }),
+      "could not make a lobby",
+    );
   }
 
   setLobbyMap(map: string): void {

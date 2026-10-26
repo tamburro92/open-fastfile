@@ -534,9 +534,10 @@ describe("a private lobby", async () => {
     expect(mm.matchmaking.joinLobby(late.user, code)).toEqual({ ok: false, why: "lobby is full" });
   });
 
-  it("refuses to be joined while its game is running", async () => {
+  it("can be joined while its game is running (join-in-progress)", async () => {
     const mm = setup();
     mm.host();
+    const server = mm.instance();
     const host = mm.player("ana");
     const friend = mm.player("bo");
     const late = mm.player("cy");
@@ -547,7 +548,23 @@ describe("a private lobby", async () => {
     mm.advance(CONFIG.countdownSeconds * 1000);
     mm.matchmaking.tick();
 
-    expect(mm.matchmaking.joinLobby(late.user, code)).toEqual({ ok: false, why: "game in progress" });
+    const order = server.orders()[0]!;
+    mm.matchmaking.gameReady(order.game.gameId);
+
+    // Late player joins using the invite code while the match is in progress:
+    expect(mm.matchmaking.joinLobby(late.user, code)).toEqual({ ok: true, code });
+
+    // The game server is notified to admit the player:
+    const added = server.events.find((e) => e.type === "gamePlayerAdd");
+    expect(added).toBeDefined();
+    if (added?.type === "gamePlayerAdd") {
+      expect(added.gameId).toBe(order.game.gameId);
+      expect(added.player.authorizationKey).toBeDefined();
+    }
+
+    // The late player immediately receives the matchReady ticket:
+    const ticket = late.events.find((e): e is Extract<UserEvent, { type: "matchReady" }> => e.type === "matchReady");
+    expect(ticket?.gameId).toBe(order.game.gameId);
   });
 
   it("keeps its map across a round, where a public one re-picks", async () => {

@@ -71,5 +71,12 @@ export const gameEndEvent = z.object({
   gameId: z.string().check(z.minLength(1)),
 });
 
-export const serverEvent = z.discriminatedUnion("type", [helloEvent, gameCreateEvent, gameEndEvent]);
+/** A player joined a running match in progress. */
+export const gamePlayerAddEvent = z.object({
+  type: z.literal("gamePlayerAdd"),
+  gameId: z.string().check(z.minLength(1)),
+  player: gameOrderPlayer,
+});
+
+export const serverEvent = z.discriminatedUnion("type", [helloEvent, gameCreateEvent, gameEndEvent, gamePlayerAddEvent]);
 export type ServerEvent = z.infer<typeof serverEvent>;

@@ -105,7 +105,7 @@ export class MatchmakingRoutes implements RouteGroup {
     });
 
     this.mount.route(app, lobbyCreateRoute, async ({ user, body }) => {
-      const placed = await this.matchmaker.createLobby(user!, body.map ?? null);
+      const placed = await this.matchmaker.createLobby(user!, body.map ?? null, body.gametype);
       return placed.ok ? { code: placed.code } : refuse(placed.why);
     });
 

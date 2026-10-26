@@ -129,17 +129,22 @@ export class Matchmaker {
    * host picks one — which is where a private match chooses its map, so that
    * everybody already in the lobby can see the choice being made.
    */
-  async createLobby(user: SessionUser, map: string | null): Promise<Placed> {
+  async createLobby(user: SessionUser, map: string | null, gametypeId?: string): Promise<Placed> {
+    const gametypeKey = gametypeId ?? DEFAULT_GAMETYPE;
+    const decl = gametype(gametypeKey);
+    if (!decl) {
+      return { ok: false, why: "no such gametype" };
+    }
     if (map !== null) {
       if (!(await this.knownMap(map))) {
         return { ok: false, why: "no such map" };
       }
-      if (!admitsMap(gametype(DEFAULT_GAMETYPE)!, map)) {
+      if (!admitsMap(decl, map)) {
         return { ok: false, why: "that gametype is not played on that map" };
       }
     }
     this.depart(user.id);
-    const lobby = this.lobbies.open("private", user, map, this.clock.now());
+    const lobby = this.lobbies.open("private", user, map, this.clock.now(), decl.id);
     this.lobbies.add(lobby, user, this.clock.now(), this.config.lobbySize);
     this.publishLobby(lobby);
     return { ok: true, code: lobby.code };
@@ -150,9 +155,6 @@ export class Matchmaker {
     if (!lobby) {
       return { ok: false, why: "no such lobby" };
     }
-    if (lobby.status === "closed") {
-      return { ok: false, why: "game in progress" };
-    }
     const already = this.lobbies.byUser(user.id);
     if (already && already.code !== code) {
       this.depart(user.id);
@@ -162,6 +164,28 @@ export class Matchmaker {
     }
     this.queue.remove(user.id);
     this.publishLobby(lobby);
+
+    // If a game is in progress (or starting), notify the game server and send ticket to the joining player:
+    if (lobby.status === "closed" && lobby.gameId !== null) {
+      const member = lobby.users.find((u) => u.userId === user.id);
+      if (member) {
+        if (lobby.serverId !== null) {
+          this.serverEvents.publish(lobby.serverId, {
+            type: "gamePlayerAdd",
+            gameId: lobby.gameId,
+            player: {
+              id: member.id,
+              authorizationKey: member.authorizationKey,
+              loadouts: this.loadouts.stored(user.id),
+            },
+          });
+        }
+        if (this.running(lobby)) {
+          this.userEvents.publish(user.id, this.ticketFor(lobby, member));
+        }
+      }
+    }
+
     return { ok: true, code: lobby.code };
   }
 
