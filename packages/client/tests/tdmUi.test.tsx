@@ -262,4 +262,35 @@ describe("TDM In-Game HUD & Scoreboard", () => {
     fireEvent.click(changeTeamBtn);
     expect(commands.openTeamChoice).toHaveBeenCalled();
   });
+
+  it("handles ChooseTeam in 'change' mode with Back button and current team badge", () => {
+    const { state, commands } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.teams.value = ["allies", "axis"];
+      state.currentTeam.value = "allies";
+      state.teamChoice.value = "change";
+    });
+
+    expect(screen.getByRole("dialog", { name: "Choose Team" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Allies (Current)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Axis" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Back" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Leave Game" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(commands.closeTeamChoice).toHaveBeenCalled();
+  });
+
+  it("does not render Change Team in PauseMenu for Deathmatch (FFA)", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.paused.value = true;
+      state.teams.value = [];
+      state.canChooseClass.value = true;
+    });
+
+    expect(screen.queryByRole("button", { name: "Change Team" })).toBeNull();
+  });
 });

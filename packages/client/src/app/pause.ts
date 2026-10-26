@@ -140,9 +140,9 @@ export class PauseController {
     // gestures that never reach here — signing in, and the menus.
     this.systems.audio.unlock();
     // Not in the world yet: back to waiting for the server, over which the class
-    // menu comes up by itself.
+    // or team menu comes up by itself.
     if (this.waiting) {
-      if (this.ui.classChoice.value === null) {
+      if (this.ui.classChoice.value === null && this.ui.teamChoice.value === null) {
         this.ui.prompt.value = "joining";
       }
       return;
@@ -194,9 +194,9 @@ export class PauseController {
     if (screen !== "world") {
       return;
     }
-    // Over the class menu, Esc is that menu's: Back when changing class (its own
+    // Over the class or team menu, Esc is that menu's: Back when changing (its own
     // handler), and nothing at all on joining, where there is no game to go back to.
-    if (this.ui.classChoice.value !== null) {
+    if (this.ui.classChoice.value !== null || this.ui.teamChoice.value !== null) {
       return;
     }
     if (this.ui.prompt.value) {

@@ -147,6 +147,13 @@ export class MatchController {
     if (!this.connection) {
       return;
     }
+    const isChange = ui.teamChoice.value === "change";
+    const sameTeam = team !== "auto" && ui.currentTeam.value === team;
+    if (isChange && sameTeam) {
+      // Re-selecting current team: close the menu without suicide or class reset:
+      ui.teamChoice.value = null;
+      return;
+    }
     this.connection.chooseTeam(team);
     ui.currentTeam.value = team;
     ui.teamChoice.value = null;

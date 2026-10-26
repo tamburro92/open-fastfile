@@ -363,10 +363,13 @@ export class NetServer {
     game.chosenTeam.set(seat.playerId, side);
 
     if (game.match.has(seat.playerId)) {
-      // Switching teams mid-game:
-      game.match.setTeam(seat.playerId, resolvedTeam);
-      game.match.killForTeamSwitch(seat.playerId);
-      game.choosing.add(seat.playerId);
+      const currentTeam = game.match.teamOf(seat.playerId);
+      if (currentTeam !== resolvedTeam) {
+        // Switching teams mid-game: eliminate if alive and hold for new class choice:
+        game.match.setTeam(seat.playerId, resolvedTeam);
+        game.match.killForTeamSwitch(seat.playerId);
+        game.choosing.add(seat.playerId);
+      }
     }
 
     send(seat.channel, encodePacket(MessageType.teamChosen, { team: resolvedTeam }));

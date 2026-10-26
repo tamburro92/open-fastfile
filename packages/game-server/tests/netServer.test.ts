@@ -238,3 +238,53 @@ describe("inputs off an unordered, lossy channel", () => {
     expect(hosted.match.report()[0]!.drift.samples).toBe(2);
   });
 });
+
+describe("team selection over network (chooseTeam)", () => {
+  const TWO_TEAMS: GametypeDecl = { id: "tdm", display: "Team Deathmatch", teams: ["allies", "axis"] };
+
+  function twoTeamGame(id: string): GameInstance {
+    const match = new Match(ground, WORLD, TICK_RATE, 4, new WeaponRegistry([]), {
+      map: "flat",
+      gametype: TWO_TEAMS,
+      catalogue: catalogueViewOf({ version: CATALOG_VERSION }, new WeaponRegistry([])),
+      bodies: NO_BODIES,
+      scripts: [],
+    });
+    match.join(PLAYER, undefined, "", 0, 0); // join on allies (team 0)
+    return {
+      id,
+      map: "flat",
+      worldHash: "w",
+      match,
+      roster: new Map(),
+      createdAt: 0,
+      durationMs: 600_000,
+      joined: true,
+      choosing: new Set(),
+      chosenTeam: new Map([[PLAYER, 0]]),
+    };
+  }
+
+  it("handles chooseTeam and switches team mid-match", () => {
+    const hosted = twoTeamGame("g-teams");
+    const { seats } = serve([hosted]);
+
+    // Player switches to "axis":
+    seats[0]!.deliver(encodePacket(MessageType.chooseTeam, { team: "axis" }));
+
+    // NetServer sends back teamChosen confirmation:
+    const teamChosen = seats[0]!.sent.find((p) => p.type === MessageType.teamChosen);
+    expect(teamChosen).toBeDefined();
+    expect((teamChosen!.message as { team: string }).team).toBe("axis");
+
+    // Player is now on team 1 (axis) and was eliminated for team switch:
+    expect(hosted.match.teamOf(PLAYER)).toBe("axis");
+    expect(hosted.choosing.has(PLAYER)).toBe(true);
+
+    // Player re-chooses "axis" (same team) -> does not re-kill or re-add:
+    hosted.choosing.delete(PLAYER);
+    seats[0]!.sent.length = 0;
+    seats[0]!.deliver(encodePacket(MessageType.chooseTeam, { team: "axis" }));
+    expect(hosted.choosing.has(PLAYER)).toBe(false);
+  });
+});
