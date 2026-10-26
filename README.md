@@ -12,14 +12,20 @@ of one is generated — Call of Duty maps imported by a Python pipeline — and 
 a human writes over it is the gameplay. The app parses, validates and renders it
 as a first-person scene, and multiplayer is playable on top of it.
 
-## Multiplayer
+## Game Modes
 
-Multiplayer works for simple PvP and for primitive zombies. The server is
-authoritative: it compensates for lag and validates every interaction a client
-claims. There is one central server, `@3d/api`, which owns the worlds, the
-accounts and the matchmaking, and any number of game servers, which host the
-matches. Game servers hold no state of their own, so they can be deployed around
-the world, close to the players they host, to cut latency.
+- **Team Deathmatch (TDM)**: Faction-based combat (**Allies** vs. **Axis**). Players select their team on join (or use auto-assign), can change teams mid-match from the pause menu, and compete to reach the team score limit. Includes an in-game faction HUD and a two-column tactical scoreboard.
+- **Deathmatch (Free-for-All)**: Every soldier for themselves. Fast-paced solo combat with custom kill limits and time limits, authentic FFA HUD, and real-time leader tracking.
+- **Zombies**: Cooperative wave survival mode (supported on Black Ops maps such as Kino der Toten).
+
+Both multiplayer modes feature intelligent bot fill with authentic Call of Duty callsigns (`Ghost`, `Soap`, `Price`, `Roach`, `Gaz`, etc.) and tactical scoreboard badges.
+
+## Multiplayer & Matchmaking
+
+Multiplayer is fully server-authoritative with lag compensation and client prediction:
+- **Central API (`@3d/api`)**: Owns accounts, authentication, world catalogue, and matchmaking lobbies.
+- **Game Server (`@3d/game-server`)**: Low-latency 60 Hz WebRTC/UDP match instances running authoritative physics, damage verification, and game scripts.
+- **Private Matches & Custom Rules**: Hosts can create private lobbies, configure game modes, select maps, customize score/time limits, and share 6-character invite codes or direct join links (`/?join=<code>`). Guests can also connect via the in-game **Join Game** menu dialog.
 
 ## Previews
 
@@ -40,10 +46,11 @@ pnpm install
 pnpm dev:mp
 ```
 
-Open the printed URL and pick a world. Click to play; walk with WASD, look with
-the mouse, `Space` to jump, `Shift` to run, `Tab` for an orbiting dollhouse view.
-`Esc` releases the pointer and opens the pause menu (quality, controls, back to
-the menu).
+Open the printed URL (`http://localhost:5173`). Click to play:
+- **Movement**: `W`, `A`, `S`, `D` to move, `Space` to jump, `Shift` to sprint, `C` to crouch, `Ctrl` to go prone.
+- **Combat**: Left-click to fire, right-click to Aim Down Sights (ADS), `R` to reload, `1` / `2` to switch weapons.
+- **Scoreboard**: `Tab` toggles the Call of Duty tactical scoreboard (or orbiting dollhouse view when walking alone).
+- **Pause & Team Selection**: `Esc` opens the pause menu (change team mid-match in TDM, change loadout class, adjust quality/sensitivity, or exit).
 
 That starts three processes: the client's dev server; `@3d/api`, which serves
 the worlds and their assets and does the matchmaking; and a `@3d/game-server`,
