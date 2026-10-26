@@ -57,8 +57,26 @@ export class InputManager {
     }
   }
 
+  private testLocked = false;
+
   get locked(): boolean {
-    return document.pointerLockElement === this.canvas;
+    return this.testLocked || document.pointerLockElement === this.canvas;
+  }
+
+  setTestLocked(locked: boolean): void {
+    this.testLocked = locked;
+    this.ctx = locked ? "world" : "menu";
+    for (const handler of this.lockHandlers) {
+      handler(locked);
+    }
+  }
+
+  setTestHeld(action: Action, held: boolean): void {
+    if (held) {
+      this.held.add(action);
+    } else {
+      this.held.delete(action);
+    }
   }
 
   /**
