@@ -10,9 +10,11 @@ export function MatchEnd() {
     return null;
   }
 
+  const lobby = state.lobby.value;
   const entries = state.hud.scoreboard.value;
   const selfEntry = entries.find((e) => e.isSelf);
-  const isTdm = state.lobby.value?.gametype === "tdm" || selfEntry?.team !== undefined;
+  const myTeam = selfEntry?.team ?? (state.currentTeam.value ? state.currentTeam.value : undefined);
+  const isTdm = lobby?.gametype === "tdm" || (lobby?.gametype !== "ffa" && Boolean(myTeam));
 
   let title: string;
   let titleClass: string | undefined;
@@ -23,7 +25,7 @@ export function MatchEnd() {
       title = "DRAW";
       titleClass = styles.draw;
       subtitle = `${reason} • Stalemate`;
-    } else if (selfEntry?.team && winner === selfEntry.team) {
+    } else if (myTeam && winner === myTeam) {
       title = "VICTORY";
       titleClass = styles.victory;
       subtitle = `${reason} • Team Victory`;

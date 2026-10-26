@@ -33,7 +33,7 @@ export function TdmHud() {
 
   const entries = state.hud.scoreboard.value;
   const selfEntry = entries.find((e) => e.isSelf);
-  const myTeam = selfEntry?.team ?? "allies";
+  const myTeam = selfEntry?.team ?? state.currentTeam.value ?? "allies";
 
   const alliesScore = alliesScoreCounter?.value ?? entries.filter((e) => e.team === "allies").reduce((sum, e) => sum + e.score, 0);
   const axisScore = axisScoreCounter?.value ?? entries.filter((e) => e.team === "axis").reduce((sum, e) => sum + e.score, 0);
