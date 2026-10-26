@@ -170,14 +170,14 @@ export class Hud {
     };
 
     const entries: { id: string; name: string; score: number; deaths: number; isSelf: boolean; team?: string }[] = [];
-    if (self && this.me !== undefined) {
+    if (this.me !== undefined) {
       entries.push({
         id: this.me,
         name: this.nameOf(this.me),
-        score: self.points,
+        score: self?.points ?? 0,
         deaths: this.playerDeaths.get(this.me) ?? 0,
         isSelf: true,
-        team: teamOf(self.team),
+        team: teamOf(self?.team),
       });
     }
     for (const peer of others) {
@@ -300,8 +300,43 @@ export class Hud {
    * the only place a browser has ever been told a name.
    */
   private nameOf(id: PlayerId): string {
-    return this.ui.lobby.value?.players.find((player) => player.id === id)?.username ?? id;
+    if (id === this.me && this.ui.user.value?.username) {
+      return this.ui.user.value.username;
+    }
+    const player = this.ui.lobby.value?.players.find((p) => p.id === id);
+    if (player) {
+      return player.username;
+    }
+    if (id.startsWith("#b")) {
+      return botDisplayName(id);
+    }
+    return id;
   }
+}
+
+/** Call of Duty multiplayer bot names. */
+const BOT_NAMES = [
+  "Ghost",
+  "Soap",
+  "Price",
+  "Roach",
+  "Gaz",
+  "Yuri",
+  "Nikolai",
+  "Makarov",
+  "Shepherd",
+  "Frost",
+  "Sandman",
+  "Grinch",
+];
+
+export function botDisplayName(id: string): string {
+  const match = id.match(/^#b(\d+)$/);
+  if (match) {
+    const idx = (parseInt(match[1]!, 10) - 1) % BOT_NAMES.length;
+    return `${BOT_NAMES[idx]} [BOT]`;
+  }
+  return id;
 }
 
 /**

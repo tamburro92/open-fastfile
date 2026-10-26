@@ -56,17 +56,22 @@ export function Scoreboard() {
             </td>
           </tr>
         ) : (
-          teamEntries.map((entry) => (
-            <tr key={entry.id} class={`${styles.row} ${entry.isSelf ? styles.selfRow : ""}`}>
-              {showRank && <td class={`${styles.td} ${styles.rank}`}>#{entry.rank}</td>}
-              <td class={`${styles.td} ${styles.name}`}>
-                {entry.name}
-                {entry.isSelf && <span class={styles.youBadge}>YOU</span>}
-              </td>
-              <td class={`${styles.td} ${styles.tdRight}`}>{entry.score}</td>
-              <td class={`${styles.td} ${styles.tdRight}`}>{entry.deaths}</td>
-            </tr>
-          ))
+          teamEntries.map((entry) => {
+            const isBot = entry.name.endsWith(" [BOT]");
+            const displayName = isBot ? entry.name.slice(0, -6) : entry.name;
+            return (
+              <tr key={entry.id} class={`${styles.row} ${entry.isSelf ? styles.selfRow : ""}`}>
+                {showRank && <td class={`${styles.td} ${styles.rank}`}>#{entry.rank}</td>}
+                <td class={`${styles.td} ${styles.name}`}>
+                  {displayName}
+                  {entry.isSelf && <span class={styles.youBadge}>YOU</span>}
+                  {isBot && <span class={styles.botBadge}>BOT</span>}
+                </td>
+                <td class={`${styles.td} ${styles.tdRight}`}>{entry.score}</td>
+                <td class={`${styles.td} ${styles.tdRight}`}>{entry.deaths}</td>
+              </tr>
+            );
+          })
         )}
       </tbody>
     </table>

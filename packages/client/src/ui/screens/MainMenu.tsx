@@ -13,6 +13,16 @@ export function MainMenu() {
   const items: MenuItem[] = [
     { label: "Find Game", description: "Look for a match with other players.", onSelect: () => commands.findGame() },
     { label: "Private Match", description: "Make a lobby and invite people to it.", onSelect: () => commands.createPrivateLobby() },
+    {
+      label: "Join Game",
+      description: "Enter an invite code to join a friend's private lobby.",
+      onSelect: () => {
+        const code = window.prompt("Enter 6-character Invite Code:");
+        if (code?.trim()) {
+          commands.joinLobby(code.trim().toUpperCase());
+        }
+      },
+    },
     { label: "Create a Class", description: "Build the classes you choose from in a match.", onSelect: () => commands.openClasses() },
     { label: "Callsign", description: "Choose your title and emblem." },
     { label: "Barracks", description: "Challenges, accolades, prestige and leaderboards." },
