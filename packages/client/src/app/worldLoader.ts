@@ -70,6 +70,7 @@ export class WorldLoader {
     this.ui.worldName.value = null;
     this.ui.minimap.map.value = null;
     this.ui.minimap.pose.value = null;
+    this.ui.minimap.pings.value = [];
     this.ui.error.value = null;
     this.ui.loading.value = null;
   }

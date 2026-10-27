@@ -275,6 +275,9 @@ export function resolveWeapon(entry: WeaponEntry, fitted: Fitted): WeaponDef {
         hidden.delete(bone);
       }
     }
+    if (attachment.id.toLowerCase().includes("silencer") || attachment.tag === "tag_silencer") {
+      def = { ...def, silenced: true };
+    }
   });
 
   // A second pass, because a sight and a grip each author clips for the same
@@ -335,6 +338,19 @@ export function sameFitted(a: Fitted, b: Fitted): boolean {
   }
   const slots = new Set(a);
   return b.every((slot) => slots.has(slot));
+}
+
+/**
+ * Whether a weapon definition is silenced, either because it has a silencer
+ * attachment fitted or because its fire sound aliases are silenced / suppressed.
+ */
+export function isSilenced(def?: WeaponDef): boolean {
+  if (def?.silenced) {
+    return true;
+  }
+  const fire = def?.sounds?.fire?.toLowerCase() ?? "";
+  const firePlr = def?.sounds?.firePlayer?.toLowerCase() ?? "";
+  return fire.includes("silence") || fire.includes("_sup") || firePlr.includes("silence") || firePlr.includes("_sup");
 }
 
 /**

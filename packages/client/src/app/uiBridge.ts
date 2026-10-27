@@ -200,6 +200,21 @@ export interface MinimapPose {
   rotation: number;
 }
 
+/** A sound/gunfire ping on the minimap (Call of Duty MW3 style radar blip). */
+export interface MinimapPing {
+  id: string;
+  /** 0..1 across the image from its left edge. */
+  u: number;
+  /** 0..1 down the image from its top edge. */
+  v: number;
+  /** Opacity 0..1 based on fade time. */
+  alpha: number;
+  /** True if the shooter is an enemy to the local player. */
+  isEnemy: boolean;
+  /** True if the shooter is the local player. */
+  isSelf: boolean;
+}
+
 /**
  * The player's own state, as the HUD shows it.
  *
@@ -343,6 +358,8 @@ export interface UiState {
     map: Signal<MinimapInfo | null>;
     /** null: not walking, so there is no player to place. */
     pose: Signal<MinimapPose | null>;
+    /** Active gunfire sound pings on the minimap. */
+    pings: Signal<readonly MinimapPing[]>;
   };
   hud: {
     /** null: not walking, so there is nobody to draw a crosshair for. */
@@ -505,6 +522,7 @@ export function createUiState(): UiState {
     minimap: {
       map: signal(null),
       pose: signal(null),
+      pings: signal<readonly MinimapPing[]>([]),
     },
     hud: {
       player: signal(null),

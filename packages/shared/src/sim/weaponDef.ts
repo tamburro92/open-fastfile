@@ -269,6 +269,8 @@ export interface WeaponDef {
   penetrateType?: string;
   /** Joints whose surfaces are not drawn: the weapon's hideTags and the folded backup sight. */
   hideBones: string[];
+  /** Whether the weapon has a silencer / suppressor fitted (stealth: suppresses radar ping on fire). */
+  silenced?: boolean;
   /**
    * The aliases this weapon is heard through. Optional as a block, like the
    * ballistics above: a definition built by hand in a test, or read out of a GLB

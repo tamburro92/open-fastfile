@@ -89,7 +89,17 @@ export interface SoundingPeer {
     weaponIndex: number | null;
     attachments: readonly number[];
     weapon: Readonly<WeaponData> | null;
+    team?: number | null;
   };
+}
+
+/** Information about a shot fired, emitted for audio and radar notifications. */
+export interface FiredShotNotice {
+  id: string;
+  feet: Readonly<Vec3>;
+  def?: WeaponDef;
+  own: boolean;
+  team?: number | null;
 }
 
 /** What a peer's weapon index means. Handed in, so this holds no catalogue of its own. */
@@ -130,6 +140,9 @@ export class WeaponAudio {
   private readonly eye: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly where: Vec3 = { x: 0, y: 0, z: 0 };
 
+  /** Optional listener for weapon fire events (used for gunfire radar pings). */
+  onFire?: (shot: FiredShotNotice) => void;
+
   constructor(
     private readonly audio: AudioSystem,
     private readonly world: CapsuleWorld,
@@ -168,6 +181,7 @@ export class WeaponAudio {
       this.audio.playAtListener(event.alias, { channel: "sfx", game: weapon?.def.game }, seeded(weaponStream(this.ownSeed, event.ordinal, layer)));
       if (event.kind === "fire" && weapon) {
         this.impact(shooter, weapon.def, event.ordinal);
+        this.onFire?.({ id: "self", feet: shooter.movement.feet, def: weapon.def, own: true });
       }
     }
   }
@@ -211,6 +225,9 @@ export class WeaponAudio {
       for (const event of tracked.watcher.observe(state.weaponIndex, def, state.weapon ?? undefined, false)) {
         const layer = event.kind === "fire" ? FIRE_LAYER : NOTE_LAYER;
         this.audio.playAt(event.alias, this.eye, { channel: "sfx", game: def?.game }, seeded(weaponStream(tracked.seed, event.ordinal, layer)));
+        if (event.kind === "fire") {
+          this.onFire?.({ id, feet: state.movement.feet, def, own: false, team: state.team });
+        }
       }
     }
     if (this.peers.size !== players.length) {

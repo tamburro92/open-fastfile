@@ -24,3 +24,17 @@ export function minimapPose(map: ResolvedMinimap, x: number, z: number, yaw: num
   const up = -dx * s - dz * c;
   return { u: 0.5 + right / map.width, v: 0.5 - up / map.depth, rotation: yaw - map.rotation };
 }
+
+/**
+ * Normalized (u, v) coordinates [0..1] on `map`'s image for any ground point (x, z).
+ * Used for placing radar blips / gunfire pings on the minimap.
+ */
+export function minimapPoint(map: ResolvedMinimap, x: number, z: number): { u: number; v: number } {
+  const dx = x - map.center.x;
+  const dz = z - map.center.z;
+  const s = Math.sin(map.rotation);
+  const c = Math.cos(map.rotation);
+  const right = dx * c - dz * s;
+  const up = -dx * s - dz * c;
+  return { u: 0.5 + right / map.width, v: 0.5 - up / map.depth };
+}

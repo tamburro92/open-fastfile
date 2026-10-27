@@ -1,5 +1,6 @@
 import { useSignalEffect } from "@preact/signals";
 import { useRef } from "preact/hooks";
+import type { MinimapPing } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import styles from "./PauseMap.module.css";
 
@@ -9,15 +10,40 @@ import styles from "./PauseMap.module.css";
  * opposite of the HUD's turn.
  */
 export function PauseMap() {
-  const map = useUi().state.minimap.map.value;
-  if (!map) {
+  const { map, pings } = useUi().state.minimap;
+  const m = map.value;
+  if (!m) {
     return null;
   }
   return (
-    <div class={styles.frame} style={{ aspectRatio: `${map.width} / ${map.height}` }} data-testid="pause-map">
-      <img class={styles.map} src={map.image} alt="" draggable={false} />
+    <div class={styles.frame} style={{ aspectRatio: `${m.width} / ${m.height}` }} data-testid="pause-map">
+      <img class={styles.map} src={m.image} alt="" draggable={false} />
       <Marker />
+      <PausePings pings={pings.value} />
     </div>
+  );
+}
+
+function PausePings({ pings }: { pings: readonly MinimapPing[] }) {
+  if (pings.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {pings.map((p) => (
+        <div
+          key={p.id}
+          class={p.isEnemy ? styles.enemyPing : styles.selfPing}
+          style={{
+            left: `${clamp01(p.u) * 100}%`,
+            top: `${clamp01(p.v) * 100}%`,
+            opacity: p.alpha,
+          }}
+          data-testid="pause-radar-ping"
+          data-enemy={p.isEnemy}
+        />
+      ))}
+    </>
   );
 }
 

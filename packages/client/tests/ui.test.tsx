@@ -587,6 +587,19 @@ describe("pause menu", () => {
     });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
+
+  it("shows gunfire pings on the pause map", () => {
+    const { state } = paused();
+    act(() => {
+      state.minimap.map.value = { image: "/worlds/dome-mw3/assets/minimap.png", width: 1.25, height: 1.5 };
+      state.minimap.pose.value = { u: 0.5, v: 0.5, rotation: 0 };
+      state.minimap.pings.value = [{ id: "enemy1", u: 0.3, v: 0.4, alpha: 0.9, isEnemy: true, isSelf: false }];
+    });
+    const ping = screen.getByTestId("pause-radar-ping");
+    expect(ping.getAttribute("data-enemy")).toBe("true");
+    expect(ping.style.left).toBe("30%");
+    expect(ping.style.top).toBe("40%");
+  });
 });
 
 describe("minimap", () => {
@@ -617,6 +630,26 @@ describe("minimap", () => {
       state.minimap.pose.value = null;
     });
     expect(frame.hidden).toBe(true);
+  });
+
+  it("renders enemy and self gunfire pings on the minimap", () => {
+    const { state } = setup();
+    act(() => {
+      state.screen.value = "world";
+      state.minimap.map.value = { image: "/worlds/dome-mw3/assets/minimap.png", width: 1.25, height: 1.5 };
+      state.minimap.pose.value = { u: 0.5, v: 0.5, rotation: 0 };
+      state.minimap.pings.value = [
+        { id: "enemy1", u: 0.3, v: 0.4, alpha: 0.8, isEnemy: true, isSelf: false },
+        { id: "self", u: 0.5, v: 0.5, alpha: 1, isEnemy: false, isSelf: true },
+      ];
+    });
+    const pings = screen.getAllByTestId("radar-ping");
+    expect(pings).toHaveLength(2);
+    expect(pings[0]!.getAttribute("data-enemy")).toBe("true");
+    expect(pings[0]!.style.left).toBe("30%");
+    expect(pings[0]!.style.top).toBe("40%");
+    expect(pings[0]!.style.opacity).toBe("0.8");
+    expect(pings[1]!.getAttribute("data-enemy")).toBe("false");
   });
 });
 

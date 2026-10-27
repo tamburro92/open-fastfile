@@ -16,6 +16,7 @@ import {
   WeaponRegistry,
   fittedIds,
   fittedSlots,
+  isSilenced,
   resolveWeapon,
   sameFitted,
   weaponKey,
@@ -259,6 +260,10 @@ describe("attachments", () => {
     expect(fitted.damage).toEqual({ ...both.def.damage, min: 15 });
     expect(fitted.spread).toEqual({ ...both.def.spread, hipStandMin: 4 });
     expect(fitted.locationDamage).toEqual({ ...both.def.locationDamage, head: 1.6 });
+    expect(fitted.silenced).toBe(true);
+    expect(isSilenced(fitted)).toBe(true);
+    expect(isSilenced(both.def)).toBe(false);
+    expect(isSilenced({ ...both.def, sounds: { fire: "weap_m4silenced_fire_npc" } })).toBe(true);
   });
 
   /**

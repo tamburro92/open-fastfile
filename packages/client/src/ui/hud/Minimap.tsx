@@ -1,6 +1,6 @@
 import { useComputed, useSignalEffect } from "@preact/signals";
 import { useRef } from "preact/hooks";
-import type { MinimapInfo } from "../../app/uiBridge.js";
+import type { MinimapInfo, MinimapPing } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import styles from "./Minimap.module.css";
 
@@ -29,20 +29,64 @@ export function Minimap() {
 
 /**
  * Follows the pose outside Preact's render: the effect writes the transform
- * straight to the image. Its own component so the effect starts once the image
- * exists. The image's top-left corner sits at the frame's centre (the CSS), so
- * sliding it by the pose's share of its own size brings the player's spot there.
+ * straight to the image and the radar pings overlay layer.
  */
 function MapImage({ map }: { map: MinimapInfo }) {
-  const pose = useUi().state.minimap.pose;
+  const { pose, pings } = useUi().state.minimap;
   const image = useRef<HTMLImageElement>(null);
+  const pingsLayer = useRef<HTMLDivElement>(null);
   useSignalEffect(() => {
     const p = pose.value;
-    if (p && image.current) {
-      image.current.style.transform = `rotate(${p.rotation}rad) translate(${-p.u * 100}%, ${-p.v * 100}%)`;
+    if (p) {
+      const transform = `rotate(${p.rotation}rad) translate(${-p.u * 100}%, ${-p.v * 100}%)`;
+      if (image.current) {
+        image.current.style.transform = transform;
+      }
+      if (pingsLayer.current) {
+        pingsLayer.current.style.transform = transform;
+      }
     }
   });
   return (
-    <img ref={image} class={styles.map} src={map.image} alt="" draggable={false} style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }} />
+    <>
+      <img
+        ref={image}
+        class={styles.map}
+        src={map.image}
+        alt=""
+        draggable={false}
+        style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}
+      />
+      <div
+        ref={pingsLayer}
+        class={styles.pingsLayer}
+        style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}
+      >
+        <PingMarkers pings={pings.value} />
+      </div>
+    </>
+  );
+}
+
+function PingMarkers({ pings }: { pings: readonly MinimapPing[] }) {
+  if (pings.length === 0) {
+    return null;
+  }
+  return (
+    <>
+      {pings.map((p) => (
+        <span
+          key={p.id}
+          class={p.isEnemy ? styles.enemyPing : styles.selfPing}
+          style={{
+            left: `${p.u * 100}%`,
+            top: `${p.v * 100}%`,
+            opacity: p.alpha,
+          }}
+          data-testid="radar-ping"
+          data-enemy={p.isEnemy}
+        />
+      ))}
+    </>
   );
 }

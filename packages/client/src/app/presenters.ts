@@ -4,11 +4,14 @@
 
 import { shotSpread } from "@3d/shared/sim/recoil.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
+import { isSilenced } from "@3d/shared/sim/weaponRegistry.js";
+import type { FiredShotNotice } from "../engine/audio/weapons.js";
 import type { CurrentWorld } from "./currentWorld.js";
 import type { Hud } from "./hud.js";
 import type { MatchController } from "./match.js";
 import { minimapPose } from "./minimap.js";
 import type { PauseController } from "./pause.js";
+import { Radar } from "./radar.js";
 import type { ScreenRouter } from "./screens.js";
 import type { Systems } from "./systems.js";
 import type { UiState } from "./uiBridge.js";
@@ -18,6 +21,8 @@ import type { UseFocus } from "./useFocus.js";
 const DEG = Math.PI / 180;
 
 export class Presenters {
+  readonly radar: Radar;
+
   constructor(
     private readonly systems: Systems,
     private readonly ui: UiState,
@@ -27,14 +32,35 @@ export class Presenters {
     private readonly screens: ScreenRouter,
     private readonly current: CurrentWorld,
     private readonly match: MatchController,
-  ) {}
+  ) {
+    this.radar = new Radar(ui);
+    this.systems.weaponAudio.onFire = (shot) => this.onShotFired(shot);
+  }
 
   update(): void {
     const walking = this.pause.mode === "walk" && this.screens.current === "world";
     this.updateMinimap();
+    this.radar.update();
     this.updateHud(walking);
     this.updateCone();
     this.updateUseFocus(walking);
+  }
+
+  private onShotFired(shot: FiredShotNotice): void {
+    const map = this.current.world?.minimap;
+    if (!map) {
+      return;
+    }
+    if (isSilenced(shot.def)) {
+      return; // Silencer suppresses gunfire radar ping (stealth)
+    }
+    const localTeam = this.systems.firstPerson.player.side;
+    const isEnemy = shot.own
+      ? false
+      : localTeam !== null && localTeam !== undefined && shot.team !== null && shot.team !== undefined
+        ? shot.team !== localTeam
+        : true;
+    this.radar.record(shot.id, { x: shot.feet.x, z: shot.feet.z }, isEnemy, shot.own, map);
   }
 
   /** Where the player stands on the HUD map, while walking. Every frame, since it turns with the mouse: ui/hud/Minimap.tsx draws it without re-rendering. */
@@ -43,6 +69,9 @@ export class Presenters {
     const pose = this.ui.minimap.pose;
     if (!map || this.pause.mode !== "walk") {
       pose.value = null;
+      if (!map) {
+        this.radar.clear();
+      }
       return;
     }
     const { feet, yaw } = this.systems.firstPerson.player.movement;

@@ -1,7 +1,7 @@
 // The HUD map: the `minimap` node, and placing the player on its image.
 
 import { describe, expect, it } from "vitest";
-import { minimapInfo, minimapPose } from "../src/app/minimap.js";
+import { minimapInfo, minimapPoint, minimapPose } from "../src/app/minimap.js";
 import { parseWorldFile } from "@3d/shared/dsl/parser.js";
 import { resolveWorld } from "@3d/shared/dsl/resolve.js";
 import type { ResolvedMinimap } from "@3d/shared/dsl/resolved.js";
@@ -87,5 +87,15 @@ describe("placing the player on the minimap", () => {
 
   it("sizes the image against a map twice the range across", () => {
     expect(minimapInfo(DOME, "/worlds/dome-mw3/")).toEqual({ image: "/worlds/dome-mw3/assets/minimap.png", width: 103.632 / 80, height: 103.632 / 80 });
+  });
+
+  it("converts world coordinates to minimap (u, v) points", () => {
+    const pt = minimapPoint(DOME, 56.896, -76.403);
+    expect(pt.u).toBeCloseTo(0, 4);
+    expect(pt.v).toBeCloseTo(0, 4);
+
+    const center = minimapPoint(DOME, DOME.center.x, DOME.center.z);
+    expect(center.u).toBeCloseTo(0.5, 4);
+    expect(center.v).toBeCloseTo(0.5, 4);
   });
 });
