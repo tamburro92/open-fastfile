@@ -96,7 +96,13 @@ export class NetServer {
       // The handshake is plain HTTP from the client's origin; the data channel
       // that follows is UDP on a port from this range. Both have to be reachable,
       // and a blocked range fails as a silent ICE timeout rather than an error.
-      cors: { origin: config.clientOrigin, allowAuthorization: true },
+      cors: {
+        origin: (req) => {
+          const origin = req.headers.origin;
+          return (Array.isArray(origin) ? origin[0] : origin) ?? config.clientOrigin;
+        },
+        allowAuthorization: true,
+      },
       portRange: config.udpPortRange,
       // Reachable is not the same as advertised: with no stun, the candidates
       // this offers are the box's own interfaces, which behind a NAT no browser

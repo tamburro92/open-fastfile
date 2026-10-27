@@ -177,7 +177,7 @@ export class Hud {
         score: self?.points ?? 0,
         deaths: this.playerDeaths.get(this.me) ?? 0,
         isSelf: true,
-        team: teamOf(self?.team),
+        team: teamOf(self?.team) ?? this.ui.currentTeam.value ?? undefined,
       });
     }
     for (const peer of others) {
