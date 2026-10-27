@@ -197,8 +197,8 @@ export class Connection {
     // via a LAN IP or domain (e.g. http://10.99.173.79:5173), adapt the hostname
     // to match window.location.hostname so remote devices can reach the game server:
     const isLocalTicket = url.hostname === "localhost" || url.hostname === "127.0.0.1";
-    const isRemoteBrowser = window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
-    const hostname = isLocalTicket && isRemoteBrowser ? window.location.hostname : url.hostname;
+    const isRemoteBrowser = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1";
+    const hostname = isLocalTicket && isRemoteBrowser && typeof window !== "undefined" ? window.location.hostname : url.hostname;
 
     const channel = geckos({ url: `${url.protocol}//${hostname}`, port });
     this.channel = channel;

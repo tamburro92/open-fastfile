@@ -53,12 +53,16 @@ export const ffaScript: Script = defineScript<FfaState>({
       friendlyFire: false,
     }),
     matchStart: (ctx) => {
-      // In Free-for-All, spawn bot opponents so singleplayer deathmatch has active enemies to fight:
+      // In Free-for-All, spawn tactical combat bot opponents:
+      const enabled = ctx.botsEnabled ?? true;
+      if (!enabled) {
+        return;
+      }
       const humanCount = ctx.players.filter((p) => !p.bot).length;
-      const targetOpponents = 6;
-      const botsToSpawn = Math.max(0, targetOpponents - humanCount);
-      for (let i = 0; i < botsToSpawn; i++) {
-        ctx.bots.add({ brain: "seek-nearest", objective: { kind: "none" } });
+      const targetCount = ctx.botCount !== undefined ? ctx.botCount : Math.max(0, 6 - humanCount);
+      const difficulty = ctx.botDifficulty ?? "regular";
+      for (let i = 0; i < targetCount; i++) {
+        ctx.bots.add({ brain: "combat", params: { difficulty }, objective: { kind: "none" } });
       }
     },
     playerSpawn: (ctx) => ({

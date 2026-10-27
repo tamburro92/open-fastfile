@@ -242,13 +242,40 @@ export class Matchmaker {
     });
   }
 
-  setLobbyRules(user: SessionUser, code: string, rules: { scoreLimit?: number; timeLimit?: number }): Done {
+  setLobbyRules(
+    user: SessionUser,
+    code: string,
+    rules: {
+      scoreLimit?: number;
+      timeLimit?: number;
+      bots?: boolean;
+      botCount?: number;
+      botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+      friendlyBots?: number;
+      enemyBots?: number;
+    },
+  ): Done {
     return this.hostCommand(user, code, (lobby) => {
       if (rules.scoreLimit !== undefined) {
         lobby.scoreLimit = rules.scoreLimit;
       }
       if (rules.timeLimit !== undefined) {
         lobby.timeLimit = rules.timeLimit;
+      }
+      if (rules.bots !== undefined) {
+        lobby.bots = rules.bots;
+      }
+      if (rules.botCount !== undefined) {
+        lobby.botCount = rules.botCount;
+      }
+      if (rules.botDifficulty !== undefined) {
+        lobby.botDifficulty = rules.botDifficulty;
+      }
+      if (rules.friendlyBots !== undefined) {
+        lobby.friendlyBots = rules.friendlyBots;
+      }
+      if (rules.enemyBots !== undefined) {
+        lobby.enemyBots = rules.enemyBots;
       }
       this.publishLobby(lobby);
       return { ok: true };
@@ -454,6 +481,11 @@ export class Matchmaker {
       gametype: lobby.gametype,
       scoreLimit: lobby.scoreLimit,
       timeLimit: lobby.timeLimit,
+      bots: lobby.bots,
+      botCount: lobby.botCount,
+      botDifficulty: lobby.botDifficulty,
+      friendlyBots: lobby.friendlyBots,
+      enemyBots: lobby.enemyBots,
       status: lobby.status,
       startsAt: lobby.startsAt,
       players: lobby.users.map((member): LobbyPlayer => ({ id: member.id, username: member.username, host: member.userId === lobby.hostUserId })),
@@ -503,6 +535,11 @@ export class Matchmaker {
       scoreLimit: lobby.scoreLimit,
       maxPlayers: this.config.lobbySize,
       durationSeconds: lobby.timeLimit ?? this.config.gameDurationSeconds,
+      bots: lobby.bots,
+      botCount: lobby.botCount,
+      botDifficulty: lobby.botDifficulty,
+      friendlyBots: lobby.friendlyBots,
+      enemyBots: lobby.enemyBots,
       players: lobby.users.map((member) => ({
         id: member.id,
         authorizationKey: member.authorizationKey,

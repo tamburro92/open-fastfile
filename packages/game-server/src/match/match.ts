@@ -140,7 +140,7 @@ export class Match {
     const spawns = (this.spawns = new Spawns(world, scripts, classes, () => damage.rules));
     const shots = (this.shots = new Shots(clock, collision, roster, actors, rewinder, damage, outbox, () => damage.rules));
     const view = gameView({ world, index, map, gametype, catalogue, clock, roster, presence: parts.presence, scores });
-    const brains = new BrainContexts(view, roster);
+    const brains = new BrainContexts(view, roster, collision);
     this.cast = new MatchCast(scripts, view, playing.bodies, weapons);
     const actorTick = (this.actorTick = new ActorTick(clock, actors, roster, nav, damage, (planner) => brains.on(planner)));
     const dynamics = (this.dynamics = new Dynamics(clock));
@@ -159,7 +159,15 @@ export class Match {
     // Before any other hook, so the first `combatRules` already has its state.
     const end = (reason: string): void => void (this.endedBy ??= reason);
     const verbs = serverVerbs({ index, roster, parts, spawns, damage, classes, scores, announcements, bots, zones, actors, nav, end });
-    scripts.start((memory) => serverContext(view, verbs, memory, playing.scoreLimit, playing.durationSeconds));
+    scripts.start((memory) =>
+      serverContext(view, verbs, memory, playing.scoreLimit, playing.durationSeconds, {
+        botsEnabled: playing.botsEnabled,
+        botCount: playing.botCount,
+        botDifficulty: playing.botDifficulty,
+        friendlyBots: playing.friendlyBots,
+        enemyBots: playing.enemyBots,
+      }),
+    );
     damage.askRules();
     classes.askRules();
 

@@ -23,15 +23,39 @@ import type { Route } from "./planner.js";
 /** What a brain wants of its body right now. The motor carries it out every tick until the next think. */
 export type Goal =
   /** Stand. Facing `look` if given, else wherever it faces. */
-  | { readonly kind: "idle"; readonly look?: Vec3 }
+  | {
+      readonly kind: "idle";
+      readonly look?: Vec3;
+      readonly aimAt?: Vec3;
+      readonly fire?: boolean;
+      readonly ads?: boolean;
+      readonly crouch?: boolean;
+      readonly reload?: boolean;
+    }
   /** Stand, facing a point. */
-  | { readonly kind: "look"; readonly point: Vec3 }
+  | {
+      readonly kind: "look";
+      readonly point: Vec3;
+      readonly aimAt?: Vec3;
+      readonly fire?: boolean;
+      readonly ads?: boolean;
+      readonly crouch?: boolean;
+      readonly reload?: boolean;
+    }
   /**
    * Stand, facing this player, and hit them. The motor only stands and faces;
    * the blow is an actor's runtime's, when its kind's cooldown allows and the
    * target is within reach (docs/engine/actors.md). A bot has no blow, and stands.
    */
-  | { readonly kind: "attack"; readonly target: PlayerId }
+  | {
+      readonly kind: "attack";
+      readonly target: PlayerId;
+      readonly aimAt?: Vec3;
+      readonly fire?: boolean;
+      readonly ads?: boolean;
+      readonly crouch?: boolean;
+      readonly reload?: boolean;
+    }
   | MoveTo;
 
 /** Go to a point, over the graph and then straight to it. */
@@ -51,6 +75,16 @@ export interface MoveTo {
   readonly track?: PlayerId;
   /** The path, if the brain already asked for one: the motor takes it rather than planning again. */
   readonly route?: Route;
+  /** Aim point in world coordinates: motor turns the bot's yaw and pitch toward this point. */
+  readonly aimAt?: Vec3;
+  /** Whether to hold fire this tick. */
+  readonly fire?: boolean;
+  /** Whether to hold Aim Down Sights (ADS) this tick. */
+  readonly ads?: boolean;
+  /** Whether to hold crouch this tick. */
+  readonly crouch?: boolean;
+  /** Whether to press reload this tick. */
+  readonly reload?: boolean;
 }
 
 export const IDLE: Goal = { kind: "idle" };
@@ -91,6 +125,8 @@ export interface BrainContext extends GameView {
   /** Where a player is and whether they are alive. Server-only, like the brain. */
   state(id: PlayerId): PlayerStateView | undefined;
   readonly nav: BrainNav;
+  /** Check if there is unobstructed line of sight between two world points. */
+  hasLineOfSight(from: Vec3, to: Vec3): boolean;
 }
 
 /**

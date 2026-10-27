@@ -59,7 +59,37 @@ export const tdmScript: Script = defineScript<TdmState>({
       friendlyFire: false,
     }),
     matchStart: (ctx) => {
-      // Balance teams with bot opponents for single-player / small matches:
+      // Balance teams with tactical combat bots according to lobby rules:
+      const enabled = ctx.botsEnabled ?? true;
+      if (!enabled) {
+        return;
+      }
+      if (ctx.friendlyBots !== undefined || ctx.enemyBots !== undefined || ctx.botDifficulty !== undefined || ctx.botCount !== undefined) {
+        const difficulty = ctx.botDifficulty ?? "regular";
+        if (ctx.friendlyBots !== undefined || ctx.enemyBots !== undefined) {
+          const friendlyCount = ctx.friendlyBots ?? 3;
+          const enemyCount = ctx.enemyBots ?? 3;
+          for (let i = 0; i < friendlyCount; i++) {
+            ctx.bots.add({ brain: "combat", team: "allies", params: { difficulty }, objective: { kind: "none" } });
+          }
+          for (let i = 0; i < enemyCount; i++) {
+            ctx.bots.add({ brain: "combat", team: "axis", params: { difficulty }, objective: { kind: "none" } });
+          }
+        } else {
+          const total = ctx.botCount ?? 6;
+          const alliesBots = Math.ceil(total / 2);
+          const axisBots = Math.floor(total / 2);
+          for (let i = 0; i < alliesBots; i++) {
+            ctx.bots.add({ brain: "combat", team: "allies", params: { difficulty }, objective: { kind: "none" } });
+          }
+          for (let i = 0; i < axisBots; i++) {
+            ctx.bots.add({ brain: "combat", team: "axis", params: { difficulty }, objective: { kind: "none" } });
+          }
+        }
+        return;
+      }
+
+      // Default fallback for unit tests and matches without explicit bot options:
       const targetPerTeam = 3;
       const alliesCount = ctx.players.filter((p) => p.team === "allies").length;
       const axisCount = ctx.players.filter((p) => p.team === "axis").length;

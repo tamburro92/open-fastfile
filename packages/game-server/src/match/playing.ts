@@ -52,4 +52,10 @@ export interface Playing {
   scoreLimit?: number;
   /** Configured time limit (duration) in seconds for this match. */
   durationSeconds?: number;
+  /** Configured bot options for this match. */
+  botsEnabled?: boolean;
+  botCount?: number;
+  botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+  friendlyBots?: number;
+  enemyBots?: number;
 }

@@ -39,7 +39,8 @@ import {
 } from "../../nav/follow.js";
 import { LINK_KINDS } from "../../nav/vocab.js";
 import type { PlayerInput } from "../../sim/input.js";
-import type { MovementState, Vec3 } from "../../sim/movement.js";
+import { clampPitch, type MovementState, type Vec3 } from "../../sim/movement.js";
+import { eyeHeight } from "../../sim/stance.js";
 import { IDLE, type Goal, type MotorStatus, type MotorView, type MoveTo } from "./brain.js";
 import type { NavPlanner, Route } from "./planner.js";
 
@@ -142,24 +143,45 @@ export class Motor implements MotorView {
    */
   step(m: Readonly<MovementState>, dt: number, nav: NavPlanner, out: PlayerInput, feetOf?: FeetOf): MotorStatus {
     const goal = this.goal;
+    let status: MotorStatus;
     if (goal.kind === "idle") {
       if (goal.look) {
         face(out, m, goal.look);
       }
-      return (this.status = "idle");
-    }
-    if (goal.kind === "look") {
+      status = (this.status = "idle");
+    } else if (goal.kind === "look") {
       face(out, m, goal.point);
-      return (this.status = "idle");
-    }
-    if (goal.kind === "attack") {
+      status = (this.status = "idle");
+    } else if (goal.kind === "attack") {
       const target = feetOf?.(goal.target);
       if (target) {
         face(out, m, target);
       }
-      return (this.status = "arrived");
+      status = (this.status = "arrived");
+    } else {
+      status = (this.status = this.move(goal, m, dt, nav, out, feetOf));
     }
-    return (this.status = this.move(goal, m, dt, nav, out, feetOf));
+
+    if ("crouch" in goal && goal.crouch !== undefined) {
+      out.crouch = goal.crouch;
+    }
+    if ("reload" in goal && goal.reload !== undefined) {
+      out.reload = goal.reload;
+    }
+    if ("ads" in goal && goal.ads !== undefined) {
+      out.ads = goal.ads;
+    }
+    if ("fire" in goal && goal.fire !== undefined) {
+      out.fire = goal.fire;
+    }
+    if ("aimAt" in goal && goal.aimAt !== undefined) {
+      aimAtPoint(out, m, goal.aimAt);
+    }
+    if (out.ads || out.fire) {
+      out.run = false;
+    }
+
+    return status;
   }
 
   private move(goal: MoveTo, m: Readonly<MovementState>, dt: number, nav: NavPlanner, out: PlayerInput, feetOf: FeetOf | undefined): MotorStatus {
@@ -432,3 +454,34 @@ function face(out: PlayerInput, m: Readonly<MovementState>, point: Readonly<Vec3
     out.yaw = Math.atan2(-dx, -dz);
   }
 }
+
+/** Turn to face and aim at a target point in 3D: sets yaw and pitch, preserving world movement direction as strafing. */
+function aimAtPoint(out: PlayerInput, m: Readonly<MovementState>, target: Readonly<Vec3>): void {
+  const up = eyeHeight(m);
+  const eyeX = m.feet.x;
+  const eyeY = m.feet.y + up;
+  const eyeZ = m.feet.z;
+  const dx = target.x - eyeX;
+  const dy = target.y - eyeY;
+  const dz = target.z - eyeZ;
+  const horizontal = Math.hypot(dx, dz);
+  if (horizontal > 0.01) {
+    const aimYaw = Math.atan2(-dx, -dz);
+    // If the movement code already set forward/right movement, adjust it so
+    // the bot moves along the planned world direction while aiming at aimYaw (strafing):
+    if (out.forward !== 0 || out.right !== 0) {
+      const moveYaw = out.yaw;
+      const angle = moveYaw - aimYaw;
+      const fwd = out.forward;
+      const rgt = out.right;
+      out.forward = Math.max(-1, Math.min(1, fwd * Math.cos(angle) + rgt * Math.sin(angle)));
+      out.right = Math.max(-1, Math.min(1, -fwd * Math.sin(angle) + rgt * Math.cos(angle)));
+    }
+    out.yaw = aimYaw;
+  }
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist > 0.01) {
+    out.pitch = clampPitch(Math.atan2(dy, horizontal));
+  }
+}
+

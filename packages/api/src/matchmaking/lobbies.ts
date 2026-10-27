@@ -60,6 +60,11 @@ export interface Lobby {
   scoreLimit?: number;
   /** Custom time limit (duration) in seconds, or undefined for the mode's default. */
   timeLimit?: number;
+  bots?: boolean;
+  botCount?: number;
+  botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+  friendlyBots?: number;
+  enemyBots?: number;
   status: LobbyStatus;
   /** Absolute unix ms. Set means counting down. */
   startsAt: number | null;
@@ -112,6 +117,11 @@ export class Lobbies {
           : gametypeId === FFA_GAMETYPE
             ? DEFAULT_FFA_TIME_LIMIT_SECONDS
             : undefined,
+      bots: true,
+      botDifficulty: "regular",
+      botCount: gametypeId === TDM_GAMETYPE ? 6 : 5,
+      friendlyBots: 3,
+      enemyBots: 3,
       status: "open",
       startsAt: null,
       serverId: null,

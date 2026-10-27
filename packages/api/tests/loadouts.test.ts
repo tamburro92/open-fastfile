@@ -8,6 +8,7 @@
 // and an attachment its weapon no longer offers. Both must read as *gone*, never
 // as something else.
 
+import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 import { LOADOUT_COUNT, type Loadout } from "@3d/shared/sim/loadout.js";
 import type { WeaponEntry } from "@3d/shared/sim/weaponRegistry.js";

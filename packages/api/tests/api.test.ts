@@ -1,5 +1,6 @@
 // /api/* and /internal/*: what a client may ask, what only the fleet may.
 
+import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 import { healthResponse } from "@3d/shared/protocol/routes/health.js";
 import { heartbeatResponse, serverListResponse, type GameServerInfo } from "@3d/shared/protocol/routes/servers.js";

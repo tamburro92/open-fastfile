@@ -24,6 +24,8 @@ import type { Vec3 } from "../sim/capsule.js";
 import type { BotSpec, Objective } from "./bots/objective.js";
 import type { ActorId, ActorSpec, ActorStateView } from "./actors/actor.js";
 
+import type { WeaponState } from "../sim/weapon.js";
+
 /** A script's name in the table, and the address another script sends to. */
 export type ScriptId = string;
 
@@ -70,6 +72,12 @@ export interface PlayerStateView {
   readonly alive: boolean;
   readonly health: number;
   readonly team?: TeamId;
+  readonly eyeHeight?: number;
+  readonly weapon?: {
+    readonly ammo: number;
+    readonly clipSize: number;
+    readonly state: WeaponState;
+  };
 }
 
 /**
@@ -203,6 +211,12 @@ export interface ServerContext<S = unknown> extends GameView {
   readonly scoreLimit?: number;
   /** Configured time limit (in seconds) for this match, if specified by lobby/order. */
   readonly timeLimitSeconds?: number;
+  /** Configured bot settings for this match. */
+  readonly botsEnabled?: boolean;
+  readonly botCount?: number;
+  readonly botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+  readonly friendlyBots?: number;
+  readonly enemyBots?: number;
   /**
    * Put a player on a side, by a name the gametype's `teams` lists. Naming one it
    * does not throws, because putting them on side 0 instead is a wrong answer

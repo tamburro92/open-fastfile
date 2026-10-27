@@ -110,6 +110,11 @@ export interface LobbyInfo {
   scoreLimit?: number;
   /** Custom time limit in seconds, or undefined for the mode's default. */
   timeLimit?: number;
+  bots?: boolean;
+  botCount?: number;
+  botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+  friendlyBots?: number;
+  enemyBots?: number;
   /** Whether its game is running — the player is in the world, not here. */
   playing: boolean;
   /**
@@ -473,8 +478,16 @@ export interface UiCommands {
    * the gametype is not played on, the map moves to the first one it is.
    */
   setLobbyMode(id: string): void;
-  /** Choose game rules (score limit, time limit). The host only; the api refuses anyone else. */
-  setLobbyRules(rules: { scoreLimit?: number; timeLimit?: number }): void;
+  /** Choose game rules (score limit, time limit, bots). The host only; the api refuses anyone else. */
+  setLobbyRules(rules: {
+    scoreLimit?: number;
+    timeLimit?: number;
+    bots?: boolean;
+    botCount?: number;
+    botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+    friendlyBots?: number;
+    enemyBots?: number;
+  }): void;
   /** Open or close the in-game scoreboard. */
   setScoreboardOpen(open: boolean): void;
   toggleScoreboard(): void;

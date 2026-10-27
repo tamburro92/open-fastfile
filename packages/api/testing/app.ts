@@ -48,7 +48,7 @@ export const TEST_TOKEN = "test-token";
 /** A world with spawns, an `include` and a `collision`: an imported map's text is committed even though its assets are not. */
 export const TEST_WORLD = IMPORTED ? "dome-mw3" : "test-arena";
 /** A second world in TEST_WORLDS, for a lobby that changes map. */
-export const TEST_OTHER_WORLD = IMPORTED ? "rust-mw2" : "test-yard";
+export const TEST_OTHER_WORLD = IMPORTED ? (fs.existsSync(path.join(REPO_WORLDS, "rust-mw2")) ? "rust-mw2" : "seatown-mw3") : "test-yard";
 /**
  * A committed JSON file inside TEST_WORLD, for the asset route. An imported
  * map's `assets/` is gitignored, so the servable file has to be one of its own

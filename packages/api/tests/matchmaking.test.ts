@@ -8,6 +8,7 @@
 // Every assertion is on what a player was *told*, not on the matchmaker's
 // internals, because the event stream is the only thing a client ever sees.
 
+import "reflect-metadata";
 import { DEFAULT_GAMETYPE } from "@3d/shared/game/gametypes/registry.js";
 import { ZOMBIES_GAMETYPE } from "@3d/shared/game/gametypes/zombies.js";
 import { describe, expect, it } from "vitest";

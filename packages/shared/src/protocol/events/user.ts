@@ -41,6 +41,11 @@ export const lobbyEvent = z.object({
   gametype: z.string().check(z.minLength(1)),
   scoreLimit: z.optional(z.number()),
   timeLimit: z.optional(z.number()),
+  bots: z.optional(z.boolean()),
+  botCount: z.optional(z.number()),
+  botDifficulty: z.optional(z.enum(["recruit", "regular", "hardened", "veteran"])),
+  friendlyBots: z.optional(z.number()),
+  enemyBots: z.optional(z.number()),
   status: lobbyStatus,
   /**
    * When the round starts, as an absolute unix-ms instant — not a remaining

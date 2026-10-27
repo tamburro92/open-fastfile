@@ -7,6 +7,7 @@ import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { PlayerStateView, PlayerView } from "@3d/shared/game/context.js";
 import type { GametypeDecl, TeamId } from "@3d/shared/game/gametypes/declaration.js";
 import type { CapsuleWorld } from "@3d/shared/sim/capsule.js";
+import { eyeHeight } from "@3d/shared/sim/stance.js";
 import type { Player } from "@3d/shared/sim/player.js";
 import type { LoadedBody } from "../bodies.js";
 import type { PlayerHistory } from "../history.js";
@@ -184,7 +185,23 @@ export class Roster {
       return undefined;
     }
     const { feet, yaw } = member.player.movement;
-    return { feet: { x: feet.x, y: feet.y, z: feet.z }, yaw, alive: !member.player.dead, health: member.player.health, team: this.teamOf(id) };
+    const held = member.player.weapon;
+    const weapon = held
+      ? {
+          ammo: held.data.ammo,
+          clipSize: held.def.clipSize,
+          state: held.data.state,
+        }
+      : undefined;
+    return {
+      feet: { x: feet.x, y: feet.y, z: feet.z },
+      yaw,
+      alive: !member.player.dead,
+      health: member.player.health,
+      team: this.teamOf(id),
+      eyeHeight: eyeHeight(member.player.movement),
+      weapon,
+    };
   }
 
   /** Whether a living member is inside `part`. */

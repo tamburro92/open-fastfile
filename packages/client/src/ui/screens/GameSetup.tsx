@@ -12,8 +12,8 @@ import { MenuArt } from "./MenuArt.js";
 import { ModeDetails } from "./ModeSelect.js";
 import styles from "./GameSetup.module.css";
 
-/** Which of Game Setup's menus is showing: its own, or one of the two it opens. */
-export type SetupMenu = "setup" | "mode" | "map" | "rules";
+/** Which of Game Setup's menus is showing: its own, or one of the three it opens. */
+export type SetupMenu = "setup" | "mode" | "map" | "rules" | "bots";
 
 /**
  * A private lobby's Game Setup, a menu of its own: the gametype first, since it
@@ -40,6 +40,18 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
   const scoreLimitLabel = scoreLimit === 0 ? "Unlimited" : `${scoreLimit} Kills`;
   const timeLimitLabel = lobby?.timeLimit === 0 ? "Unlimited" : `${timeLimitMin} Minutes`;
 
+  const botsEnabled = lobby?.bots !== false;
+  const botDifficulty = lobby?.botDifficulty ?? "regular";
+  const botDiffLabel = botDifficulty.charAt(0).toUpperCase() + botDifficulty.slice(1);
+  const botCount = lobby?.botCount ?? (isTdm ? 6 : 5);
+  const friendlyBots = lobby?.friendlyBots ?? 3;
+  const enemyBots = lobby?.enemyBots ?? 3;
+  const botSummary = !botsEnabled
+    ? "Disabled"
+    : isTdm
+      ? `${friendlyBots} Friendly / ${enemyBots} Enemy (${botDiffLabel})`
+      : `${botCount} Bots (${botDiffLabel})`;
+
   const items: MenuItem[] = [
     { label: "Game Mode", description: `The rules this match is played by. Now: ${lobby?.mode ?? "none"}.`, onSelect: () => props.onOpen("mode") },
     {
@@ -59,6 +71,11 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
         props.onOpen("rules");
       },
     },
+    {
+      label: "Bot Setup",
+      description: `Configure AI bots: ${botSummary}.`,
+      onSelect: () => props.onOpen("bots"),
+    },
     { label: "Back", description: "Back to the lobby.", divider: true, onSelect: props.onBack },
   ];
 
@@ -73,6 +90,8 @@ export function GameSetup(props: { onOpen: (menu: SetupMenu) => void; onBack: ()
           {mode && <ModeDetails mode={mode} worlds={state.worlds.value} />}
           <h3 class={`${styles.label} ${styles.gap}`}>Game Rules</h3>
           <p class={styles.value}>{scoreLimitLabel} / {timeLimitLabel}</p>
+          <h3 class={`${styles.label} ${styles.gap}`}>Bots</h3>
+          <p class={styles.value}>{botSummary}</p>
           <h3 class={`${styles.label} ${styles.gap}`}>Map</h3>
           <p class={styles.value}>{world?.name ?? lobby?.map ?? "None chosen"}</p>
           {world && <MapPreview key={world.slug} world={world} hint={false} />}

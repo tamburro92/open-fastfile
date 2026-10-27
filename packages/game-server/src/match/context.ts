@@ -19,6 +19,8 @@ import type { MatchClock } from "./clock.js";
 import type { Roster } from "./roster.js";
 import type { Scores } from "./scores.js";
 
+import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
+
 /** Everything a server context says beyond the view: the verbs, the world a script may change, and the nav. */
 export type ServerVerbs = Omit<ServerContext, Exclude<keyof GameView, "world"> | "memory">;
 
@@ -63,6 +65,14 @@ export function gameView(src: ViewSource): GameView {
   };
 }
 
+export interface BotContextOptions {
+  readonly botsEnabled?: boolean;
+  readonly botCount?: number;
+  readonly botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+  readonly friendlyBots?: number;
+  readonly enemyBots?: number;
+}
+
 /** A server hook's context: the view, the verbs, and the calling script's own state. */
 export function serverContext(
   view: GameView,
@@ -70,8 +80,18 @@ export function serverContext(
   memory: unknown,
   scoreLimit?: number,
   timeLimitSeconds?: number,
+  botOptions?: BotContextOptions,
 ): ServerContext {
-  return extend(extend(view, verbs), { memory, scoreLimit, timeLimitSeconds });
+  return extend(extend(view, verbs), {
+    memory,
+    scoreLimit,
+    timeLimitSeconds,
+    botsEnabled: botOptions?.botsEnabled,
+    botCount: botOptions?.botCount,
+    botDifficulty: botOptions?.botDifficulty,
+    friendlyBots: botOptions?.friendlyBots,
+    enemyBots: botOptions?.enemyBots,
+  });
 }
 
 /**
@@ -85,12 +105,34 @@ export class BrainContexts {
   constructor(
     private readonly view: GameView,
     private readonly roster: Roster,
+    private readonly collision?: CapsuleWorld,
   ) {}
 
   on(nav: NavPlanner): BrainContext {
     let context = this.made.get(nav);
     if (!context) {
-      context = extend(this.view, { state: (id: string) => this.roster.stateOf(id), nav });
+      context = extend(this.view, {
+        state: (id: string) => this.roster.stateOf(id),
+        nav,
+        hasLineOfSight: (from: Vec3, to: Vec3): boolean => {
+          if (!this.collision) {
+            return true;
+          }
+          const dx = to.x - from.x;
+          const dy = to.y - from.y;
+          const dz = to.z - from.z;
+          const dist = Math.hypot(dx, dy, dz);
+          if (dist <= 0.05) {
+            return true;
+          }
+          const dir = { x: dx / dist, y: dy / dist, z: dz / dist };
+          const hit = this.collision.traceRay(from, dir, dist, "shots");
+          if (!hit) {
+            return true;
+          }
+          return hit.distance >= dist - 0.1;
+        },
+      });
       this.made.set(nav, context);
     }
     return context;

@@ -182,7 +182,15 @@ export class PlayerSession {
     this.attempt(asked, "could not change the mode");
   }
 
-  setLobbyRules(rules: { scoreLimit?: number; timeLimit?: number }): void {
+  setLobbyRules(rules: {
+    scoreLimit?: number;
+    timeLimit?: number;
+    bots?: boolean;
+    botCount?: number;
+    botDifficulty?: "recruit" | "regular" | "hardened" | "veteran";
+    friendlyBots?: number;
+    enemyBots?: number;
+  }): void {
     const code = this.ui.lobby.value?.code;
     if (code === undefined) {
       return;
@@ -265,6 +273,11 @@ export class PlayerSession {
           gametype: event.gametype,
           scoreLimit: event.scoreLimit,
           timeLimit: event.timeLimit,
+          bots: event.bots,
+          botCount: event.botCount,
+          botDifficulty: event.botDifficulty,
+          friendlyBots: event.friendlyBots,
+          enemyBots: event.enemyBots,
           playing,
           startsAt: event.startsAt,
           players: event.players,

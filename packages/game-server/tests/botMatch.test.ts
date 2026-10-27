@@ -6,6 +6,7 @@
 // ignore it, and standing still until there is a graph to plan over. Walking a
 // real map is bots.test.ts's.
 
+import "reflect-metadata";
 import { describe, expect, it, vi } from "vitest";
 import type { ResolvedWorld } from "@3d/shared/dsl/resolved.js";
 import { catalogueViewOf } from "@3d/shared/game/catalogueView.js";

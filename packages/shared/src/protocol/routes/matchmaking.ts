@@ -88,15 +88,23 @@ export const lobbyGametypeRoute = defineRoute({
   result: json(ok),
 });
 
-/** Choose the game rules (score limit, time limit). The host's, and refused once the countdown is running. */
+export const botDifficultyEnum = z.enum(["recruit", "regular", "hardened", "veteran"]);
+export type BotDifficulty = z.infer<typeof botDifficultyEnum>;
+
+/** Choose the game rules (score limit, time limit, bots). The host's, and refused once the countdown is running. */
 export const lobbyRulesRoute = defineRoute({
   method: "POST",
   path: "/api/lobbies/:code/rules",
   auth: "user",
   params: z.object({ code: lobbyCode }),
   input: z.object({
-    scoreLimit: z.optional(z.number().check(z.int(), z.positive())),
-    timeLimit: z.optional(z.number().check(z.int(), z.positive())),
+    scoreLimit: z.optional(z.number().check(z.int(), z.nonnegative())),
+    timeLimit: z.optional(z.number().check(z.int(), z.nonnegative())),
+    bots: z.optional(z.boolean()),
+    botCount: z.optional(z.number().check(z.int(), z.nonnegative())),
+    botDifficulty: z.optional(botDifficultyEnum),
+    friendlyBots: z.optional(z.number().check(z.int(), z.nonnegative())),
+    enemyBots: z.optional(z.number().check(z.int(), z.nonnegative())),
   }),
   result: json(ok),
 });

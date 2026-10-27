@@ -10,6 +10,7 @@
 // script table — which a browser imports — pulls none of this in.
 
 import type { AnyBrain } from "./brain.js";
+import { combatBrain } from "./brains/combat.js";
 import { seekNearest } from "./brains/seekNearest.js";
 import { zombie } from "./brains/zombie.js";
 import type { BrainId } from "./objective.js";
@@ -17,6 +18,7 @@ import type { BrainId } from "./objective.js";
 export const BRAINS: Readonly<Record<BrainId, AnyBrain>> = {
   [seekNearest.id]: seekNearest,
   [zombie.id]: zombie,
+  [combatBrain.id]: combatBrain,
 };
 
 /** The brain with this id, or undefined. */

@@ -4,6 +4,7 @@
 // thing worth testing is the round trip: what a browser sends, what comes back
 // in a Set-Cookie, and whether presenting it again is the same player.
 
+import "reflect-metadata";
 import { randomBytes, scryptSync } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { sessionUser } from "@3d/shared/protocol/routes/auth.js";
