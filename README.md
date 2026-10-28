@@ -90,6 +90,17 @@ python3 -m scripts.cod maps --game mw3   # the maps your install holds
 pnpm export:cod mp_dome                  # one map -> worlds/dome-mw3
 ```
 
+### Character Hitboxes & Ragdolls
+
+Player characters and bots do not use pre-baked death animation clips — they collapse via server-authoritative physics ragdolls upon death. For a character model to participate in hit detection and ragdoll physics, its per-bone bounding volumes must be generated:
+
+```bash
+python3 -m scripts.cod hitboxes          # derive <id>.hitboxes.json for all catalog characters
+pnpm catalog                             # inspect catalogue and confirm loaded character bodies
+```
+
+If a character model lacks its `.hitboxes.json` sidecar file, the game server cannot construct the death pose and the client falls back to rendering the character in its default idle stance, leaving them frozen upright instead of collapsing to the floor.
+
 ## Development
 
 ```
