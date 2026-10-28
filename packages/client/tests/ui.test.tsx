@@ -2,7 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/preact";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CATEGORY_SLOT, createUiState, type HudPlayerInfo, type UiCommands, type WeaponCategory } from "../src/app/uiBridge.js";
-import { defaultLoadouts, type Loadout } from "@3d/shared/sim/loadout.js";
+import { defaultLoadouts, emptyLoadout, type Loadout } from "@3d/shared/sim/loadout.js";
 import { Root } from "../src/ui/Root.js";
 import { groupWorlds } from "../src/ui/screens/MapSelect.js";
 
@@ -890,7 +890,8 @@ describe("create a class", () => {
       state.weapons.value = [M4, MP5, USP, G18, AK];
       state.loadouts.value = [
         { name: "Assault", game: "iw5", primary: { weapon: M4.id, attachments: ["acog"] }, secondary: { weapon: null, attachments: [] } },
-        ...defaultLoadouts().slice(1),
+        emptyLoadout(1),
+        ...defaultLoadouts().slice(2),
       ];
       state.screen.value = "classes";
     });
@@ -1066,6 +1067,22 @@ describe("choosing a class in a match", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(commands.closeClassChoice).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows authentic MW3 default preset classes alongside custom classes and can select them", () => {
+    const { commands } = inMatch("spawn");
+    expect(screen.getByRole("button", { name: "Class 1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Grenadier" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "First Recon" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Overwatch" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Scout Sniper" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Support Defender" })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Grenadier" }));
+    expect(commands.chooseClass).toHaveBeenCalledWith(5);
+
+    fireEvent.click(screen.getByRole("button", { name: "First Recon" }));
+    expect(commands.chooseClass).toHaveBeenCalledWith(6);
   });
 
   it("is offered in the pause menu in a match that lets players choose, and not otherwise", () => {

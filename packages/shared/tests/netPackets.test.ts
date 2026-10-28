@@ -66,8 +66,11 @@ describe("packets", () => {
 
   it("round-trips choosing a class, and the answer", () => {
     expect(decodePacket(encodePacket(MessageType.chooseClass, { index: 4 }))).toEqual({ type: MessageType.chooseClass, message: { index: 4 } });
+    expect(decodePacket(encodePacket(MessageType.chooseClass, { index: 5 }))).toEqual({ type: MessageType.chooseClass, message: { index: 5 } });
+    expect(decodePacket(encodePacket(MessageType.chooseClass, { index: 9 }))).toEqual({ type: MessageType.chooseClass, message: { index: 9 } });
     for (const timing of CLASS_TIMINGS) {
       expect(decodePacket(encodePacket(MessageType.classChosen, { index: 2, timing })).message).toEqual({ index: 2, timing });
+      expect(decodePacket(encodePacket(MessageType.classChosen, { index: 7, timing })).message).toEqual({ index: 7, timing });
     }
   });
 

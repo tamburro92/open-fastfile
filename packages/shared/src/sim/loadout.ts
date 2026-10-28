@@ -93,8 +93,108 @@ export interface Loadout {
   strikePackage?: LoadoutStrikePackage;
 }
 
-/** How many classes a player has. */
+/** How many custom classes a player has. */
 export const LOADOUT_COUNT = 5;
+
+/**
+ * Authentic Call of Duty: Modern Warfare 3 (IW5) 5 Default Preset Classes.
+ *
+ * 1. Grenadier: Assault Rifle class (M4A1 Reflex + MP412, Frag/Flash, Sleight of Hand / Quickdraw / Stalker, Assault Strike Package)
+ * 2. First Recon: SMG class (UMP45 Reflex + MP412, Semtex/Flash, Extreme Conditioning / Quickdraw / Steady Aim, Assault Strike Package)
+ * 3. Overwatch: LMG class (M60E4 Reflex + SMAW, Frag/Flash, Blind Eye / Blast Shield / Stalker, Support Strike Package)
+ * 4. Scout Sniper: Sniper class (Barrett .50cal + P99, Frag/Flash, Blind Eye / Assassin / Stalker, Assault Strike Package)
+ * 5. Support Defender: Shotgun class (SPAS-12 + FMG9, Semtex/Flash, Extreme Conditioning / Hardline / Steady Aim, Support Strike Package)
+ */
+export const DEFAULT_CLASSES: readonly Loadout[] = [
+  {
+    name: "Grenadier",
+    game: "iw5",
+    primary: { weapon: "iw5/iw5_m4_mp", attachments: ["reflex"] },
+    secondary: { weapon: "iw5/iw5_mp412_mp", attachments: [] },
+    lethal: "frag_grenade_mp",
+    tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "sleight_of_hand",
+      perk2: "quickdraw",
+      perk3: "stalker",
+    },
+    strikePackage: {
+      package: "assault",
+      streaks: ["uav", "predator_missile", "sentry_gun"],
+    },
+  },
+  {
+    name: "First Recon",
+    game: "iw5",
+    primary: { weapon: "iw5/iw5_ump45_mp", attachments: ["reflexsmg"] },
+    secondary: { weapon: "iw5/iw5_mp412_mp", attachments: [] },
+    lethal: "semtex_mp",
+    tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "extreme_conditioning",
+      perk2: "quickdraw",
+      perk3: "steady_aim",
+    },
+    strikePackage: {
+      package: "assault",
+      streaks: ["uav", "predator_missile", "sentry_gun"],
+    },
+  },
+  {
+    name: "Overwatch",
+    game: "iw5",
+    primary: { weapon: "iw5/iw5_m60_mp", attachments: ["reflexlmg"] },
+    secondary: { weapon: "iw5/iw5_smaw_mp", attachments: [] },
+    lethal: "frag_grenade_mp",
+    tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "blind_eye",
+      perk2: "blast_shield",
+      perk3: "stalker",
+    },
+    strikePackage: {
+      package: "support",
+      streaks: ["uav", "sam_turret", "sentry_gun"],
+    },
+  },
+  {
+    name: "Scout Sniper",
+    game: "iw5",
+    primary: { weapon: "iw5/iw5_barrett_mp", attachments: [] },
+    secondary: { weapon: "iw5/iw5_p99_mp", attachments: [] },
+    lethal: "frag_grenade_mp",
+    tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "blind_eye",
+      perk2: "assassin",
+      perk3: "stalker",
+    },
+    strikePackage: {
+      package: "assault",
+      streaks: ["uav", "predator_missile", "sentry_gun"],
+    },
+  },
+  {
+    name: "Support Defender",
+    game: "iw5",
+    primary: { weapon: "iw5/iw5_spas12_mp", attachments: [] },
+    secondary: { weapon: "iw5/iw5_fmg9_mp", attachments: [] },
+    lethal: "semtex_mp",
+    tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "extreme_conditioning",
+      perk2: "hardline",
+      perk3: "steady_aim",
+    },
+    strikePackage: {
+      package: "support",
+      streaks: ["uav", "sam_turret", "sentry_gun"],
+    },
+  },
+] as const;
+
+export const DEFAULT_CLASS_COUNT = DEFAULT_CLASSES.length;
+export const TOTAL_LOADOUT_COUNT = LOADOUT_COUNT + DEFAULT_CLASS_COUNT;
 
 /**
  * How many attachments one weapon in a class may carry.
@@ -113,8 +213,8 @@ export function emptyLoadoutWeapon(): LoadoutWeapon {
   return { weapon: null, attachments: [] };
 }
 
-/** The class a player has before they have made one: named by its place, carrying nothing. */
-export function defaultLoadout(index: number): Loadout {
+/** An empty class carrying nothing, for reset or manual game selection. */
+export function emptyLoadout(index: number): Loadout {
   return {
     name: `Class ${index + 1}`,
     game: null,
@@ -134,9 +234,44 @@ export function defaultLoadout(index: number): Loadout {
   };
 }
 
-/** A player's five, as they start out. */
+/**
+ * The initial class a player has before editing: pre-configured with authentic
+ * MW3 default loadout specifications so a player is never unarmed or empty.
+ */
+export function defaultLoadout(index: number): Loadout {
+  const template = DEFAULT_CLASSES[index % DEFAULT_CLASSES.length]!;
+  return {
+    name: `Class ${index + 1}`,
+    game: template.game,
+    primary: { weapon: template.primary.weapon, attachments: [...template.primary.attachments] },
+    secondary: { weapon: template.secondary.weapon, attachments: [...template.secondary.attachments] },
+    lethal: template.lethal,
+    tactical: template.tactical,
+    perks: template.perks ? { ...template.perks } : undefined,
+    strikePackage: template.strikePackage
+      ? { package: template.strikePackage.package, streaks: [...template.strikePackage.streaks] }
+      : undefined,
+  };
+}
+
+/** A player's five custom classes, as they start out. */
 export function defaultLoadouts(): Loadout[] {
   return Array.from({ length: LOADOUT_COUNT }, (_, i) => defaultLoadout(i));
+}
+
+/**
+ * Looks up a loadout by index across custom classes (0..4) and permanent
+ * default classes (5..9).
+ */
+export function getLoadout(customLoadouts: readonly Loadout[], index: number): Loadout | undefined {
+  if (index >= 0 && index < customLoadouts.length) {
+    return customLoadouts[index];
+  }
+  const defaultIndex = index - LOADOUT_COUNT;
+  if (defaultIndex >= 0 && defaultIndex < DEFAULT_CLASSES.length) {
+    return DEFAULT_CLASSES[defaultIndex];
+  }
+  return undefined;
 }
 
 /** The two weapons of a class in the order they are held. */

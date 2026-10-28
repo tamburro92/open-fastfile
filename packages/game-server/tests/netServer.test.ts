@@ -287,4 +287,17 @@ describe("team selection over network (chooseTeam)", () => {
     seats[0]!.deliver(encodePacket(MessageType.chooseTeam, { team: "axis" }));
     expect(hosted.choosing.has(PLAYER)).toBe(false);
   });
+
+  it("handles chooseClass for default MW3 preset classes (index >= 5)", () => {
+    const hosted = twoTeamGame("g-default-class");
+    hosted.choosing.add(PLAYER);
+    const { seats } = serve([hosted]);
+
+    seats[0]!.deliver(encodePacket(MessageType.chooseClass, { index: 5 }));
+
+    const classChosen = seats[0]!.sent.find((p) => p.type === MessageType.classChosen);
+    expect(classChosen).toBeDefined();
+    expect((classChosen!.message as { index: number; timing: string }).index).toBe(5);
+    expect((classChosen!.message as { index: number; timing: string }).timing).toBe("now");
+  });
 });

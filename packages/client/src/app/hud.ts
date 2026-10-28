@@ -17,6 +17,7 @@ import type { JoinedMessage } from "@3d/shared/net/messages/session.js";
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { PlayerState } from "@3d/shared/sim/player.js";
 import { DEFAULT_COMBAT_RULES } from "@3d/shared/game/rules.js";
+import { getLoadout } from "@3d/shared/sim/loadout.js";
 import type { WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
 import type { GametypeDecl } from "@3d/shared/game/gametypes/declaration.js";
 import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
@@ -333,8 +334,9 @@ export class Hud {
   }
 
   resetEquipment(): void {
-    const selected = this.ui.selectedLoadout.value;
-    const loadout = this.ui.loadouts.value[selected];
+    const playing = this.ui.playingClass.value;
+    const selected = playing ?? this.ui.selectedLoadout.value;
+    const loadout = getLoadout(this.ui.loadouts.value, selected);
     const lethalId = loadout?.lethal ?? "frag_grenade_mp";
     const tacticalId = loadout?.tactical ?? "flash_grenade_mp";
     this.ui.hud.equipment.value = {

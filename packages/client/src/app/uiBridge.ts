@@ -7,7 +7,7 @@ import { signal, type Signal } from "@preact/signals-core";
 import { QUALITY_LEVELS, type QualityLevel } from "../engine/qualityLevel.js";
 import { DEFAULT_SENSITIVITY, SENSITIVITY_RANGE } from "../input/sensitivity.js";
 import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel } from "../engine/audio/mixer.js";
-import { defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout, type KillstreakId, type StrikePackageId } from "@3d/shared/sim/loadout.js";
+import { DEFAULT_CLASSES, defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout, type KillstreakId, type StrikePackageId } from "@3d/shared/sim/loadout.js";
 import { CATEGORY_LABEL, CATEGORY_SLOT, WEAPON_CATEGORIES, type WeaponCategory } from "@3d/shared/sim/weaponCategory.js";
 import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
 import { TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/tdm.js";
@@ -15,6 +15,7 @@ import { TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS }
 export type { Loadout, WeaponCategory };
 /** Re-exported through the bridge, which is the only module src/ui/ may import from the rest of the codebase. */
 export {
+  DEFAULT_CLASSES,
   CATEGORY_LABEL,
   CATEGORY_SLOT,
   LOADOUT_COUNT,

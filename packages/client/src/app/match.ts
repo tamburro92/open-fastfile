@@ -10,6 +10,7 @@ import { gametype } from "@3d/shared/game/gametypes/registry.js";
 import { hashString } from "@3d/shared/game/random.js";
 import type { PlayerState } from "@3d/shared/sim/player.js";
 import { worldHash } from "@3d/shared/worlds/hash.js";
+import { getLoadout, LOADOUT_COUNT } from "@3d/shared/sim/loadout.js";
 import { Connection, type Correction, type MatchTicket } from "../net/connection.js";
 import { dropBody } from "../net/corpses.js";
 import type { ClassChoice } from "./classChoice.js";
@@ -132,13 +133,15 @@ export class MatchController {
   /** A class, clicked in the class menu. See `ClassChoice` for who decides what. */
   chooseClass(index: number): void {
     const { ui, classes, session, pause } = this.parts;
-    const loadout = ui.loadouts.value[index];
+    const loadout = getLoadout(ui.loadouts.value, index);
     if (!loadout || !this.connection || ui.classChoice.value === null) {
       return;
     }
     this.connection.chooseClass(index);
     // Remembered as the last chosen, which is what the menu offers first next time.
-    session.selectLoadout(index);
+    if (index < LOADOUT_COUNT) {
+      session.selectLoadout(index);
+    }
     if (classes.chose(index)) {
       // Spawning. The weapons arrive with the server's state; this only lets the
       // player into the world, and the click that chose is also the gesture
@@ -271,7 +274,8 @@ export class MatchController {
         },
         onClassChosen: (index, timing) => {
           console.info(`[net] class ${index + 1}: ${timing}`);
-          const said = classes.answered(index, timing, ui.loadouts.value[index]?.name ?? `Class ${index + 1}`);
+          const loadout = getLoadout(ui.loadouts.value, index);
+          const said = classes.answered(index, timing, loadout?.name ?? `Class ${index + 1}`);
           if (said !== null) {
             toaster.show(said);
           }

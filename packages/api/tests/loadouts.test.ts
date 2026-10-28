@@ -77,7 +77,7 @@ describe("a player's classes", () => {
     const classes = await loadouts.forUser(player.id);
     expect(classes).toHaveLength(LOADOUT_COUNT);
     expect(classes.map((c) => c.name)).toEqual(["Class 1", "Class 2", "Class 3", "Class 4", "Class 5"]);
-    expect(classes[0]!.primary.weapon).toBeNull();
+    expect(classes[0]!.primary.weapon).toBe("iw5/iw5_m4_mp");
   });
 
   it("saves one and leaves the others alone", async () => {

@@ -12,7 +12,7 @@ import { CollisionWorld } from "../src/collision/world.js";
 import { Player } from "../src/sim/player.js";
 import { idleInput, type PlayerInput } from "../src/sim/input.js";
 import { RUN_SPEED, WALK_SPEED } from "../src/sim/movement.js";
-import { defaultLoadout, defaultLoadouts, LOADOUT_COUNT, type Loadout } from "../src/sim/loadout.js";
+import { DEFAULT_CLASSES, defaultLoadout, defaultLoadouts, emptyLoadout, getLoadout, LOADOUT_COUNT, type Loadout } from "../src/sim/loadout.js";
 import { WeaponRegistry, weaponKey, type WeaponEntry } from "../src/sim/weaponRegistry.js";
 import { weaponDef } from "../testing/weaponDef.js";
 
@@ -65,14 +65,14 @@ function armed(): Player {
 }
 
 describe("a class", () => {
-  it("gives a player five to start with, each named by its place and carrying nothing", () => {
+  it("gives a player five to start with, pre-configured with authentic MW3 default loadouts", () => {
     const classes = defaultLoadouts();
     expect(classes).toHaveLength(LOADOUT_COUNT);
     expect(classes[0]).toEqual({
       name: "Class 1",
-      game: null,
-      primary: { weapon: null, attachments: [] },
-      secondary: { weapon: null, attachments: [] },
+      game: "iw5",
+      primary: { weapon: "iw5/iw5_m4_mp", attachments: ["reflex"] },
+      secondary: { weapon: "iw5/iw5_mp412_mp", attachments: [] },
       lethal: "frag_grenade_mp",
       tactical: "flash_grenade_mp",
       perks: {
@@ -86,6 +86,28 @@ describe("a class", () => {
       },
     });
     expect(defaultLoadout(4).name).toBe("Class 5");
+    expect(defaultLoadout(4).primary.weapon).toBe("iw5/iw5_spas12_mp");
+
+    // emptyLoadout provides a blank class with no game
+    const empty = emptyLoadout(0);
+    expect(empty.game).toBeNull();
+    expect(empty.primary.weapon).toBeNull();
+
+    // DEFAULT_CLASSES contains the 5 authentic MW3 presets
+    expect(DEFAULT_CLASSES).toHaveLength(5);
+    expect(DEFAULT_CLASSES.map((c) => c.name)).toEqual([
+      "Grenadier",
+      "First Recon",
+      "Overwatch",
+      "Scout Sniper",
+      "Support Defender",
+    ]);
+
+    // getLoadout resolves custom classes (0..4) and default presets (5..9)
+    expect(getLoadout(classes, 0)?.name).toBe("Class 1");
+    expect(getLoadout(classes, 5)?.name).toBe("Grenadier");
+    expect(getLoadout(classes, 9)?.name).toBe("Support Defender");
+    expect(getLoadout(classes, 10)).toBeUndefined();
   });
 
   it("puts the primary in hand and keeps the secondary on the player", () => {

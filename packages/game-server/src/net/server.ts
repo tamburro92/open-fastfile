@@ -50,6 +50,7 @@ import { decodePacket, encodePacket, MessageType, PROTOCOL_VERSION } from "@3d/s
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import { inputsOf } from "@3d/shared/net/messages/input.js";
 import type { ClassTiming } from "@3d/shared/game/classes.js";
+import { getLoadout } from "@3d/shared/sim/loadout.js";
 import { config } from "../config.js";
 import { Games } from "../games.js";
 import { Weapons } from "../weapons.js";
@@ -319,8 +320,12 @@ export class NetServer {
    */
   private chooseClass(seat: Seat, index: number): void {
     const game = this.games.get(seat.gameId);
-    const loadout = game?.roster.get(seat.playerId)?.loadouts[index];
-    if (!game || !loadout) {
+    if (!game) {
+      return;
+    }
+    const playerLoadouts = game.roster.get(seat.playerId)?.loadouts ?? [];
+    const loadout = getLoadout(playerLoadouts, index);
+    if (!loadout) {
       return;
     }
     let timing: ClassTiming;

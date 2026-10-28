@@ -150,8 +150,8 @@ export interface ChooseClassMessage {
   index: number;
 }
 
-/** Three bits: LOADOUT_COUNT is five. */
-export const chooseClassMessage = struct({ index: uint(3) }) satisfies Codec<ChooseClassMessage>;
+/** Four bits: up to 16 classes (custom + default presets). */
+export const chooseClassMessage = struct({ index: uint(4) }) satisfies Codec<ChooseClassMessage>;
 
 /** The answer to `chooseClass`: which class, and what became of it — in their hands, waiting for their next spawn, or refused. */
 export interface ClassChosenMessage {
@@ -159,7 +159,7 @@ export interface ClassChosenMessage {
   timing: ClassTiming;
 }
 
-export const classChosenMessage = struct({ index: uint(3), timing: enumOf(CLASS_TIMINGS) as Codec<ClassTiming> }) satisfies Codec<ClassChosenMessage>;
+export const classChosenMessage = struct({ index: uint(4), timing: enumOf(CLASS_TIMINGS) as Codec<ClassTiming> }) satisfies Codec<ClassChosenMessage>;
 
 /**
  * Team to play on in a team gametype (e.g. "allies", "axis", or "auto").
