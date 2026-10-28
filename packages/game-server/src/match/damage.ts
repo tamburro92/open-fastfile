@@ -71,6 +71,11 @@ export class Damage {
   private ruled: CombatRules = DEFAULT_COMBAT_RULES;
   /** Entity ids, 12 bits, counting up for the life of the match: a corpse is one. */
   private lastEntityId = 0;
+  private onKillstreakKill?: (victimId: PlayerId, killerId: PlayerId | null) => void;
+
+  setKillstreakHandler(fn: (victimId: PlayerId, killerId: PlayerId | null) => void): void {
+    this.onKillstreakKill = fn;
+  }
 
   constructor(
     private readonly clock: MatchClock,
@@ -189,7 +194,11 @@ export class Damage {
     if (verdict?.ignore) {
       return;
     }
-    const amount = verdict?.amount ?? hit.amount;
+    const rawAmount = verdict?.amount ?? hit.amount;
+    const amount =
+      hit.cause === "explosion" && (member.perks?.perk2 === "blast_shield" || member.perks?.bonusPerks?.has("blast_shield"))
+        ? Math.min(rawAmount, 65)
+        : rawAmount;
     // No delay at all where the gametype brings the dead back itself: `health`
     // does not count them down.
     if (!member.player.hurt(amount, this.ruled.respawnDelay ?? 0)) {
@@ -197,6 +206,7 @@ export class Damage {
     }
 
     this.awardKill(hit.id, hit.by);
+    this.onKillstreakKill?.(hit.id, hit.by);
     // Before the hooks, so that a death a hook causes is announced after the one
     // that caused it: the ids are the order, and a feed reads top to bottom.
     this.outbox.push({ kind: "death", victim: hit.id, killer: hit.by, cause: hit.cause }, null, KILL_FEED_REPEAT_SECONDS);

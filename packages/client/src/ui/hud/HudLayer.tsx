@@ -11,6 +11,7 @@ import { UsePrompt } from "./UsePrompt.js";
 import { Counters, Points } from "./Tally.js";
 import { Ammo, Health } from "./Vitals.js";
 import { EquipmentHud } from "./EquipmentHud.js";
+import { KillstreakHud } from "./KillstreakHud.js";
 import { GrenadeIndicator } from "./GrenadeIndicator.js";
 import { FlashOverlay } from "./FlashOverlay.js";
 
@@ -41,6 +42,7 @@ export function HudLayer() {
       </div>
       <div class={styles.bottomCenter} data-region="bottom-center" />
       <div class={styles.bottomRight} data-region="bottom-right">
+        <KillstreakHud />
         <EquipmentHud />
         <Points />
         <Ammo />

@@ -912,7 +912,7 @@ describe("create a class", () => {
     fireEvent.focus(assault);
     expect(screen.queryByLabelText("Class name")).toBeNull();
     // Hovering does say what the class carries.
-    expect(screen.getByText("MW3 — M4 Carbine / Nothing")).toBeTruthy();
+    expect(screen.getByText(/^MW3 — M4 Carbine \/ Nothing/)).toBeTruthy();
     fireEvent.click(assault);
     expect(screen.getByLabelText("Class name")).toBeTruthy();
     expect(screen.getByRole("button", { name: /M4 Carbine/ })).toBeTruthy();

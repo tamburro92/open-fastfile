@@ -94,6 +94,7 @@ describe("packets", () => {
       melee: false,
       lethal: false,
       tactical: false,
+      killstreak: false,
     };
     const claim = { x: 1.5, y: 2.25, z: -3.75 };
     // A tick at the top of its range and a fraction that is not a round number:

@@ -54,6 +54,7 @@ export class Hud {
   private flashedUntil = 0;
   private flashDuration = 0;
   private wasDead = false;
+  private streakEarnedExpiresAt = 0;
 
   constructor(
     private readonly ui: UiState,
@@ -163,6 +164,42 @@ export class Hud {
               const durSeconds = (event.value ?? 30) / 10;
               this.triggerFlash(durSeconds, now);
             }
+          } else if (event.what === "killstreak_earned") {
+            if (event.player === this.me) {
+              const slot = event.value ?? 0;
+              const streakState = { ...this.ui.hud.streaks.value };
+              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
+              streakState.ready[slot] = true;
+              this.ui.hud.streaks.value = streakState;
+              const streakName = streakState.streaks[slot] ?? "uav";
+              this.ui.hud.streakEarned.value = {
+                name: streakName.toUpperCase().replace(/_/g, " "),
+                icon: `/assets/hud/specialty_${streakName}.png`,
+              };
+              this.streakEarnedExpiresAt = now + 3500;
+            }
+          } else if (event.what === "uav_active") {
+            if (event.player === this.me) {
+              const streakState = { ...this.ui.hud.streaks.value };
+              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
+              streakState.ready[0] = false;
+              this.ui.hud.streaks.value = streakState;
+            }
+          } else if (event.what === "sentry_placed") {
+            if (event.player === this.me) {
+              const slot = event.value ?? 2;
+              const streakState = { ...this.ui.hud.streaks.value };
+              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
+              streakState.ready[slot] = false;
+              this.ui.hud.streaks.value = streakState;
+            }
+          } else if (event.what === "predator_inbound") {
+            if (event.player === this.me) {
+              const streakState = { ...this.ui.hud.streaks.value };
+              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
+              streakState.ready[1] = false;
+              this.ui.hud.streaks.value = streakState;
+            }
           }
           break;
       }
@@ -258,6 +295,15 @@ export class Hud {
     this.flashedUntil = 0;
     this.flashDuration = 0;
     this.wasDead = false;
+    this.streakEarnedExpiresAt = 0;
+    this.ui.hud.streakEarned.value = null;
+    this.ui.hud.streaks.value = {
+      package: "assault",
+      streaks: ["uav", "predator_missile", "sentry_gun"],
+      ready: [false, false, false],
+      killsThisLife: 0,
+      totalPoints: 0,
+    };
   }
 
   triggerFlash(duration: number, now: number): void {
@@ -317,6 +363,15 @@ export class Hud {
     if (this.wasDead && !state.dead) {
       this.resetEquipment();
     }
+    if (!this.wasDead && state.dead) {
+      const curStreaks = this.ui.hud.streaks.value;
+      if (curStreaks.package !== "support") {
+        this.ui.hud.streaks.value = {
+          ...curStreaks,
+          killsThisLife: 0,
+        };
+      }
+    }
     this.wasDead = state.dead;
     const next = this.describe(state);
     if (!same(this.ui.hud.player.value, next)) {
@@ -365,6 +420,10 @@ export class Hud {
     if (this.grenadeDangerExpiresAt > 0 && now >= this.grenadeDangerExpiresAt) {
       this.ui.hud.grenadeDanger.value = null;
       this.grenadeDangerExpiresAt = 0;
+    }
+    if (this.streakEarnedExpiresAt > 0 && now >= this.streakEarnedExpiresAt) {
+      this.ui.hud.streakEarned.value = null;
+      this.streakEarnedExpiresAt = 0;
     }
     if (this.flashedUntil > 0) {
       if (now >= this.flashedUntil) {

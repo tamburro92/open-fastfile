@@ -8,6 +8,7 @@ import type { Shots } from "./shots.js";
 import type { Interactions } from "./use.js";
 import type { Melee } from "./melee.js";
 import type { Projectiles } from "./projectiles.js";
+import type { Killstreaks } from "./killstreaks.js";
 
 export class InputDrain {
   constructor(
@@ -17,6 +18,7 @@ export class InputDrain {
     private readonly shots: Shots,
     private readonly melee: Melee,
     private readonly projectiles: Projectiles,
+    private readonly killstreaks: Killstreaks,
   ) {}
 
   run(): void {
@@ -51,6 +53,9 @@ export class InputDrain {
       }
       if (message.input.tactical) {
         this.projectiles.throwTactical(member, message);
+      }
+      if (message.input.killstreak) {
+        this.killstreaks.activate(member);
       }
 
       // Flashbang stun effect reduces sprinting capability

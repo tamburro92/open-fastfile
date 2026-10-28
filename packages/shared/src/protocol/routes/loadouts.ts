@@ -31,6 +31,19 @@ const loadoutWeapon = z.object({
   attachments: z.array(attachmentId).check(z.maxLength(MAX_LOADOUT_ATTACHMENTS)),
 });
 
+const perksSchema = z.object({
+  perk1: z.enum(["sleight_of_hand", "blind_eye", "extreme_conditioning", "scavenger"]),
+  perk2: z.enum(["quickdraw", "assassin", "hardline", "blast_shield"]),
+  perk3: z.enum(["stalker", "steady_aim", "dead_silence", "sitrep"]),
+});
+
+const streakIdSchema = z.enum(["uav", "predator_missile", "sentry_gun", "counter_uav", "sam_turret", "ims", "strafe_run", "reaper", "ac130"]);
+
+const strikePackageSchema = z.object({
+  package: z.enum(["assault", "support", "specialist"]),
+  streaks: z.tuple([streakIdSchema, streakIdSchema, streakIdSchema]),
+});
+
 /**
  * One class. `satisfies` against the simulation's own type, so a field added
  * there and forgotten here is a typecheck failure rather than a class that
@@ -44,6 +57,8 @@ export const loadoutSchema: z.ZodMiniType<Loadout> = z.object({
   secondary: loadoutWeapon,
   lethal: z.optional(z.enum(["frag_grenade_mp", "semtex_mp"])),
   tactical: z.optional(z.enum(["flash_grenade_mp"])),
+  perks: z.optional(perksSchema),
+  strikePackage: z.optional(strikePackageSchema),
 });
 
 /** Which class this player spawns with, and all five of them. */

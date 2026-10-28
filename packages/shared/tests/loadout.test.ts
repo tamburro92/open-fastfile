@@ -75,6 +75,15 @@ describe("a class", () => {
       secondary: { weapon: null, attachments: [] },
       lethal: "frag_grenade_mp",
       tactical: "flash_grenade_mp",
+      perks: {
+        perk1: "sleight_of_hand",
+        perk2: "quickdraw",
+        perk3: "stalker",
+      },
+      strikePackage: {
+        package: "assault",
+        streaks: ["uav", "predator_missile", "sentry_gun"],
+      },
     });
     expect(defaultLoadout(4).name).toBe("Class 5");
   });

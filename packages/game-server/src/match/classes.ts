@@ -75,6 +75,15 @@ export class Classes {
         if (loadout.tactical) {
           member.equipment.tactical = loadout.tactical;
         }
+        if (loadout.strikePackage) {
+          member.streaks.package = loadout.strikePackage.package;
+          member.streaks.streaks = loadout.strikePackage.streaks;
+        }
+        if (loadout.perks) {
+          member.perks.perk1 = loadout.perks.perk1;
+          member.perks.perk2 = loadout.perks.perk2;
+          member.perks.perk3 = loadout.perks.perk3;
+        }
       }
     }
     this.arm(member);
@@ -132,6 +141,15 @@ export class Classes {
       if (loadout.tactical) {
         member.equipment.tactical = loadout.tactical;
       }
+      if (loadout.strikePackage) {
+        member.streaks.package = loadout.strikePackage.package;
+        member.streaks.streaks = loadout.strikePackage.streaks;
+      }
+      if (loadout.perks) {
+        member.perks.perk1 = loadout.perks.perk1;
+        member.perks.perk2 = loadout.perks.perk2;
+        member.perks.perk3 = loadout.perks.perk3;
+      }
       // A script's weapons outrank a class (`setLoadout`): the class is theirs
       // again the moment the script lets go, and not before.
       if (kit.forced === undefined) {
@@ -157,6 +175,15 @@ export class Classes {
       }
       if (kit.loadout.tactical) {
         member.equipment.tactical = kit.loadout.tactical;
+      }
+      if (kit.loadout.strikePackage) {
+        member.streaks.package = kit.loadout.strikePackage.package;
+        member.streaks.streaks = kit.loadout.strikePackage.streaks;
+      }
+      if (kit.loadout.perks) {
+        member.perks.perk1 = kit.loadout.perks.perk1;
+        member.perks.perk2 = kit.loadout.perks.perk2;
+        member.perks.perk3 = kit.loadout.perks.perk3;
       }
     }
     this.arm(member);

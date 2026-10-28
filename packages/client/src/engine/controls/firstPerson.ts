@@ -31,9 +31,9 @@ import { aimAngles, type Aim } from "@3d/shared/sim/recoil.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { DEFAULT_SENSITIVITY, radiansPerCount } from "../../input/sensitivity.js";
 
-type PlayerAction = "forward" | "back" | "left" | "right" | "run" | "jump" | "crouch" | "prone" | "fire" | "ads" | "reload" | "swap" | "use" | "melee" | "lethal" | "tactical";
+type PlayerAction = "forward" | "back" | "left" | "right" | "run" | "jump" | "crouch" | "prone" | "fire" | "ads" | "reload" | "swap" | "use" | "melee" | "lethal" | "tactical" | "killstreak";
 
-const PLAYER_ACTIONS: readonly PlayerAction[] = ["forward", "back", "left", "right", "run", "jump", "crouch", "prone", "fire", "ads", "reload", "swap", "use", "melee", "lethal", "tactical"];
+const PLAYER_ACTIONS: readonly PlayerAction[] = ["forward", "back", "left", "right", "run", "jump", "crouch", "prone", "fire", "ads", "reload", "swap", "use", "melee", "lethal", "tactical", "killstreak"];
 
 /** The devices this reads. Satisfied by input/InputManager. */
 export interface DeviceInput {
@@ -443,7 +443,7 @@ export class FirstPersonControls {
     c.prone = this.stance === "prone";
     if (!this.enabled) {
       c.forward = c.right = 0;
-      c.run = c.jump = c.fire = c.ads = c.reload = c.swap = c.use = c.melee = c.lethal = c.tactical = false;
+      c.run = c.jump = c.fire = c.ads = c.reload = c.swap = c.use = c.melee = c.lethal = c.tactical = c.killstreak = false;
       return c;
     }
     c.forward = this.axis("forward", "back");
@@ -458,6 +458,7 @@ export class FirstPersonControls {
     c.melee = this.pressed.has("melee");
     c.lethal = this.pressed.has("lethal");
     c.tactical = this.pressed.has("tactical");
+    c.killstreak = this.pressed.has("killstreak");
     return c;
   }
 

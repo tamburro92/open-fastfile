@@ -12,7 +12,7 @@ import type { Player } from "@3d/shared/sim/player.js";
 import type { LoadedBody } from "../bodies.js";
 import type { PlayerHistory } from "../history.js";
 import { capsuleIn } from "../parts.js";
-import type { LethalEquipmentId, TacticalEquipmentId } from "@3d/shared/sim/loadout.js";
+import type { KillstreakId, LethalEquipmentId, Perk1Id, Perk2Id, Perk3Id, StrikePackageId, TacticalEquipmentId } from "@3d/shared/sim/loadout.js";
 import type { BotState } from "./bots.js";
 import type { ClassState } from "./classes.js";
 import type { InputQueue } from "./inputs.js";
@@ -27,6 +27,21 @@ export interface MemberEquipment {
   flashDuration: number;
 }
 
+export interface MemberStreaks {
+  package: StrikePackageId;
+  streaks: [KillstreakId, KillstreakId, KillstreakId];
+  killsThisLife: number;
+  totalPoints: number;
+  ready: [boolean, boolean, boolean];
+}
+
+export interface MemberPerks {
+  perk1: Perk1Id;
+  perk2: Perk2Id;
+  perk3: Perk3Id;
+  bonusPerks: Set<string>;
+}
+
 export interface Member {
   readonly id: PlayerId;
   /** Ours: the same input, re-simulated. This is the state a snapshot carries. */
@@ -34,32 +49,9 @@ export interface Member {
   readonly inputs: InputQueue;
   /** What this player was doing, tick by tick, so a shot can be judged against it. */
   readonly history: PlayerHistory;
-  /**
-   * The newest tick whose snapshot has gone out to them.
-   *
-   * A client cannot have been drawing a tick it has not been sent, so this is the
-   * ceiling on any moment it may ask us to rewind to — and asking for one past it
-   * is the cheapest lie there is to catch.
-   */
   sentTick: number;
-  /**
-   * Which engine they predict in, from their join. Reported beside the drift and
-   * never acted on — see `JoinMessage.engine`.
-   */
   readonly engine: string;
-  /**
-   * The match clock when they joined, which is what `PlayerView.since` carries.
-   * A script with no state of its own derives its clock from this.
-   */
   readonly since: number;
-  /**
-   * The body a bullet is traced against, or undefined where this instance cannot
-   * build one (no catalogue, a hand-written world, a body that would not load).
-   *
-   * Resolved once, at join. Per shot would mean running the gametype's scripts
-   * for every bullet, and a player must not change body mid-game in any case:
-   * the browser dressed them once too.
-   */
   readonly body: LoadedBody | undefined;
   /** Their class, and what scripts have said about their weapons. */
   readonly kit: ClassState;
@@ -67,6 +59,10 @@ export interface Member {
   readonly bot: BotState | undefined;
   /** Equipment state (lethal, tactical, counts, melee/flash timers). */
   readonly equipment: MemberEquipment;
+  /** Authentic MW3 Killstreaks & Strike Package status. */
+  readonly streaks: MemberStreaks;
+  /** Authentic MW3 3-Perk tier setup and unlocked specialist perks. */
+  readonly perks: MemberPerks;
 }
 
 export class Roster {

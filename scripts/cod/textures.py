@@ -73,6 +73,8 @@ def decode_iwi_bytes(data):
         img = Image.merge("RGBA", (r, g, b, a))
     elif fmtid == 2:
         img = Image.frombytes("RGB", (w, h), payload)
+    elif fmtid == 3:
+        img = Image.frombytes("LA", (w, h), payload).convert("RGBA")
     elif fmtid == 4:
         img = Image.frombytes("L", (w, h), payload)
     else:

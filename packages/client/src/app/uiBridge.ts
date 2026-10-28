@@ -7,7 +7,7 @@ import { signal, type Signal } from "@preact/signals-core";
 import { QUALITY_LEVELS, type QualityLevel } from "../engine/qualityLevel.js";
 import { DEFAULT_SENSITIVITY, SENSITIVITY_RANGE } from "../input/sensitivity.js";
 import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel } from "../engine/audio/mixer.js";
-import { defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout } from "@3d/shared/sim/loadout.js";
+import { defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout, type KillstreakId, type StrikePackageId } from "@3d/shared/sim/loadout.js";
 import { CATEGORY_LABEL, CATEGORY_SLOT, WEAPON_CATEGORIES, type WeaponCategory } from "@3d/shared/sim/weaponCategory.js";
 import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
 import { TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/tdm.js";
@@ -26,6 +26,18 @@ export {
   TDM_GAMETYPE,
   DEFAULT_TDM_SCORE_LIMIT,
   DEFAULT_TDM_TIME_LIMIT_SECONDS,
+};
+
+export const STREAK_COST_MAP: Record<string, { assault: number; support: number }> = {
+  uav: { assault: 3, support: 4 },
+  counter_uav: { assault: 4, support: 5 },
+  predator_missile: { assault: 5, support: 6 },
+  sentry_gun: { assault: 5, support: 8 },
+  ims: { assault: 5, support: 8 },
+  sam_turret: { assault: 4, support: 8 },
+  strafe_run: { assault: 9, support: 10 },
+  reaper: { assault: 9, support: 12 },
+  ac130: { assault: 12, support: 15 },
 };
 
 export { LOBBY_MODES, type LobbyMode, type MenuBackdrop } from "./lobbyModes.js";
@@ -296,6 +308,19 @@ export interface GrenadeDangerInfo {
   distance?: number;
 }
 
+export interface KillstreakState {
+  package: StrikePackageId;
+  streaks: [KillstreakId, KillstreakId, KillstreakId];
+  ready: [boolean, boolean, boolean];
+  killsThisLife: number;
+  totalPoints: number;
+}
+
+export interface StreakEarnedNotification {
+  name: string;
+  icon: string;
+}
+
 /** One player's entry on the tactical scoreboard. */
 export interface ScoreboardEntry {
   rank: number;
@@ -428,6 +453,10 @@ export interface UiState {
     grenadeDanger: Signal<GrenadeDangerInfo | null>;
     /** Visual white screen blinding opacity (0 to 1). */
     flashed: Signal<number>;
+    /** Authentic MW3 Killstreaks status: ready slots, current streak count, and strike package. */
+    streaks: Signal<KillstreakState>;
+    /** Authentic MW3 streak or perk notification popup. */
+    streakEarned: Signal<StreakEarnedNotification | null>;
   };
   debug: {
     /** Whether dev panels are available at all (development builds). */
@@ -572,6 +601,14 @@ export function createUiState(): UiState {
       }),
       grenadeDanger: signal<GrenadeDangerInfo | null>(null),
       flashed: signal<number>(0),
+      streaks: signal<KillstreakState>({
+        package: "assault",
+        streaks: ["uav", "predator_missile", "sentry_gun"],
+        ready: [false, false, false],
+        killsThisLife: 0,
+        totalPoints: 0,
+      }),
+      streakEarned: signal<StreakEarnedNotification | null>(null),
     },
     debug: {
       enabled: signal(false),

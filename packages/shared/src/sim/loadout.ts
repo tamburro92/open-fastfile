@@ -47,6 +47,34 @@ export const LOADOUT_GAMES = [
 export type LethalEquipmentId = "frag_grenade_mp" | "semtex_mp";
 export type TacticalEquipmentId = "flash_grenade_mp";
 
+export type Perk1Id = "sleight_of_hand" | "blind_eye" | "extreme_conditioning" | "scavenger";
+export type Perk2Id = "quickdraw" | "assassin" | "hardline" | "blast_shield";
+export type Perk3Id = "stalker" | "steady_aim" | "dead_silence" | "sitrep";
+
+export type StrikePackageId = "assault" | "support" | "specialist";
+
+export type KillstreakId =
+  | "uav"
+  | "predator_missile"
+  | "sentry_gun"
+  | "counter_uav"
+  | "sam_turret"
+  | "ims"
+  | "strafe_run"
+  | "reaper"
+  | "ac130";
+
+export interface LoadoutPerks {
+  perk1: Perk1Id;
+  perk2: Perk2Id;
+  perk3: Perk3Id;
+}
+
+export interface LoadoutStrikePackage {
+  package: StrikePackageId;
+  streaks: [KillstreakId, KillstreakId, KillstreakId];
+}
+
 /** One of a player's classes. */
 export interface Loadout {
   /** What the player called it. Theirs to choose, so it is not an id and nothing keys by it. */
@@ -59,6 +87,10 @@ export interface Loadout {
   lethal?: LethalEquipmentId;
   /** Tactical equipment (Flashbang in MW3). */
   tactical?: TacticalEquipmentId;
+  /** Authentic MW3 3-Perk tier configuration. */
+  perks?: LoadoutPerks;
+  /** Authentic MW3 Strike Package (Assault / Support / Specialist) and chosen streaks. */
+  strikePackage?: LoadoutStrikePackage;
 }
 
 /** How many classes a player has. */
@@ -90,6 +122,15 @@ export function defaultLoadout(index: number): Loadout {
     secondary: emptyLoadoutWeapon(),
     lethal: "frag_grenade_mp",
     tactical: "flash_grenade_mp",
+    perks: {
+      perk1: "sleight_of_hand",
+      perk2: "quickdraw",
+      perk3: "stalker",
+    },
+    strikePackage: {
+      package: "assault",
+      streaks: ["uav", "predator_missile", "sentry_gun"],
+    },
   };
 }
 

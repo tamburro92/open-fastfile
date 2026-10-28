@@ -17,6 +17,7 @@ export type Action =
   | "melee"
   | "lethal"
   | "tactical"
+  | "killstreak"
   | "toggleView"
   | "menu"
   | "quality"
@@ -74,6 +75,7 @@ export const DEFAULT_BINDINGS: Bindings = {
   melee: { keys: ["KeyE", "KeyV"], scope: "walk", label: "Melee Attack" },
   lethal: { keys: ["KeyG"], scope: "walk", label: "Throw Lethal Equipment" },
   tactical: { keys: ["Digit4"], scope: "walk", label: "Throw Tactical Equipment" },
+  killstreak: { keys: ["Digit5"], scope: "walk", label: "Use Killstreak" },
   toggleView: { keys: ["Tab"], scope: "world", label: "Dollhouse view" },
   menu: { keys: ["Escape"], scope: "always", label: "Pause" },
   quality: { keys: ["KeyQ"], scope: "always", label: "Cycle quality" },

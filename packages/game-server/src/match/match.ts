@@ -71,6 +71,7 @@ import { Spawns } from "./spawns.js";
 import { Interactions } from "./use.js";
 import { Melee } from "./melee.js";
 import { Projectiles } from "./projectiles.js";
+import { Killstreaks } from "./killstreaks.js";
 import { serverVerbs } from "./verbs.js";
 import { Zones } from "./zones.js";
 
@@ -92,6 +93,7 @@ export class Match {
   private readonly shots: Shots;
   readonly melee: Melee;
   readonly projectiles: Projectiles;
+  readonly killstreaks: Killstreaks;
   private readonly bots: MatchBots;
   private readonly cast: MatchCast;
   private readonly actorTick: ActorTick;
@@ -160,7 +162,21 @@ export class Match {
     const use = new Interactions(world, gametype, collision, parts.presence, scripts, view, playing.partBounds);
     const melee = (this.melee = new Melee(clock, roster, damage, outbox, collision));
     const projectiles = (this.projectiles = new Projectiles(clock, roster, damage, outbox, collision));
-    const drain = new InputDrain(clock, roster, use, shots, melee, projectiles);
+    const killstreaks = (this.killstreaks = new Killstreaks(clock, roster, outbox, damage, collision));
+    const drain = new InputDrain(clock, roster, use, shots, melee, projectiles, killstreaks);
+
+    damage.setKillstreakHandler((victimId, killerId) => {
+      const victim = roster.get(victimId);
+      if (victim) {
+        killstreaks.onDeath(victim);
+      }
+      if (killerId && killerId !== victimId) {
+        const killer = roster.get(killerId);
+        if (killer && victim) {
+          killstreaks.onKill(killer, victim);
+        }
+      }
+    });
 
     // Before any other hook, so the first `combatRules` already has its state.
     const end = (reason: string): void => void (this.endedBy ??= reason);
@@ -201,6 +217,7 @@ export class Match {
     phases.use("physics", () => {
       dynamics.step();
       projectiles.step(clock.dt);
+      killstreaks.step(clock.dt);
     });
     phases.use("parts", () =>
       parts.flush(clock.tick, {
@@ -426,6 +443,23 @@ export class Match {
         lastMeleeAt: -10,
         flashedUntil: -10,
         flashDuration: 0,
+      },
+      streaks: {
+        package: loadout?.strikePackage?.package ?? "assault",
+        streaks: (loadout?.strikePackage?.streaks ?? ["uav", "predator_missile", "sentry_gun"]) as [
+          "uav" | "predator_missile" | "sentry_gun",
+          "uav" | "predator_missile" | "sentry_gun",
+          "uav" | "predator_missile" | "sentry_gun",
+        ],
+        killsThisLife: 0,
+        totalPoints: 0,
+        ready: [false, false, false],
+      },
+      perks: {
+        perk1: loadout?.perks?.perk1 ?? "sleight_of_hand",
+        perk2: loadout?.perks?.perk2 ?? "quickdraw",
+        perk3: loadout?.perks?.perk3 ?? "stalker",
+        bonusPerks: new Set<string>(),
       },
     };
     // In the roster and on a side, not yet placed, before a script is asked about

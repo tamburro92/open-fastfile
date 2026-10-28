@@ -43,6 +43,8 @@ export interface PlayerInput {
   lethal: boolean;
   /** Pressed this step: throw tactical equipment (Flashbang). */
   tactical: boolean;
+  /** Pressed this step: activate next ready Killstreak (MW3 Strike Package). */
+  killstreak: boolean;
 }
 
 /** Nothing held, looking at `yaw`/`pitch`. */
@@ -64,5 +66,6 @@ export function idleInput(yaw: number, pitch: number): PlayerInput {
     melee: false,
     lethal: false,
     tactical: false,
+    killstreak: false,
   };
 }
