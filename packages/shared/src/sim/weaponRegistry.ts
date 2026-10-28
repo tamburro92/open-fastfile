@@ -283,8 +283,23 @@ export function resolveWeapon(entry: WeaponEntry, fitted: Fitted): WeaponDef {
   // A second pass, because a sight and a grip each author clips for the same
   // weapon and the winner depends on the role rather than on the slot: the sight
   // owns the aiming clips and the grip everything it changed about the handling.
-  const sights = entry.attachments.filter((attachment, slot) => slots.has(slot) && attachment.type === "scope");
+  const sights = entry.attachments.filter(
+    (attachment, slot) =>
+      slots.has(slot) &&
+      (attachment.type === "scope" ||
+        attachment.tag === "tag_red_dot" ||
+        attachment.tag === "tag_eotech" ||
+        attachment.tag === "tag_acog_2" ||
+        attachment.tag === "tag_scope" ||
+        attachment.tag === "tag_thermal_scope"),
+  );
   if (sights.length > 0) {
+    // Sights fold down or hide the weapon's default iron sights (tag_sight_on)
+    // and reveal the folded iron sight mount (tag_sight_off).
+    hidden.add("tag_sight_on");
+    hidden.delete("tag_sight_off");
+    bonesMoved = true;
+
     const roles = { ...def.roles };
     let aimed = false;
     // The scope picture goes the same way and for the same reason, but it is one

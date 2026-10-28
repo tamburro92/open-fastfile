@@ -316,6 +316,15 @@ describe("attachments", () => {
     expect(resolveWeapon(carried, [0, 1]).hideBones).toEqual(["tag_sight_on"]);
   });
 
+  it("automatically hides tag_sight_on and reveals tag_sight_off when an optic is equipped", () => {
+    const rifle = entry("m4", [
+      { id: "reflex", type: "scope", tag: "tag_red_dot" },
+    ]);
+    expect(rifle.def.hideBones).toEqual(["tag_sight_off"]);
+    const fitted = resolveWeapon(rifle, [0]);
+    expect(fitted.hideBones).toEqual(["tag_sight_on"]);
+  });
+
   it("compares two fitted sets by what they name, not by how they are written", () => {
     expect(sameFitted([0, 1], [1, 0])).toBe(true);
     expect(sameFitted([0], [0, 1])).toBe(false);

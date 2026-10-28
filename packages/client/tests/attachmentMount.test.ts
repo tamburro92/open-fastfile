@@ -119,4 +119,15 @@ describe.skipIf(!built)("mounting an attachment on a real weapon", () => {
         .containsBox(scope),
     ).toBe(true);
   });
+
+  it("mounts the optic reticle onto tag_reticle_attach when an optic attachment is fitted", async () => {
+    const [gun, acog] = await Promise.all([load(SKINNED.gun), load(SKINNED.model)]);
+    const root = gun.scene;
+    const joints = jointsOf(root);
+    mountAttachments(root, joints, [{ entry: { id: "acog", tag: "tag_acog_2", model: "model" }, asset: acog }], SKINNED.weapon);
+
+    const reticle = root.getObjectByName("optic_reticle_mesh");
+    expect(reticle).toBeTruthy();
+    expect(reticle?.parent?.name).toBe("tag_reticle_attach");
+  });
 });

@@ -167,6 +167,8 @@ export class Viewmodel {
   private actions = new Map<string, THREE.AnimationAction>();
   private current: THREE.AnimationAction | undefined;
   private adsAction: THREE.AnimationAction | undefined;
+  private tagAds: THREE.Object3D | undefined;
+  private opticAdsOffset: { y: number; z: number } | undefined;
   private motion: WeaponMotion | undefined;
   private lights: THREE.Light[] = [];
   /** What the motion model is asked for each frame, and where it answers; both refilled in place. */
@@ -215,6 +217,28 @@ export class Viewmodel {
       this.adsAction.play().paused = true;
     }
 
+    this.tagAds = rig.root.getObjectByName("tag_ads");
+    const reticle = rig.root.getObjectByName("tag_reticle_attach");
+    if (this.adsAction && this.tagAds && reticle) {
+      // Measure the offset needed to bring tag_reticle_attach to the center of the screen
+      // at full aim (ADS = 1). Since tag_ads is a child of rig.eye (tag_view), shifting
+      // tag_ads by (-reticleInEye.y, -reticleInEye.z) aligns the reticle directly onto
+      // the camera view center.
+      const clip = this.adsAction.getClip();
+      this.adsAction.time = clip.duration;
+      this.mixer.update(0);
+      rig.root.updateMatrixWorld(true);
+
+      const inEye = rig.eye.worldToLocal(reticle.getWorldPosition(new THREE.Vector3()));
+      this.opticAdsOffset = { y: -inEye.y, z: -inEye.z };
+
+      this.adsAction.time = 0;
+      this.mixer.update(0);
+      rig.root.updateMatrixWorld(true);
+    } else {
+      this.opticAdsOffset = undefined;
+    }
+
     this.motion = new WeaponMotion(rig.def.motion);
     this.scope.use(overlay);
     this.weapon = weapon;
@@ -241,6 +265,8 @@ export class Viewmodel {
     this.lights = [];
     this.actions.clear();
     this.rig = this.mixer = this.current = this.adsAction = this.motion = this.weapon = undefined;
+    this.tagAds = undefined;
+    this.opticAdsOffset = undefined;
   }
 
   /**
@@ -288,6 +314,11 @@ export class Viewmodel {
       this.adsAction.time = this.weapon.data.ads * this.adsAction.getClip().duration;
     }
     this.mixer.update(step);
+    if (this.opticAdsOffset && this.tagAds && this.weapon.data.ads > 0) {
+      const adsFrac = this.weapon.data.ads;
+      this.tagAds.position.y += this.opticAdsOffset.y * adsFrac;
+      this.tagAds.position.z += this.opticAdsOffset.z * adsFrac;
+    }
 
     const { movement } = frame;
     const f = this.motionFrame;

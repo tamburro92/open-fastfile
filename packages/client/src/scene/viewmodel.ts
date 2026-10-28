@@ -227,6 +227,9 @@ function subtreesOf(root: THREE.Object3D, bones: readonly string[]): Set<string>
 export function mountAttachments(root: THREE.Object3D, joints: Map<string, THREE.Object3D>, fitted: readonly FittedAttachment[], weapon: string): void {
   for (const attachment of fitted) {
     mountAttachment(root, joints, attachment, weapon);
+    if (!attachment.asset) {
+      mountOpticReticle(root, attachment.entry.id);
+    }
   }
 }
 
@@ -279,6 +282,7 @@ function mountAttachment(root: THREE.Object3D, joints: Map<string, THREE.Object3
     for (const mesh of skinned) {
       root.add(mesh);
     }
+    mountOpticReticle(mount, fitted.entry.id);
     return;
   }
 
@@ -308,6 +312,107 @@ function uprightRigid(meshes: readonly THREE.Mesh[]): THREE.Object3D {
     holder.add(mesh);
   }
   return holder;
+}
+
+const reticleTextures = new Map<string, THREE.Texture>();
+let reticleTextureLoader: THREE.TextureLoader | undefined;
+
+function getReticleTexture(url: string): THREE.Texture {
+  let tex = reticleTextures.get(url);
+  if (!tex) {
+    reticleTextureLoader ??= new THREE.TextureLoader();
+    tex = reticleTextureLoader.load(url);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    reticleTextures.set(url, tex);
+  }
+  return tex;
+}
+
+/** Determine the authentic reticle texture URL for a given attachment ID. */
+export function opticReticleUrl(attachmentId: string): string | null {
+  const id = attachmentId.toLowerCase();
+  if (id.includes("reflex")) {
+    return "/assets/reticles/reflex.png";
+  }
+  if (id.includes("eotech")) {
+    return "/assets/reticles/eotech.png";
+  }
+  if (id.includes("acog")) {
+    return "/assets/reticles/acog.png";
+  }
+  if (id.includes("hybrid") || id.includes("hamr")) {
+    return "/assets/reticles/hybrid.png";
+  }
+  return null;
+}
+
+/**
+ * Mount the illuminated 3D reticle onto `tag_reticle_attach` for optical sights.
+ * Authentic MW3 sights (Reflex red dot, Holographic EOTech circle, ACOG chevron, Hybrid)
+ * have their reticle mounted on `tag_reticle_attach` as an unlit emissive quad.
+ */
+export function mountOpticReticle(parent: THREE.Object3D, attachmentId: string): THREE.Mesh | null {
+  const reticleJoint = parent.getObjectByName("tag_reticle_attach");
+  if (!reticleJoint) {
+    return null;
+  }
+  const old = reticleJoint.getObjectByName("optic_reticle_mesh");
+  if (old) {
+    reticleJoint.remove(old);
+  }
+
+  const textureUrl = opticReticleUrl(attachmentId);
+  if (!textureUrl) {
+    return null;
+  }
+
+  const texture = getReticleTexture(textureUrl);
+
+  // In IW5 inches, the reticle plane is ~1.37 inches wide and tall (0.685 half-size).
+  // Normal points along -X (towards the player eye at tag_view).
+  // Left (+Y) is U=0, Right (-Y) is U=1.
+  // Top (+Z) is V=1, Bottom (-Z) is V=0.
+  const half = 0.685;
+  const positions = new Float32Array([
+    0,  half,  half, // 0: top-left
+    0, -half,  half, // 1: top-right
+    0,  half, -half, // 2: bottom-left
+    0, -half, -half, // 3: bottom-right
+  ]);
+  const uvs = new Float32Array([
+    0, 1,
+    1, 1,
+    0, 0,
+    1, 0,
+  ]);
+  const indices = new Uint16Array([
+    0, 2, 1,
+    2, 3, 1,
+  ]);
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+  geometry.computeVertexNormals();
+
+  const material = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = "optic_reticle_mesh";
+  mesh.renderOrder = 10;
+  mesh.frustumCulled = false;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+
+  reticleJoint.add(mesh);
+  return mesh;
 }
 
 /**
