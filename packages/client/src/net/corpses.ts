@@ -35,7 +35,7 @@ import * as THREE from "three";
 import type { PhysicsWorld } from "@3d/shared/physics/world.js";
 import type { RagdollShape } from "@3d/shared/physics/ragdoll.js";
 import type { SpawnEvent } from "@3d/shared/net/messages/events.js";
-import type { CharacterRig } from "@3d/shared/rig/character.js";
+import type { CharacterKit, CharacterRig } from "@3d/shared/rig/character.js";
 import { readHitboxes } from "@3d/shared/rig/hitboxes.js";
 import { releaseRig } from "@3d/shared/rig/release.js";
 import { hitboxUrl, type SidecarSource } from "../engine/hitboxView.js";
@@ -81,6 +81,7 @@ export class Corpses {
   private physics: PhysicsWorld | undefined;
   private ragdoll: RagdollApi | undefined;
   private sidecars: SidecarSource | undefined;
+  private kit: CharacterKit | undefined;
   private readonly corpses = new Map<number, Corpse>();
   /**
    * A body's ragdoll shape by its sidecar URL: `null` where the boxes could not be
@@ -104,11 +105,25 @@ export class Corpses {
     this.clear();
     this.physics = physics;
     this.ragdoll = physics ? ragdoll : undefined;
+    if (this.kit) {
+      this.prepareKit(this.kit);
+    }
   }
 
   /** Where the hit boxes a corpse is made of are read from. The same route the debug view uses. */
   setSidecars(sidecars: SidecarSource | undefined): void {
     this.sidecars = sidecars;
+    if (this.kit) {
+      this.prepareKit(this.kit);
+    }
+  }
+
+  /** Dress future corpses and pre-warm hit boxes for each character in the kit. */
+  setKit(kit: CharacterKit | undefined): void {
+    this.kit = kit;
+    if (kit) {
+      this.prepareKit(kit);
+    }
   }
 
   get count(): number {
@@ -147,7 +162,8 @@ export class Corpses {
     const pose = api.poseFromSpawn(shape, event.ragdoll);
     const id = event.entity;
     const spawn = event.ragdoll;
-    this.physics.spawn(id, event.what, event.tick, (world) => {
+    const spawnTick = unwrapTick(event.tick, this.physics.at);
+    this.physics.spawn(id, event.what, spawnTick, (world) => {
       const ragdoll = api.buildRagdoll(world, shape, pose);
       // Momentum, knock and the round's snap, in the one order that works —
       // `startRagdoll` owns all three so that nothing here can get it subtly wrong.
@@ -204,6 +220,29 @@ export class Corpses {
     }
   }
 
+  /**
+   * Pre-warm all character shapes in a kit before anyone is shot.
+   *
+   * Measures every body the world ships so its hit boxes are already in memory
+   * before the first kill, preventing the first death of each body from failing
+   * to fall due to an in-flight network fetch.
+   */
+  prepareKit(kit: CharacterKit): void {
+    const api = this.ragdoll;
+    if (!this.physics || !api) {
+      return;
+    }
+    for (let i = 0; i < kit.names.length; i++) {
+      try {
+        const scratch = kit.build(i);
+        this.shapeFor(scratch, api);
+        releaseRig(scratch.root);
+      } catch {
+        // Silently skip if a character rig cannot build
+      }
+    }
+  }
+
   /** Every corpse goes: a world change, a hot reload, the connection going away. */
   clear(): void {
     for (const corpse of this.corpses.values()) {
@@ -217,6 +256,7 @@ export class Corpses {
     this.clear();
     this.physics = undefined;
     this.ragdoll = undefined;
+    this.kit = undefined;
     this.shapes.clear();
     this.pending.clear();
   }
@@ -253,4 +293,19 @@ export class Corpses {
     }
     return undefined;
   }
+}
+
+/**
+ * Unwraps a 16-bit wire tick against the local 32-bit physics clock so a match
+ * past 65,536 ticks (~18 minutes at 60 Hz) does not immediately retire a freshly spawned corpse.
+ */
+function unwrapTick(wireTick: number, currentTick: number): number {
+  const epoch = currentTick & ~0xffff;
+  let candidate = epoch | (wireTick & 0xffff);
+  if (candidate > currentTick + 0x8000) {
+    candidate -= 0x10000;
+  } else if (candidate < currentTick - 0x8000) {
+    candidate += 0x10000;
+  }
+  return candidate;
 }

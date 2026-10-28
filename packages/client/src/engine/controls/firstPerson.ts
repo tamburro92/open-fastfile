@@ -108,6 +108,12 @@ export class FirstPersonControls {
   private readonly pending = { yaw: 0, pitch: 0 };
   /** Radians of view per count of mouse movement. See input/sensitivity.ts. */
   private radiansPerCount = radiansPerCount(DEFAULT_SENSITIVITY);
+  private shakeTrauma = 0;
+
+  /** Add camera trauma / shake (e.g. from nearby explosion). Clamped to [0, 1]. */
+  addTrauma(amount: number): void {
+    this.shakeTrauma = Math.min(1.0, this.shakeTrauma + Math.max(0, amount));
+  }
   /**
    * How far the view is zoomed in, as a factor on tan(fov / 2): 1 at the hip, and
    * under 1 down the sights. The aim is scaled by it.
@@ -309,6 +315,9 @@ export class FirstPersonControls {
 
   update(dt: number): void {
     this.turn.yaw = this.turn.pitch = 0;
+    if (this.shakeTrauma > 0) {
+      this.shakeTrauma = Math.max(0, this.shakeTrauma - dt * 2.2);
+    }
     if (this.player.dead) {
       if (this.deathElapsed < 0) {
         this.deathElapsed = 0;
@@ -571,6 +580,16 @@ export class FirstPersonControls {
     this.drawnKick.pitch = this.previousKick.pitch + ((kick?.pitch ?? 0) - this.previousKick.pitch) * t;
     this.drawnKick.yaw = this.previousKick.yaw + ((kick?.yaw ?? 0) - this.previousKick.yaw) * t;
     const aim = aimAngles({ yaw: this.viewYaw(), pitch: this.viewPitch() }, kick ? this.drawnKick : null, this.aim);
-    this.camera.rotation.set(aim.pitch + deathPitchOffset, aim.yaw, deathTilt);
+    let shakePitch = 0;
+    let shakeYaw = 0;
+    let shakeRoll = 0;
+    if (this.shakeTrauma > 0) {
+      const traumaSq = this.shakeTrauma * this.shakeTrauma;
+      const tNow = performance.now();
+      shakePitch = Math.sin(tNow * 0.045) * 0.04 * traumaSq;
+      shakeYaw = Math.cos(tNow * 0.038) * 0.035 * traumaSq;
+      shakeRoll = Math.sin(tNow * 0.032) * 0.05 * traumaSq;
+    }
+    this.camera.rotation.set(aim.pitch + deathPitchOffset + shakePitch, aim.yaw + shakeYaw, deathTilt + shakeRoll);
   }
 }

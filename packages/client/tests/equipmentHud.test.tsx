@@ -11,6 +11,7 @@ import { createUiState, type UiCommands } from "../src/app/uiBridge.js";
 import { UiContext } from "../src/ui/context.js";
 import { EquipmentHud } from "../src/ui/hud/EquipmentHud.js";
 import { GrenadeIndicator } from "../src/ui/hud/GrenadeIndicator.js";
+import { DamageIndicator } from "../src/ui/hud/DamageIndicator.js";
 import { FlashOverlay } from "../src/ui/hud/FlashOverlay.js";
 
 const stubCommands = {} as unknown as UiCommands;
@@ -182,5 +183,67 @@ describe("Equipment HUD & Vitals", () => {
       </UiContext.Provider>,
     );
     expect(queryByTestId("hud-flash-overlay")).toBeNull();
+  });
+
+  it("renders directional Damage Indicator when hurt by grenade explosion and fades out", () => {
+    const { ui, hud } = setup();
+    const selfState = state({
+      health: 100,
+      movement: {
+        feet: { x: 0, y: 0, z: 0 },
+        yaw: 0, // facing north (-z)
+        pitch: 0,
+        roll: 0,
+        stance: "stand",
+        speed: 0,
+      } as unknown as PlayerState["movement"],
+    });
+
+    hud.snapshot(selfState, [], 1000);
+
+    const { queryByTestId, rerender } = render(
+      <UiContext.Provider value={{ state: ui, commands: stubCommands }}>
+        <DamageIndicator />
+      </UiContext.Provider>,
+    );
+    expect(queryByTestId("hud-damage-indicator")).toBeNull();
+
+    // Damage from grenade explosion at x=4, z=0 (to the player's right, angle 90 deg)
+    const hurtState = { ...selfState, health: 45 };
+    hud.snapshot(
+      hurtState,
+      [
+        {
+          kind: "announce",
+          id: 3,
+          what: "proj_detonate:frag:4.00,0.00,0.00",
+          player: "enemy",
+          team: null,
+          value: 1,
+        },
+      ],
+      1100,
+    );
+
+    expect(ui.hud.damageIndicator.value).not.toBeNull();
+    expect(ui.hud.damageIndicator.value?.intensity).toBeGreaterThan(0.5);
+
+    rerender(
+      <UiContext.Provider value={{ state: ui, commands: stubCommands }}>
+        <DamageIndicator />
+      </UiContext.Provider>,
+    );
+    expect(queryByTestId("hud-damage-indicator")).not.toBeNull();
+
+    // Advance past expiration (now = 2000 > 1100 + 750)
+    hud.snapshot(hurtState, [], 2000);
+    expect(ui.hud.damageIndicator.value).toBeNull();
+
+    rerender(
+      <UiContext.Provider value={{ state: ui, commands: stubCommands }}>
+        <DamageIndicator />
+      </UiContext.Provider>,
+    );
+    expect(queryByTestId("hud-damage-indicator")).toBeNull();
   });
 });

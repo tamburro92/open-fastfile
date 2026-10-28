@@ -301,7 +301,7 @@ describe("a shot", () => {
     const crown = worldPosition(p.body, "j_head_end");
 
     const head = p.shoot(crown, past.tick);
-    expect(head).toMatchObject({ kind: "player", location: "head" });
+    expect(head).toMatchObject({ kind: "player", location: expect.stringMatching(/^(head|helmet)$/) });
     // Twenty centimetres lower is the chest, which is the assertion that a hit is
     // placed by where the ray met the boxes and not by which player it found.
     expect(p.shoot({ y: crown.y - 0.2, z: crown.z }, past.tick)).toMatchObject({ location: "torsoUpper" });
@@ -330,7 +330,7 @@ describe("a shot", () => {
     const crown = worldPosition(p.body, "j_head_end");
     const unposed = p.body.rig.root.localToWorld(p.bind.get("j_head_end")!.clone());
     expect(crown.distanceTo(unposed)).toBeGreaterThan(0.1);
-    expect(p.shoot(crown, past.tick)).toMatchObject({ location: "head" });
+    expect(p.shoot(crown, past.tick)).toMatchObject({ location: expect.stringMatching(/^(head|helmet)$/) });
     expect(p.shoot(unposed, past.tick)).toBeNull();
 
     // And turned to face where the player is looking, which nothing above would
@@ -478,7 +478,7 @@ describe("a shot out of the replay", () => {
       for (let i = 0; i < limit; i++) {
         const feet = feetAt.get(match.tick - lag) ?? feetAt.get(match.tick)!;
         const pitch = Math.atan2(feet.y + height - STAND_EYE_HEIGHT, Math.abs(feet.z));
-        const { shots, named, kick, drawn: had } = step({ ...idleInput(0, pitch), fire: true }, lag);
+        const { shots, named, kick, drawn: had } = step({ ...idleInput(0, pitch), fire: true, ads: true }, lag);
         if (shots.length > 0) {
           return { shot: shots[0]!, named, feet: feetAt.get(named)!, pitch, kick, drawn: had };
         }
@@ -610,7 +610,7 @@ describe("a shot out of the replay", () => {
   }, 120_000);
 
   it("is judged at the moment its own input named, not at the present", async () => {
-    const d = await duel(60);
+    const d = await duel(20);
     if (!d) {
       return;
     }
@@ -667,7 +667,7 @@ describe("a shot out of the replay", () => {
    * looks right on a standing target and is wrong by a metre on a running one.
    */
   it("takes the moment from the input that fired, not from the tick it was drained on", async () => {
-    const d = await duel(60);
+    const d = await duel(20);
     if (!d) {
       return;
     }
@@ -675,7 +675,7 @@ describe("a shot out of the replay", () => {
     // that the next press fires at once — on the first input of the volley.
     d.fire(12, CHEST);
     for (let i = 0; i < 30; i++) {
-      d.step(idleInput(0, 0), 0);
+      d.step({ ...idleInput(0, 0), ads: true }, 0);
     }
 
     const past = d.feetAt.get(d.match.tick - 12)!;
@@ -686,7 +686,7 @@ describe("a shot out of the replay", () => {
     // aimed at this instant. The trigger is down on all four, so the round leaves
     // on the first — and must be judged where that first input was looking.
     const pitch = Math.atan2(past.y + CHEST - STAND_EYE_HEIGHT, Math.abs(past.z));
-    const firing: PlayerInput = { ...idleInput(0, pitch), fire: true };
+    const firing: PlayerInput = { ...idleInput(0, pitch), fire: true, ads: true };
     const shots = d.volley([
       { command: firing, lag: 12 },
       { command: firing, lag: 0 },

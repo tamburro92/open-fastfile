@@ -112,6 +112,11 @@ export class WeaponViewmodel {
     this.firstPerson.setZoom(zoom);
   }
 
+  /** Trigger procedural quick-throw animation on the held viewmodel. */
+  triggerThrow(): void {
+    this.viewmodel.triggerThrow();
+  }
+
   /** Let go of everything the mounted world lent: the rig, the models, the lights, and the weapon itself. */
   drop(): void {
     this.viewmodel.clear();

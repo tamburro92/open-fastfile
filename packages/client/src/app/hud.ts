@@ -52,6 +52,8 @@ export class Hud {
   /** Current gametype declaration, if known. */
   private gametype?: GametypeDecl;
   private grenadeDangerExpiresAt = 0;
+  private damageIndicatorExpiresAt = 0;
+  private previousHealth: number | undefined;
   private flashedUntil = 0;
   private flashDuration = 0;
   private wasDead = false;
@@ -123,6 +125,38 @@ export class Hud {
       if (this.ui.hud.points.value !== points) {
         this.ui.hud.points.value = points;
       }
+      if (this.previousHealth !== undefined && self.health < this.previousHealth && !self.dead) {
+        let damageAngle: number | null = null;
+        for (const event of events) {
+          if (event.kind === "announce" && event.what.startsWith("proj_detonate:")) {
+            const parts = event.what.split(":");
+            const coords = parts[2]?.split(",").map(Number);
+            if (coords && coords.length >= 3 && coords[0] !== undefined && coords[2] !== undefined) {
+              const ex = coords[0];
+              const ez = coords[2];
+              const dx = ex - self.movement.feet.x;
+              const dz = ez - self.movement.feet.z;
+              const angleToBlast = Math.atan2(-dx, -dz);
+              let relAngle = angleToBlast - self.movement.yaw;
+              while (relAngle > Math.PI) {
+                relAngle -= 2 * Math.PI;
+              }
+              while (relAngle < -Math.PI) {
+                relAngle += 2 * Math.PI;
+              }
+              damageAngle = Math.round((relAngle * 180) / Math.PI);
+              break;
+            }
+          }
+        }
+        this.ui.hud.damageIndicator.value = {
+          angle: damageAngle ?? 0,
+          intensity: Math.min(1.0, (this.previousHealth - self.health) / 45),
+          expiresAt: now + 750,
+        };
+        this.damageIndicatorExpiresAt = now + 750;
+      }
+      this.previousHealth = self.health;
     }
     for (const event of events) {
       // Named rather than defaulted: the tail carries physics spawns now, and an
@@ -292,8 +326,11 @@ export class Hud {
     this.ui.hud.feed.value = [];
     this.resetEquipment();
     this.ui.hud.grenadeDanger.value = null;
+    this.ui.hud.damageIndicator.value = null;
     this.ui.hud.flashed.value = 0;
     this.grenadeDangerExpiresAt = 0;
+    this.damageIndicatorExpiresAt = 0;
+    this.previousHealth = undefined;
     this.flashedUntil = 0;
     this.flashDuration = 0;
     this.wasDead = false;
@@ -429,6 +466,10 @@ export class Hud {
     if (this.grenadeDangerExpiresAt > 0 && now >= this.grenadeDangerExpiresAt) {
       this.ui.hud.grenadeDanger.value = null;
       this.grenadeDangerExpiresAt = 0;
+    }
+    if (this.damageIndicatorExpiresAt > 0 && now >= this.damageIndicatorExpiresAt) {
+      this.ui.hud.damageIndicator.value = null;
+      this.damageIndicatorExpiresAt = 0;
     }
     if (this.streakEarnedExpiresAt > 0 && now >= this.streakEarnedExpiresAt) {
       this.ui.hud.streakEarned.value = null;

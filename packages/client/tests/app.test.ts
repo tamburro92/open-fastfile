@@ -173,6 +173,7 @@ describe("a match connection", () => {
       corpses: clearable(),
       footsteps: clearable(),
       weaponAudio: clearable(),
+      projectiles: clearable(),
     };
     const parts = {
       content: { weapons: { hash: "h" } },

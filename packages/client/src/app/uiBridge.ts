@@ -311,6 +311,12 @@ export interface GrenadeDangerInfo {
   distance?: number;
 }
 
+export interface DamageIndicatorInfo {
+  angle: number; // degrees relative to local player view (-180 to 180)
+  intensity: number; // 0 to 1
+  expiresAt: number;
+}
+
 export interface KillstreakState {
   package: StrikePackageId;
   streaks: [KillstreakId, KillstreakId, KillstreakId];
@@ -454,6 +460,8 @@ export interface UiState {
     equipment: Signal<EquipmentState>;
     /** Active incoming grenade warning relative to player aim. */
     grenadeDanger: Signal<GrenadeDangerInfo | null>;
+    /** Directional damage indicator arc when hurt by an attack or explosion. */
+    damageIndicator: Signal<DamageIndicatorInfo | null>;
     /** Visual white screen blinding opacity (0 to 1). */
     flashed: Signal<number>;
     /** Authentic MW3 Killstreaks status: ready slots, current streak count, and strike package. */
@@ -603,6 +611,7 @@ export function createUiState(): UiState {
         tactical: { name: "Flash", id: "flash_grenade_mp", count: 2 },
       }),
       grenadeDanger: signal<GrenadeDangerInfo | null>(null),
+      damageIndicator: signal<DamageIndicatorInfo | null>(null),
       flashed: signal<number>(0),
       streaks: signal<KillstreakState>({
         package: "assault",

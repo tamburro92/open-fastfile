@@ -13,6 +13,7 @@ import { Ammo, Health } from "./Vitals.js";
 import { EquipmentHud } from "./EquipmentHud.js";
 import { KillstreakHud } from "./KillstreakHud.js";
 import { GrenadeIndicator } from "./GrenadeIndicator.js";
+import { DamageIndicator } from "./DamageIndicator.js";
 import { FlashOverlay } from "./FlashOverlay.js";
 
 /**
@@ -49,6 +50,7 @@ export function HudLayer() {
       </div>
       <Reticle />
       <GrenadeIndicator />
+      <DamageIndicator />
       <UsePrompt />
       <Scoreboard />
       <MatchEnd />

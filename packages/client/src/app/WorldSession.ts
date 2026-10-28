@@ -350,6 +350,7 @@ export class WorldSession {
           try {
             const kit = buildCharacterKit(m.cast, await m.characters);
             remotes.setKit(kit);
+            corpses.setKit(kit);
             console.info(`[characters] ${kit.names.join(", ")} with ${kit.set.weapon} (${kit.set.animType})`);
           } catch (e) {
             remotes.setKit(undefined);
@@ -360,6 +361,7 @@ export class WorldSession {
       // The bodies of the actor kinds that have one, from the catalogue. A kind
       // whose files do not load is drawn as its capsule; nothing waits on this.
       ["actor bodies", async () => actors.setKits(await this.fetchActorKits(), hashString(this.slug))],
+      ["projectiles", async () => this.systems.projectiles.prewarm(this.assets)],
       ["debug views", (m) => dev.afterBuild(m.built.root)],
       [
         "camera",
@@ -482,11 +484,12 @@ export class WorldSession {
 
   /** Let go of the built scene and everything attached to it. The highlight borrows its geometry, so it lets go first. */
   private releaseScene(): void {
-    const { animator, fx, audio, remotes, actors, corpses } = this.systems;
+    const { animator, fx, audio, remotes, actors, corpses, projectiles } = this.systems;
     this.dev.beforeSwap();
     animator.clear();
     fx.clear();
     audio.clear();
+    projectiles.clear();
     remotes.setKit(undefined);
     actors.setKits(new Map());
     // Before the scene goes. A Rapier world is wasm memory that no garbage
@@ -494,6 +497,7 @@ export class WorldSession {
     // can find — the same argument the AssetStore invariant makes about textures.
     corpses.setWorld(undefined);
     corpses.setSidecars(undefined);
+    corpses.setKit(undefined);
     this.physics?.free();
     this.physics = undefined;
     this.weapon.drop();

@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ResolvedWorld } from "@3d/shared/dsl/resolved.js";

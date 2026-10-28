@@ -19,6 +19,7 @@ import { InputManager } from "../input/InputManager.js";
 import { ActorsView } from "../net/actors.js";
 import { Corpses } from "../net/corpses.js";
 import { RemotePlayers } from "../net/remotePlayers.js";
+import { ProjectilesView } from "../engine/projectilesView.js";
 
 export class Systems {
   readonly viewer: Viewer;
@@ -57,6 +58,8 @@ export class Systems {
   readonly corpses = new Corpses();
   /** The creatures the game server runs. Drawn like peers, beside the scene. */
   readonly actors = new ActorsView();
+  /** 3D in-world equipment projectiles and explosion effects. */
+  readonly projectiles = new ProjectilesView();
 
   constructor(container: HTMLElement) {
     this.viewer = new Viewer(container);
@@ -67,8 +70,9 @@ export class Systems {
     // The listener rides the camera, which is outside the scene and so outside
     // the frozen-matrix rules that apply to everything in it.
     this.audio.attachTo(this.viewer.camera);
+    this.projectiles.attachSystems(this.audio, this.firstPerson);
     // Beside the world rather than inside it, because the world root's matrices are frozen.
-    this.viewer.roots.keep(this.remotes.root, this.audio.root, this.corpses.root, this.actors.root);
+    this.viewer.roots.keep(this.remotes.root, this.audio.root, this.corpses.root, this.actors.root, this.projectiles.root);
     this.viewer.pipeline.use("effects", this.fx.pass);
     this.viewer.pipeline.use("viewmodel", this.viewmodel.pass);
   }

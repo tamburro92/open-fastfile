@@ -318,6 +318,11 @@ export class Viewmodel {
     }
   }
 
+  /** Trigger procedural quick-throw animation on the viewmodel. */
+  triggerThrow(): void {
+    this.motion?.triggerThrow();
+  }
+
   /**
    * Whether the player is looking through a scope rather than over the gun.
    *

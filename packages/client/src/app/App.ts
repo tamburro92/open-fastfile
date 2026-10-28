@@ -136,6 +136,7 @@ export class App {
       toaster: this.toaster,
       dev: this.dev,
       ui,
+      weapon: this.weapon,
     });
     this.worlds.onEntered = (reload) => {
       if (reload) {
@@ -181,7 +182,7 @@ export class App {
 
   /** Every per-frame step, in the slots frame.ts orders them by. */
   private fillUpdates(presenters: Presenters): void {
-    const { animator, firstPerson, dollhouse, footsteps, weaponAudio, remotes, actors, fx, audio, shadowFit, viewer } = this.systems;
+    const { animator, firstPerson, dollhouse, footsteps, weaponAudio, remotes, actors, fx, audio, shadowFit, viewer, projectiles } = this.systems;
     const u = this.updates;
     u.use("animation", (dt) => animator.update(dt));
     u.use("controls", (dt) => {
@@ -197,7 +198,10 @@ export class App {
       actors.update(performance.now());
     });
     u.use("viewmodel", (dt) => this.weapon.update(dt, this.pause.mode === "walk"));
-    u.use("effects", (dt) => fx.update(dt, viewer.camera));
+    u.use("effects", (dt) => {
+      fx.update(dt, viewer.camera);
+      projectiles.update(dt, viewer.camera);
+    });
     u.use("presenters", () => presenters.update());
     u.use("listener", (dt) => audio.update(dt, viewer.camera));
     u.use("shadows", () => {

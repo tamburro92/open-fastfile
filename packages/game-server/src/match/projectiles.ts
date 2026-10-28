@@ -19,6 +19,7 @@ import type { EventOutbox } from "./outbox.js";
 import type { Member, Roster } from "./roster.js";
 
 export const GRENADE_THROW_SPEED = 20.0; // m/s
+export const GRENADE_UPWARD_LOFT = 2.0; // m/s
 export const GRENADE_GRAVITY = -15.0; // m/s^2 parabolic gravity
 export const GRENADE_BLAST_RADIUS = 6.5; // meters (256 units in MW3)
 export const GRENADE_INNER_DAMAGE = 130;
@@ -110,7 +111,7 @@ export class Projectiles {
     // Initial velocity along aim with slight upward loft
     const velocity: Vec3 = {
       x: aim.x * GRENADE_THROW_SPEED,
-      y: aim.y * GRENADE_THROW_SPEED + 2.0,
+      y: aim.y * GRENADE_THROW_SPEED + GRENADE_UPWARD_LOFT,
       z: aim.z * GRENADE_THROW_SPEED,
     };
 
@@ -402,6 +403,11 @@ export class Projectiles {
         amount: dmg,
         by: p.thrower,
         cause: "explosion",
+        along: {
+          x: dx / Math.max(0.1, dist),
+          y: dy / Math.max(0.1, dist) + 0.35,
+          z: dz / Math.max(0.1, dist),
+        },
       });
 
       if (member.player.health < wasHealth && p.thrower) {

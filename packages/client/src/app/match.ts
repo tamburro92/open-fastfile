@@ -26,6 +26,7 @@ import type { Systems } from "./systems.js";
 import type { Toaster } from "./toaster.js";
 import type { UiState } from "./uiBridge.js";
 import type { WorldLoader } from "./worldLoader.js";
+import type { WeaponViewmodel } from "./weaponViewmodel.js";
 import { NO_MATCH_VALUES, type MatchValues, type WorldSession } from "./WorldSession.js";
 
 /** The match as of the newest snapshot, as a script's view is built from it. */
@@ -51,6 +52,7 @@ export interface MatchParts {
   readonly toaster: Toaster;
   readonly dev: DevTools;
   readonly ui: UiState;
+  readonly weapon: WeaponViewmodel;
 }
 
 export class MatchController {
@@ -79,10 +81,36 @@ export class MatchController {
     const { firstPerson, remotes, actors } = systems;
     firstPerson.onTick = (input, dt, feet) => {
       if (input.lethal) {
-        this.parts.hud.useLethal();
+        const eq = this.parts.ui.hud.equipment.value;
+        if (eq.lethal && eq.lethal.count > 0) {
+          this.parts.hud.useLethal();
+          this.parts.weapon.triggerThrow();
+          const pin = eq.lethal.id === "semtex_mp" ? "weap_semtexgrenade_pin" : "weap_fraggrenade_pin";
+          const fire = eq.lethal.id === "semtex_mp" ? "weap_semtexgrenade_fire" : "weap_fraggrenade_fire";
+          if (systems.audio.knows(pin, "iw5") || systems.audio.knows(pin)) {
+            systems.audio.playAtListener(pin, { channel: "sfx", game: "iw5" });
+          }
+          setTimeout(() => {
+            if (systems.audio.knows(fire, "iw5") || systems.audio.knows(fire)) {
+              systems.audio.playAtListener(fire, { channel: "sfx", game: "iw5" });
+            }
+          }, 180);
+        }
       }
       if (input.tactical) {
-        this.parts.hud.useTactical();
+        const eq = this.parts.ui.hud.equipment.value;
+        if (eq.tactical && eq.tactical.count > 0) {
+          this.parts.hud.useTactical();
+          this.parts.weapon.triggerThrow();
+          if (systems.audio.knows("weap_flashgrenade_pin", "iw5") || systems.audio.knows("weap_flashgrenade_pin")) {
+            systems.audio.playAtListener("weap_flashgrenade_pin", { channel: "sfx", game: "iw5" });
+          }
+          setTimeout(() => {
+            if (systems.audio.knows("weap_flashgrenade_fire", "iw5") || systems.audio.knows("weap_flashgrenade_fire")) {
+              systems.audio.playAtListener("weap_flashgrenade_fire", { channel: "sfx", game: "iw5" });
+            }
+          }, 180);
+        }
       }
       this.connection?.send(input, dt, feet, remotes.renderTick() ?? actors.renderTick());
     };
@@ -309,7 +337,7 @@ export class MatchController {
    * it, and the prediction back to respawning at the kill plane.
    */
   private disconnect(): void {
-    const { firstPerson, remotes, actors, actorVoices, corpses, footsteps, weaponAudio } = this.systems;
+    const { firstPerson, remotes, actors, actorVoices, corpses, footsteps, weaponAudio, projectiles } = this.systems;
     this.connection?.close();
     this.connection = undefined;
     this.parts.classes.clear();
@@ -320,6 +348,7 @@ export class MatchController {
     corpses.clear();
     footsteps.clear();
     weaponAudio.clear();
+    projectiles?.clear();
     this.parts.hud.clear();
     this.roster = EMPTY_ROSTER;
   }
@@ -397,6 +426,10 @@ export class MatchController {
         } else if (event.what === "explosion") {
           if (audio.knows("grenade_explode_default")) {
             audio.playAtListener("grenade_explode_default", { channel: "sfx" });
+          }
+        } else if (event.what === "flashbang_explode") {
+          if (audio.knows("flashbang_explode_default")) {
+            audio.playAtListener("flashbang_explode_default", { channel: "sfx" });
           }
         } else if (event.what === "grenade_bounce") {
           if (audio.knows("grenade_bounce_flesh")) {

@@ -1,0 +1,42 @@
+.container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 12;
+  overflow: hidden;
+}
+
+.vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 40%, rgba(180, 0, 0, 0.45) 85%, rgba(220, 0, 0, 0.75) 100%);
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+}
+
+.arcCenter {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
+}
+
+.arc {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  top: -160px;
+  left: -160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.arcSvg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8));
+}

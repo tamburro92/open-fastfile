@@ -91,13 +91,20 @@ export class WeaponMotion {
   private lastClimb = 0;
   private jolt = 0;
   private joltSpeed = 0;
+  private throwElapsed = -1;
 
   constructor(private readonly params: Readonly<Record<string, number>>) {}
+
+  /** Trigger viewmodel quick-throw animation sequence (Call of Duty MW3 style). */
+  triggerThrow(): void {
+    this.throwElapsed = 0;
+  }
 
   /** Back to rest: a newly held weapon, or a held pose. */
   reset(): void {
     this.time = this.lagYaw = this.lagPitch = this.swayYaw = this.swayPitch = this.bobPhase = this.bobAmount = 0;
     this.lastClimb = this.jolt = this.joltSpeed = 0;
+    this.throwElapsed = -1;
   }
 
   /** This frame's pose, into `out` when given — the viewmodel keeps one, since this runs every frame. */
@@ -154,6 +161,38 @@ export class WeaponMotion {
     // degrees, so this adds no constant of its own to tune.
     pose.pitch -= f.kick.pitch * DEG;
     pose.yaw += f.kick.yaw * DEG;
+
+    // Procedural MW3 quick-throw gesture
+    if (this.throwElapsed >= 0) {
+      this.throwElapsed += f.dt;
+      const t = this.throwElapsed;
+      if (t < 0.12) {
+        // Dip weapon down and tuck left
+        const frac = t / 0.12;
+        pose.y -= 0.12 * frac;
+        pose.x -= 0.04 * frac;
+        pose.pitch -= 0.22 * frac;
+        pose.roll -= 0.12 * frac;
+      } else if (t < 0.24) {
+        // Forward fling / toss motion
+        const frac = (t - 0.12) / 0.12;
+        pose.y += (-0.12 + 0.18 * frac);
+        pose.z -= 0.08 * frac;
+        pose.pitch += (-0.22 + 0.35 * frac);
+        pose.roll += (-0.12 + 0.15 * frac);
+      } else if (t < 0.45) {
+        // Recover back to idle
+        const frac = 1.0 - (t - 0.24) / 0.21;
+        const smooth = frac * frac * (3 - 2 * frac);
+        pose.y += 0.06 * smooth;
+        pose.z -= 0.08 * smooth;
+        pose.pitch += 0.13 * smooth;
+        pose.roll += 0.03 * smooth;
+      } else {
+        this.throwElapsed = -1;
+      }
+    }
+
     return pose;
   }
 
