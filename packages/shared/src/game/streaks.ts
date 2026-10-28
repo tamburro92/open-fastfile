@@ -52,14 +52,13 @@ export interface StreakState {
   hardline: boolean;
 }
 
-/** How long a sentry stands before it packs up, as MW3's does. */
-export const SENTRY_LIFETIME = 90;
-
 /** A placed sentry gun, as everyone is told it: where, which way its gun points, and whether it is firing. */
 export interface SentryState {
   id: number;
   owner: PlayerId;
   position: Vec3;
+  /** The way it was set down facing: its tripod's, which the gun turns either side of. */
+  facing: number;
   yaw: number;
   pitch: number;
   firing: boolean;

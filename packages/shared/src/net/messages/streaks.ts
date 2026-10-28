@@ -35,6 +35,7 @@ export const sentryStateSchema = struct({
   id: uint(8),
   owner: playerId,
   position: vec3,
+  facing: yaw,
   yaw,
   pitch,
   firing: bool,

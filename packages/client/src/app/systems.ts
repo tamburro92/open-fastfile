@@ -73,7 +73,8 @@ export class Systems {
     // The listener rides the camera, which is outside the scene and so outside
     // the frozen-matrix rules that apply to everything in it.
     this.audio.attachTo(this.viewer.camera);
-    this.projectiles.attachSystems(this.audio, this.firstPerson);
+    // What a grenade bounced off, a little below where it is: the floor it is skipping along.
+    this.projectiles.attachSystems(this.audio, this.firstPerson, (at) => this.world.surfaceAt({ x: at.x, y: at.y + 0.1, z: at.z }, 0.4));
     this.sentries.attachAudio(this.audio);
     // Beside the world rather than inside it, because the world root's matrices are frozen.
     this.viewer.roots.keep(this.remotes.root, this.audio.root, this.corpses.root, this.actors.root, this.projectiles.root, this.sentries.root);

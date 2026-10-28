@@ -1,11 +1,6 @@
-// Authoritative simulation of lethal and tactical equipment projectiles in Call of Duty: Modern Warfare 3.
-//
-// Models:
-// - Frag Grenade (`frag_grenade_mp`): 3.5s fuse, cookable/throwable, parabolic trajectory with bounce,
-//   6.5m blast radius, 130 inner damage to 55 outer damage, line-of-sight occlusion.
-// - Semtex (`semtex_mp`): 2.0s fuse, sticks to surfaces and players, warning beeps, 6.5m blast radius.
-// - Flashbang (`flash_grenade_mp`): 1.5s fuse, 20m radius, facing angle check (up to 3.5s blind if looking,
-//   1.0s blind if facing away), line-of-sight occlusion.
+// Authoritative flight of what a player throws: frag, semtex and flashbang.
+// Every number is MW3's own, from its weapon files (@3d/shared/game/equipment.ts),
+// except how long a flashbang blinds, which MW3 keeps in a script.
 
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { InputMessage } from "@3d/shared/net/messages/input.js";
@@ -14,6 +9,15 @@ import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection } from "@3d/shared/sim/recoil.js";
 import type { LethalEquipmentId } from "@3d/shared/sim/loadout.js";
 import { GRAVITY } from "@3d/shared/sim/movementState.js";
+import {
+  FLASHBANG_FULL_RADIUS,
+  FLASHBANG_RADIUS,
+  FUSE,
+  GRENADE_BLAST,
+  GRENADE_THROW_LOFT,
+  GRENADE_THROW_SPEED,
+  grenadeBounce,
+} from "@3d/shared/game/equipment.js";
 import { PROJECTILE_ID_MASK, type ProjectileKind, type ProjectileState } from "@3d/shared/sim/projectile.js";
 import { MAX_SNAPSHOT_PROJECTILES } from "@3d/shared/net/messages/projectiles.js";
 import type { MatchClock } from "./clock.js";
@@ -21,17 +25,12 @@ import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
 import type { Member, Roster } from "./roster.js";
 
-export const GRENADE_THROW_SPEED = 20.0; // m/s
-export const GRENADE_UPWARD_LOFT = 2.0; // m/s
 /** The games' own gravity, as a player falls: a grenade that drops slower than its thrower reads as a bug. */
 export const GRENADE_GRAVITY = -GRAVITY;
-export const GRENADE_BLAST_RADIUS = 6.5; // meters (256 units in MW3)
-export const GRENADE_INNER_DAMAGE = 130;
-export const GRENADE_OUTER_DAMAGE = 55;
 
-export const FLASHBANG_RADIUS = 20.0; // meters (800 units in MW3)
-export const FLASHBANG_MAX_DURATION = 3.5; // seconds
-export const FLASHBANG_MIN_DURATION = 1.0; // seconds
+/** Seconds blind, looking at it and facing away: not in `flash_grenade_mp`, which leaves it to a script. */
+export const FLASHBANG_MAX_DURATION = 3.5;
+export const FLASHBANG_MIN_DURATION = 1.0;
 
 /** How long a detonation rides the snapshot tail: a late explosion is still the right one. */
 const DETONATION_HOLD = 0.5;
@@ -89,7 +88,7 @@ export class Projectiles {
     member.equipment.lethalCount--;
 
     const kind: ProjectileKind = type === "semtex_mp" ? "semtex" : "frag";
-    const fuseTime = kind === "semtex" ? 2.0 : 3.5;
+    const fuseTime = FUSE[kind];
 
     this.spawnProjectile(member, kind, fuseTime);
   }
@@ -105,7 +104,7 @@ export class Projectiles {
     member.equipment.tacticalCount--;
 
     const kind: ProjectileKind = "flashbang";
-    const fuseTime = 1.5;
+    const fuseTime = FUSE.flashbang;
 
     this.spawnProjectile(member, kind, fuseTime);
   }
@@ -126,7 +125,7 @@ export class Projectiles {
     // Initial velocity along aim with slight upward loft
     const velocity: Vec3 = {
       x: aim.x * GRENADE_THROW_SPEED,
-      y: aim.y * GRENADE_THROW_SPEED + GRENADE_UPWARD_LOFT,
+      y: aim.y * GRENADE_THROW_SPEED + GRENADE_THROW_LOFT,
       z: aim.z * GRENADE_THROW_SPEED,
     };
 
@@ -236,13 +235,12 @@ export class Projectiles {
       const normal = hit.normal;
       const vDotN = p.velocity.x * normal.x + p.velocity.y * normal.y + p.velocity.z * normal.z;
 
-      // Normal restitution 0.45, friction 0.65
-      const restitution = 0.45;
-      const friction = 0.65;
+      // What it keeps along the surface and away from it is the surface's own.
+      const { parallel, perpendicular } = grenadeBounce(hit.surface);
 
-      p.velocity.x = (p.velocity.x - vDotN * normal.x) * friction - normal.x * vDotN * restitution;
-      p.velocity.y = (p.velocity.y - vDotN * normal.y) * friction - normal.y * vDotN * restitution;
-      p.velocity.z = (p.velocity.z - vDotN * normal.z) * friction - normal.z * vDotN * restitution;
+      p.velocity.x = (p.velocity.x - vDotN * normal.x) * parallel - normal.x * vDotN * perpendicular;
+      p.velocity.y = (p.velocity.y - vDotN * normal.y) * parallel - normal.y * vDotN * perpendicular;
+      p.velocity.z = (p.velocity.z - vDotN * normal.z) * parallel - normal.z * vDotN * perpendicular;
 
       const speed = Math.hypot(p.velocity.x, p.velocity.y, p.velocity.z);
 
@@ -301,7 +299,7 @@ export class Projectiles {
       const dz = targetCenter.z - center.z;
       const dist = Math.hypot(dx, dy, dz);
 
-      if (dist > GRENADE_BLAST_RADIUS) {
+      if (dist > GRENADE_BLAST.radius) {
         continue;
       }
 
@@ -316,8 +314,8 @@ export class Projectiles {
       }
 
       // Linear damage falloff: 130 inner down to 55 outer
-      const fraction = dist / GRENADE_BLAST_RADIUS;
-      const dmg = Math.round(GRENADE_INNER_DAMAGE - (GRENADE_INNER_DAMAGE - GRENADE_OUTER_DAMAGE) * fraction);
+      const fraction = dist / GRENADE_BLAST.radius;
+      const dmg = Math.round(GRENADE_BLAST.inner - (GRENADE_BLAST.inner - GRENADE_BLAST.outer) * fraction);
 
       const wasHealth = member.player.health;
       this.damage.hurt({
@@ -375,7 +373,8 @@ export class Projectiles {
         const aim = aimDirection(aimAngles(member.player.movement, null), this.aimDir);
         const dot = aim.x * toFlash.x + aim.y * toFlash.y + aim.z * toFlash.z;
 
-        const distanceFraction = 1.0 - dist / FLASHBANG_RADIUS;
+        // Full strength inside `explosionRadiusMin`, falling to nothing at the edge.
+        const distanceFraction = dist <= FLASHBANG_FULL_RADIUS ? 1 : 1 - (dist - FLASHBANG_FULL_RADIUS) / (FLASHBANG_RADIUS - FLASHBANG_FULL_RADIUS);
         const duration = dot >= 0.2 ? FLASHBANG_MAX_DURATION * distanceFraction : FLASHBANG_MIN_DURATION * distanceFraction;
 
         if (duration > 0.2) {

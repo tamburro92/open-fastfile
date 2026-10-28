@@ -16,7 +16,7 @@ describe("a snapshot's projectiles, sentries and radar", () => {
         { id: 0, kind: "flashbang", position: { x: 0, y: 0, z: 0 } },
       ],
       streaks: { package: "support", streaks: ["uav", "sam_turret", "ac130"], ready: [true, false, true], progress: 11, hardline: true },
-      sentries: [{ id: 255, owner: "abc12345", position: { x: 4, y: 0, z: -1 }, yaw: 1.25, pitch: -0.1, firing: true }],
+      sentries: [{ id: 255, owner: "abc12345", position: { x: 4, y: 0, z: -1 }, facing: 1, yaw: 1.25, pitch: -0.1, firing: true }],
       revealed: [true, false, true],
       counters: [],
       events: [{ kind: "detonate", id: 9, what: "missile", at: { x: 10, y: 0.5, z: -4 }, by: null }],

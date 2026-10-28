@@ -65,6 +65,8 @@ export class AudioSystem {
   private attached: AttachedSounds | undefined;
   /** Placements whose clips are in flight, so a slow fetch is not started again every frame. */
   private readonly pending = new Set<number>();
+  /** Owners whose `hold` is still wanted, so a clip that arrives after `release` is not started. */
+  private readonly held = new Set<number>();
   /** Bumped on every world change: a fetch that lands after one must not start a voice into it. */
   private generation = 0;
   /** Other games' banks, by game: null for one that was asked for and is not there. */
@@ -207,6 +209,32 @@ export class AudioSystem {
     }
   }
 
+  /**
+   * A sound that plays until its owner says stop: a sentry's minigun loop.
+   * `owner` is the caller's key and must be below -1, so it never meets an
+   * ambience placement's id or the one-shots' -1. Playing again while held does
+   * nothing.
+   */
+  hold(alias: string, position: Vec3, owner: number, options: Omit<PlaySpec, "alias" | "position" | "atListener"> = {}): void {
+    if (owner >= -1) {
+      throw new Error(`a held sound's owner must be below -1, not ${owner}`);
+    }
+    const banks = this.banksFor(options.game);
+    if (!banks || this.held.has(owner)) {
+      return;
+    }
+    this.held.add(owner);
+    for (const request of voiceRequests({ ...options, alias, position }, banks, Math.random)) {
+      void this.startVoice(request, owner);
+    }
+  }
+
+  /** Stop what `hold` started for `owner`, including a clip still on its way. */
+  release(owner: number): void {
+    this.held.delete(owner);
+    this.pool.stopOwned(owner);
+  }
+
   /** A sound somewhere in the world. Beyond the alias' max distance nothing is started at all. */
   playAt(alias: string, position: Vec3, options: Omit<PlaySpec, "alias" | "position" | "atListener"> = {}, random?: () => number): void {
     this.play({ ...options, alias, position }, random);
@@ -231,6 +259,7 @@ export class AudioSystem {
   clear(): void {
     this.generation++;
     this.pending.clear();
+    this.held.clear();
     this.pool.clear();
     this.entries = [];
     this.attached = undefined;
@@ -301,6 +330,10 @@ export class AudioSystem {
     const generation = this.generation;
     const buffer = await sounds.clips.audio(request.url);
     if (!buffer || generation !== this.generation || !withinRange(request, this.at, RANGE_HYSTERESIS)) {
+      return;
+    }
+    // Stopped while its clip was on the way: a loop started now would never be stopped.
+    if (owner < -1 && !this.held.has(owner)) {
       return;
     }
     this.pool.start(request, buffer, this.at, owner);

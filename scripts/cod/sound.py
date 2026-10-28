@@ -485,6 +485,20 @@ def impact_roots(defs, infos):
     return {name for name in wanted if name in defs}
 
 
+def equipment_roots(defs, infos):
+    """Every alias the equipment weapon files name, of those `defs` holds.
+
+    `weapon_roots` reads the plain names; a grenade's `bounceSound` is a
+    *prefix* the surface completes, as an impact's is — `grenade_bounce` itself
+    is no alias, `grenade_bounce_concrete` is — so it is crossed with
+    `ENGINE_SURFACES` here, `_default` included.
+    """
+    found = weapon_roots(infos, defs)
+    prefixes = {bounce for info in infos.values() if (bounce := (info.get("bounceSound") or "").strip())}
+    found |= {f"{p}_{surface}" for p in prefixes for surface in (*ENGINE_SURFACES, "default")} & set(defs)
+    return found
+
+
 def notetrack_roots(entries, defs):
     """Every alias the built weapon entries' clips play by notetrack (`def.sounds.notes`), of those `defs` holds.
 

@@ -15,6 +15,7 @@ import type { Vec3 } from "@3d/shared/sim/capsule.js";
 import type { AudioSystem } from "../audio/system.js";
 import type { FirstPersonControls } from "../controls/firstPerson.js";
 import type { DetonationKind } from "@3d/shared/sim/projectile.js";
+import { PREDATOR } from "@3d/shared/game/equipment.js";
 
 interface Spark {
   position: THREE.Vector3;
@@ -71,7 +72,7 @@ export class ExplosionFx {
 
     // 1. Audio: 3D spatialized explosion sound
     if (audio) {
-      const alias = kind === "flashbang" ? "flashbang_explode_default" : kind === "missile" ? "rocket_explode_default" : "grenade_explode_default";
+      const alias = kind === "flashbang" ? "flashbang_explode_default" : kind === "missile" ? PREDATOR.explosionSound : "grenade_explode_default";
       if (audio.knows(alias, "iw5") || audio.knows(alias)) {
         audio.playAt(alias, position, { channel: "sfx", game: "iw5" });
       }

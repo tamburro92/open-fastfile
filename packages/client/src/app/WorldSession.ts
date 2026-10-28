@@ -362,6 +362,7 @@ export class WorldSession {
       // whose files do not load is drawn as its capsule; nothing waits on this.
       ["actor bodies", async () => actors.setKits(await this.fetchActorKits(), hashString(this.slug))],
       ["projectiles", async () => this.systems.projectiles.prewarm(this.assets)],
+      ["sentries", async () => this.systems.sentries.prewarm(this.assets)],
       ["debug views", (m) => dev.afterBuild(m.built.root)],
       [
         "camera",
@@ -491,7 +492,7 @@ export class WorldSession {
     audio.clear();
     // The models it cloned are the store's, and go with it.
     projectiles.dispose();
-    sentries.clear();
+    sentries.dispose();
     remotes.setKit(undefined);
     actors.setKits(new Map());
     // Before the scene goes. A Rapier world is wasm memory that no garbage

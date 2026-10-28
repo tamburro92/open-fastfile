@@ -10,7 +10,8 @@ import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import type { KillstreakId, LoadoutStrikePackage, StrikePackageId } from "@3d/shared/sim/loadout.js";
-import { SENTRY_LIFETIME, streakCost, type SentryState, type StreakState } from "@3d/shared/game/streaks.js";
+import { streakCost, type SentryState, type StreakState } from "@3d/shared/game/streaks.js";
+import { PREDATOR, SENTRY, UAV_DURATION } from "@3d/shared/game/equipment.js";
 import { MAX_SNAPSHOT_SENTRIES, MAX_STREAK_PROGRESS } from "@3d/shared/net/messages/streaks.js";
 import type { ProjectileState } from "@3d/shared/sim/projectile.js";
 import type { MatchClock } from "./clock.js";
@@ -18,10 +19,21 @@ import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
 import type { Member, MemberStreaks, Roster } from "./roster.js";
 
-/** A sentry's rounds: 600 a minute. */
-const SENTRY_FIRE_INTERVAL = 0.1;
+/** A sentry's rounds: `fireTime`, 1,200 a minute. */
+const SENTRY_FIRE_INTERVAL = SENTRY.fireTime;
 /** Where its gun is, above the point it was set down on. */
 const SENTRY_MUZZLE_HEIGHT = 0.8;
+
+/** Close enough to its target to open fire: a turret does not shoot while it is still swinging round. */
+const SENTRY_ON_TARGET = 3 * (Math.PI / 180);
+const DEG = Math.PI / 180;
+
+const wrapAngle = (a: number): number => Math.atan2(Math.sin(a), Math.cos(a));
+/** `from` turned toward `to` by at most `step`, the short way round. */
+const approachAngle = (from: number, to: number, step: number): number => {
+  const delta = wrapAngle(to - from);
+  return Math.abs(delta) <= step ? to : from + Math.sign(delta) * step;
+};
 
 const uavKey = (owner: PlayerId, side: number | null): string => (side === null ? `player:${owner}` : `side:${side}`);
 
@@ -191,7 +203,7 @@ export class Killstreaks {
     switch (streakId) {
       case "uav": {
         // Activate UAV radar for 30 seconds
-        this.uavActiveUntil.set(uavKey(member.id, side), this.clock.now + 30.0);
+        this.uavActiveUntil.set(uavKey(member.id, side), this.clock.now + UAV_DURATION);
 
         this.outbox.push(
           {
@@ -199,7 +211,7 @@ export class Killstreaks {
             what: "uav_active",
             player: member.id,
             team: side,
-            value: 30,
+            value: UAV_DURATION,
           },
           null,
           2.0,
@@ -224,7 +236,7 @@ export class Killstreaks {
           baseYaw: yaw,
           yaw,
           pitch: 0,
-          expiresAt: this.clock.now + SENTRY_LIFETIME,
+          expiresAt: this.clock.now + SENTRY.lifetime,
           health: 300,
           lastFiredAt: -Infinity,
           targetId: null,
@@ -316,133 +328,83 @@ export class Killstreaks {
     this.stepMissiles(dt, now);
   }
 
-  private stepSentries(_dt: number, now: number): void {
-    if (this.sentries.length === 0) {
-      return;
-    }
-
+  private stepSentries(dt: number, now: number): void {
     for (let i = this.sentries.length - 1; i >= 0; i--) {
       const sentry = this.sentries[i]!;
-
       if (sentry.health <= 0 || now >= sentry.expiresAt) {
         this.sentries.splice(i, 1);
-        this.outbox.push(
-          {
-            kind: "announce",
-            what: "sentry_destroyed",
-            player: sentry.ownerId,
-            team: sentry.team,
-            value: 0,
-          },
-          null,
-          1.0,
-        );
+        this.outbox.push({ kind: "announce", what: "sentry_destroyed", player: sentry.ownerId, team: sentry.team, value: 0 }, null, 1.0);
         continue;
       }
 
-      // Sentry target acquisition:
-      // Scans for closest enemy within 30m in a 120-degree frontal cone
-      let bestTarget: Member | null = null;
-      let bestDist = 30.0;
-
-      for (const target of this.roster.values()) {
-        if (target.player.dead || target.id === sentry.ownerId) {
-          continue;
-        }
-
-        // Friendly fire / team check:
-        if (sentry.team !== null && target.player.side === sentry.team) {
-          continue;
-        }
-
-        // Blind Eye perk check: Sentry ignores players with blind_eye
-        if (target.perks.perk1 === "blind_eye" || target.perks.bonusPerks.has("blind_eye")) {
-          continue;
-        }
-
-        const tFeet = target.player.movement.feet;
-        const dx = tFeet.x - sentry.position.x;
-        const dy = tFeet.y + eyeHeight(target.player.movement) - (sentry.position.y + SENTRY_MUZZLE_HEIGHT);
-        const dz = tFeet.z - sentry.position.z;
-        const dist = Math.hypot(dx, dy, dz);
-
-        if (dist > bestDist) {
-          continue;
-        }
-
-        // Conical facing check (yaw angle):
-        const angleToTarget = Math.atan2(-dx, -dz);
-        let relYaw = angleToTarget - sentry.baseYaw;
-        while (relYaw > Math.PI) {
-          relYaw -= 2 * Math.PI;
-        }
-        while (relYaw < -Math.PI) {
-          relYaw += 2 * Math.PI;
-        }
-
-        if (Math.abs(relYaw) > Math.PI / 3) {
-          // Beyond 60 degrees off center
-          continue;
-        }
-
-        // Line-of-sight check against collision geometry:
-        const dir: Vec3 = { x: dx / dist, y: dy / dist, z: dz / dist };
-        const rayOrigin: Vec3 = { x: sentry.position.x, y: sentry.position.y + SENTRY_MUZZLE_HEIGHT, z: sentry.position.z };
-        const hit = this.collision.traceRay(rayOrigin, dir, dist, "shots");
-
-        if (hit !== null && hit.distance < dist - 0.5) {
-          // Blocked by wall
-          continue;
-        }
-
-        bestDist = dist;
-        bestTarget = target;
+      const muzzle: Vec3 = { x: sentry.position.x, y: sentry.position.y + SENTRY_MUZZLE_HEIGHT, z: sentry.position.z };
+      const target = this.sentryTarget(sentry, muzzle);
+      sentry.targetId = target?.member.id ?? null;
+      if (!target) {
+        continue;
       }
 
-      sentry.targetId = bestTarget ? bestTarget.id : null;
-      if (bestTarget) {
-        const t = bestTarget.player.movement.feet;
-        const dx = t.x - sentry.position.x;
-        const dz = t.z - sentry.position.z;
-        sentry.yaw = Math.atan2(-dx, -dz);
-        sentry.pitch = Math.atan2(t.y + 1.0 - (sentry.position.y + SENTRY_MUZZLE_HEIGHT), Math.hypot(dx, dz));
+      // Turned toward it no faster than the turret can turn (`maxHorTurnSpeed`, `maxVertTurnSpeed`).
+      sentry.yaw = approachAngle(sentry.yaw, target.yaw, SENTRY.maxHorTurnSpeed * DEG * dt);
+      sentry.pitch = approachAngle(sentry.pitch, target.pitch, SENTRY.maxVertTurnSpeed * DEG * dt);
+      const onTarget = Math.abs(wrapAngle(target.yaw - sentry.yaw)) < SENTRY_ON_TARGET && Math.abs(target.pitch - sentry.pitch) < SENTRY_ON_TARGET;
+      if (!onTarget || now - sentry.lastFiredAt < SENTRY_FIRE_INTERVAL) {
+        continue;
       }
-
-      // Sentry firing at target:
-      if (bestTarget && now - sentry.lastFiredAt >= SENTRY_FIRE_INTERVAL) {
-        // 10 shots per second (600 RPM)
-        sentry.lastFiredAt = now;
-
-        const sentryMuzzle: Vec3 = { x: sentry.position.x, y: sentry.position.y + SENTRY_MUZZLE_HEIGHT, z: sentry.position.z };
-        const tFeet = bestTarget.player.movement.feet;
-        const dir: Vec3 = {
-          x: tFeet.x - sentryMuzzle.x,
-          y: tFeet.y + 1.0 - sentryMuzzle.y,
-          z: tFeet.z - sentryMuzzle.z,
-        };
-        const len = Math.hypot(dir.x, dir.y, dir.z);
-        if (len > 0.01) {
-          dir.x /= len;
-          dir.y /= len;
-          dir.z /= len;
-        }
-
-        const wasHealth = bestTarget.player.health;
-        // 25 damage per bullet
-        this.damage.hurt({
-          id: bestTarget.id,
-          amount: 25,
-          by: sentry.ownerId,
-          cause: "bullet",
-          location: "torsoUpper",
-          along: dir,
-        });
-
-        if (bestTarget.player.health < wasHealth) {
-          this.outbox.push({ kind: "hit", lethal: bestTarget.player.dead }, sentry.ownerId, 0);
-        }
+      sentry.lastFiredAt = now;
+      const victim = target.member;
+      const wasHealth = victim.player.health;
+      this.damage.hurt({ id: victim.id, amount: SENTRY.playerDamage, by: sentry.ownerId, cause: "bullet", location: "torsoUpper", along: target.direction });
+      if (victim.player.health < wasHealth) {
+        this.outbox.push({ kind: "hit", lethal: victim.player.dead }, sentry.ownerId, 0);
       }
     }
+  }
+
+  /**
+   * The nearest enemy the sentry can see, inside `maxRange` and the arcs either
+   * side of the way it was set down facing (`leftArc`, `rightArc`, `topArc`,
+   * `bottomArc`), and where it would have to point to hit them. Blind Eye is
+   * invisible to it, as MW3's is.
+   */
+  private sentryTarget(sentry: ActiveSentry, muzzle: Vec3): { member: Member; yaw: number; pitch: number; direction: Vec3 } | null {
+    let best: { member: Member; yaw: number; pitch: number; direction: Vec3 } | null = null;
+    let bestDist = SENTRY.maxRange;
+    for (const member of this.roster.values()) {
+      if (member.player.dead || member.id === sentry.ownerId) {
+        continue;
+      }
+      if (sentry.team !== null && member.player.side === sentry.team) {
+        continue;
+      }
+      if (member.perks.perk1 === "blind_eye" || member.perks.bonusPerks.has("blind_eye")) {
+        continue;
+      }
+      const feet = member.player.movement.feet;
+      const aimAt = { x: feet.x, y: feet.y + eyeHeight(member.player.movement) * 0.8, z: feet.z };
+      const dx = aimAt.x - muzzle.x;
+      const dy = aimAt.y - muzzle.y;
+      const dz = aimAt.z - muzzle.z;
+      const dist = Math.hypot(dx, dy, dz);
+      if (dist > bestDist || dist < 0.01) {
+        continue;
+      }
+      const yaw = Math.atan2(-dx, -dz);
+      const pitch = Math.atan2(dy, Math.hypot(dx, dz));
+      // Positive is to the left: yaw turns counter-clockwise seen from above.
+      const off = wrapAngle(yaw - sentry.baseYaw);
+      if (off > SENTRY.leftArc * DEG || off < -SENTRY.rightArc * DEG || pitch > SENTRY.topArc * DEG || pitch < -SENTRY.bottomArc * DEG) {
+        continue;
+      }
+      const direction = { x: dx / dist, y: dy / dist, z: dz / dist };
+      const hit = this.collision.traceRay(muzzle, direction, dist, "shots");
+      if (hit !== null && hit.distance < dist - 0.5) {
+        continue;
+      }
+      bestDist = dist;
+      best = { member, yaw, pitch, direction };
+    }
+    return best;
   }
 
   private stepMissiles(dt: number, _now: number): void {
@@ -490,9 +452,7 @@ export class Killstreaks {
   }
 
   private detonateMissile(missile: ActiveMissile, center: Vec3): void {
-    const RADIUS = 12.0; // 12 meters blast radius
-    const MAX_DAMAGE = 300;
-    const MIN_DAMAGE = 80;
+    const { radius: RADIUS, inner: MAX_DAMAGE, outer: MIN_DAMAGE } = PREDATOR;
 
     for (const member of this.roster.values()) {
       if (member.player.dead) {
@@ -592,6 +552,7 @@ export class Killstreaks {
       id: sentry.id,
       owner: sentry.ownerId,
       position: { ...sentry.position },
+      facing: sentry.baseYaw,
       yaw: sentry.yaw,
       pitch: sentry.pitch,
       firing: now - sentry.lastFiredAt < SENTRY_FIRE_INTERVAL * 2,

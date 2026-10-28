@@ -7,15 +7,19 @@ import os
 COMMON_ZONES = ("common_mp.ff", "common.ff")
 
 # Where a game keeps its sound, which is *not* where it keeps everything else:
-# IW5's common_mp.ff holds no sound asset at all, and the 7,387-alias bank is in
-# the localized zone beside it. Tried in order, multiplayer first.
+# the 7,387-alias bank is in the localized zone beside IW5's common_mp.ff.
+# Tried in order, multiplayer first.
 SOUND_ZONES = ("localized_common_mp.ff", "localized_common.ff")
 # Black Ops has no localized bank zone: its common_mp.ff carries aliases and PCM together.
 T5_SOUND_ZONES = ("common_mp.ff",)
 
-# Fastfiles that define no alias but hold PCM those aliases name, so they are
-# dumped for `loadedsound` and nothing else.
+# Fastfiles that hold PCM the bank's aliases name, so they are dumped for
+# `loadedsound`.
 SOUND_PCM_ZONES = (*COMMON_ZONES, "localized_code_post_gfx_mp.ff")
+# Of those, the ones that define a few aliases of their own too: IW5's
+# common_mp.ff carries 23, every one of them the sentry gun's, which the bank
+# has not got. Dumped for `sound` as well, and merged as the map zone is.
+SOUND_ALIAS_EXTRA_ZONES = ("common_mp.ff",)
 
 
 def companion_zones(zone_dir, requested):

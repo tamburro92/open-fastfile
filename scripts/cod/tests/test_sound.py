@@ -246,6 +246,14 @@ def test_a_weapons_aliases_are_read_out_of_the_prose_they_hide_in():
     assert sound.weapon_roots({"m4_mp": info}, defs) == {"weap_m4_fire_plr", "weap_m4_clipout_plr"}
 
 
+def test_a_grenades_bounce_is_a_prefix_the_surface_completes():
+    # `bounceSound grenade_bounce` names no alias of its own: the surface it hits does.
+    defs = {name: {} for name in ("grenade_bounce_concrete", "grenade_bounce_default", "semtex_warning", "grenade_bounce")}
+    info = {"bounceSound": "grenade_bounce", "projIgnitionSound": "semtex_warning"}
+    roots = sound.equipment_roots(defs, {"semtex_mp": info})
+    assert {"grenade_bounce_concrete", "grenade_bounce_default", "semtex_warning"} <= roots
+
+
 def test_a_map_zones_ambience_is_never_a_catalogue_root():
     """The union is with a map zone, but only for the families named -- not for the map's own emitters."""
     defs = {"step_run_plr_dirt": alias("step_run_plr_dirt"), "emt_wind_dome_flap_ext": alias("emt_wind_dome_flap_ext")}

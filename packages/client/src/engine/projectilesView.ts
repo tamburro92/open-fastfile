@@ -8,10 +8,12 @@
 //
 // Owns a root beside the scene, like corpses and actors, and writes its own
 // matrices: the scene's `matrixWorldAutoUpdate` is off, so nothing else would.
-// The cosmetic parts — tumble, a bounce's sound, semtex's beep — are derived here
-// from the positions, and cost the wire nothing.
+// The cosmetic parts — tumble, a bounce's sound, semtex's warning — are derived
+// here from the positions, and cost the wire nothing. The models and the sounds
+// are MW3's own (@3d/shared/game/equipment.ts says where each came from).
 
 import * as THREE from "three";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { Vec3 } from "@3d/shared/sim/capsule.js";
 import type { DetonateEvent } from "@3d/shared/net/messages/events.js";
 import { PROJECTILE_KINDS, type ProjectileKind, type ProjectileState } from "@3d/shared/sim/projectile.js";
@@ -21,17 +23,21 @@ import type { FirstPersonControls } from "./controls/firstPerson.js";
 import { ExplosionFx } from "./fx/explosions.js";
 import type { AssetStore } from "../scene/assets.js";
 import { worldWeaponUrl } from "../scene/assetUrl.js";
+import { GRENADE_BOUNCE_SOUND, PREDATOR, SEMTEX_WARNING_SOUND } from "@3d/shared/game/equipment.js";
+import type { SurfaceType } from "@3d/shared/sim/surfaces.js";
 
 /** One tick behind the newer snapshot, as peers and actors are drawn. */
 const INTERPOLATION_TICKS = 1;
-/** Semtex beeps on this period, as MW3's does while it is armed. */
-const BEEP_PERIOD = 0.5;
+/** The LED's blink: a light, and nothing the game times. */
+const BLINK_PERIOD = 0.5;
 /** The bank these sounds are in: the models are MW3's, and so are their recordings. */
 const SOUND_GAME = "iw5";
 /** A fall this fast (m/s) that stops or turns upward was a bounce, worth a sound. */
 const BOUNCE_SPEED = 1.5;
 
-const UP = new THREE.Vector3(0, 1, 0);
+/** The long axis of what is drawn: a CoD model's forward is +x, the stand-in cylinder's is +y. */
+const MODEL_FORWARD = new THREE.Vector3(1, 0, 0);
+const STAND_IN_FORWARD = new THREE.Vector3(0, 1, 0);
 const FLIGHT = new THREE.Vector3();
 
 /** The MW3 models, in `worlds/catalog/worldweapons/iw5/`. A kind with none is drawn as its stand-in. */
@@ -39,6 +45,7 @@ const MODELS: Partial<Record<ProjectileKind, string>> = {
   frag: "projectile_m67fraggrenade",
   semtex: "projectile_semtex_grenade",
   flashbang: "projectile_m84_flashbang_grenade",
+  missile: PREDATOR.model,
 };
 
 interface Sample {
@@ -59,6 +66,8 @@ interface Drawn {
   sinceBeep: number;
   /** Semtex's light: its own material, so one blinking does not blink them all. */
   led?: THREE.MeshBasicMaterial;
+  /** Which local axis points along its flight, for a missile. */
+  forward: THREE.Vector3;
 }
 
 export class ProjectilesView {
@@ -73,15 +82,18 @@ export class ProjectilesView {
   private snapshotInterval = 1000 / TICK_RATE;
   private audio?: AudioSystem;
   private controls?: FirstPersonControls;
+  private surfaceAt?: (at: Vec3) => SurfaceType | null;
 
   constructor() {
     this.root.name = "projectiles-view";
     this.root.add(this.explosions.root);
   }
 
-  attachSystems(audio: AudioSystem, controls: FirstPersonControls): void {
+  /** `surfaceAt` is what a bounce lands on, which is what it sounds like. */
+  attachSystems(audio: AudioSystem, controls: FirstPersonControls, surfaceAt?: (at: Vec3) => SurfaceType | null): void {
     this.audio = audio;
     this.controls = controls;
+    this.surfaceAt = surfaceAt;
   }
 
   setTickRate(hz: number): void {
@@ -199,7 +211,7 @@ export class ProjectilesView {
         // Nose along its flight rather than tumbling: the stand-in's long axis is y.
         if (moved > 0.01) {
           FLIGHT.set(to.position.x - from.position.x, to.position.y - from.position.y, to.position.z - from.position.z).normalize();
-          object.quaternion.setFromUnitVectors(UP, FLIGHT);
+          object.quaternion.setFromUnitVectors(drawn.forward, FLIGHT);
         }
       } else if (moved > 0.01) {
         object.rotation.x += drawn.spin.x * dt;
@@ -208,11 +220,7 @@ export class ProjectilesView {
       }
       drawn.age += dt;
       if (drawn.kind === "semtex") {
-        drawn.sinceBeep += dt;
-        if (drawn.sinceBeep >= BEEP_PERIOD) {
-          drawn.sinceBeep -= BEEP_PERIOD;
-          this.audio?.playAt("semtex_beep", object.position, { channel: "sfx", game: SOUND_GAME });
-        }
+        drawn.sinceBeep = (drawn.sinceBeep + dt) % BLINK_PERIOD;
         drawn.led?.color.setHex(drawn.sinceBeep < 0.1 ? 0xff2020 : 0x400000);
       }
     }
@@ -242,7 +250,8 @@ export class ProjectilesView {
 
   private build(state: ProjectileState, sample: Sample): Drawn {
     const template = this.templates.get(state.kind);
-    const object = template ? template.clone() : new THREE.Mesh(...this.fallback(state.kind));
+    // SkeletonUtils, not `clone()`: MW3's models are skinned, and a plain clone keeps the template's bones.
+    const object = template ? SkeletonUtils.clone(template) : new THREE.Mesh(...this.fallback(state.kind));
     object.position.set(sample.position.x, sample.position.y, sample.position.z);
     let led: THREE.MeshBasicMaterial | undefined;
     if (state.kind === "semtex") {
@@ -252,14 +261,23 @@ export class ProjectilesView {
       object.add(bulb);
     }
     this.root.add(object);
+    if (state.kind === "semtex") {
+      // `projIgnitionSound`: once, as it is armed, and two seconds long — the length of its fuse.
+      this.audio?.playAt(SEMTEX_WARNING_SOUND, sample.position, { channel: "sfx", game: SOUND_GAME });
+    }
     // A spin of its own per id, so two grenades in the air do not turn in step.
     const spin = new THREE.Vector3(Math.sin(state.id * 12.9898) * 8, Math.sin(state.id * 78.233) * 6, Math.sin(state.id * 37.719) * 7);
-    return { id: state.id, kind: state.kind, object, from: sample, to: sample, fall: 0, spin, age: 0, sinceBeep: 0, led };
+    const forward = template ? MODEL_FORWARD : STAND_IN_FORWARD;
+    return { id: state.id, kind: state.kind, object, from: sample, to: sample, fall: 0, spin, age: 0, sinceBeep: 0, led, forward };
   }
 
   private bounced(drawn: Drawn): void {
     drawn.spin.multiplyScalar(0.6);
-    this.audio?.playAt("grenade_bounce", drawn.to.position, { channel: "sfx", game: SOUND_GAME });
+    // `bounceSound` is a prefix the surface completes, as the game spells it.
+    const surface = this.surfaceAt?.(drawn.to.position) ?? "default";
+    const alias = `${GRENADE_BOUNCE_SOUND}_${surface}`;
+    const known = this.audio?.knows(alias, SOUND_GAME) ? alias : `${GRENADE_BOUNCE_SOUND}_default`;
+    this.audio?.playAt(known, drawn.to.position, { channel: "sfx", game: SOUND_GAME });
   }
 
   private release(drawn: Drawn): void {
