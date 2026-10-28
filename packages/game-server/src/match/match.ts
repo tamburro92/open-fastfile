@@ -454,6 +454,7 @@ export class Match {
         killsThisLife: 0,
         totalPoints: 0,
         ready: [false, false, false],
+        earned: [false, false, false],
       },
       perks: {
         perk1: loadout?.perks?.perk1 ?? "sleight_of_hand",
@@ -548,6 +549,7 @@ export class Match {
       players,
       actors: this.actorTick.for(id),
       projectiles: this.projectiles.states,
+      streaks: this.killstreaks.stateFor(id),
       counters: this.tally.countersNow(),
       events: this.outbox.for(id),
     };

@@ -186,6 +186,52 @@ describe("MW3 Strike Packages & Killstreaks", () => {
     expect(killer.streaks.ready).toEqual([true, true, true]);
   });
 
+  it("earns a streak once per life: a used UAV does not come back on the next kill", () => {
+    const match = makeMatch();
+    match.join("killer", loadout({ strikePackage: { package: "assault", streaks: ["uav", "predator_missile", "sentry_gun"] } }));
+    match.join("victim", loadout(), "", 0, 1);
+    const killer = getMember(match, "killer");
+    const victim = getMember(match, "victim");
+
+    for (let i = 0; i < 3; i++) {
+      match.killstreaks.onKill(killer, victim);
+    }
+    expect(match.killstreaks.activate(killer)).toBe(true);
+    expect(killer.streaks.ready[0]).toBe(false);
+    match.killstreaks.onKill(killer, victim);
+    expect(killer.streaks.ready[0]).toBe(false);
+
+    // A death starts the count again, and three more earn it again.
+    match.killstreaks.onDeath(killer);
+    for (let i = 0; i < 3; i++) {
+      match.killstreaks.onKill(killer, victim);
+    }
+    expect(killer.streaks.ready[0]).toBe(true);
+  });
+
+  it("tells each player their own package on every snapshot, as the class chose it", () => {
+    const match = makeMatch();
+    match.join(
+      "support",
+      loadout({
+        perks: { perk1: "sleight_of_hand", perk2: "hardline", perk3: "stalker" },
+        strikePackage: { package: "support", streaks: ["uav", "sam_turret", "ac130"] },
+      }),
+    );
+    match.join("victim", loadout(), "", 0, 1);
+    match.killstreaks.onKill(getMember(match, "support"), getMember(match, "victim"));
+    const { players } = match.step();
+    expect(match.snapshotFor("support", players).streaks).toEqual({
+      package: "support",
+      streaks: ["uav", "sam_turret", "ac130"],
+      ready: [false, false, false],
+      progress: 1,
+      hardline: true,
+    });
+    expect(match.snapshotFor("victim", players).streaks?.package).toBe("assault");
+    expect(match.snapshotFor("nobody", players).streaks).toBeNull();
+  });
+
   it("applies Hardline perk discount (-1 kill requirement)", () => {
     const match = makeMatch();
     match.join(

@@ -16,6 +16,7 @@ import { isSuicide, type DamageCause } from "@3d/shared/game/damage.js";
 import type { JoinedMessage } from "@3d/shared/net/messages/session.js";
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { PlayerState } from "@3d/shared/sim/player.js";
+import type { StreakState } from "@3d/shared/game/streaks.js";
 import { DEFAULT_COMBAT_RULES } from "@3d/shared/game/rules.js";
 import { getLoadout } from "@3d/shared/sim/loadout.js";
 import type { WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
@@ -183,40 +184,11 @@ export class Hud {
               this.triggerFlash(durSeconds, now);
             }
           } else if (event.what === "killstreak_earned") {
-            if (event.player === this.me) {
-              const slot = event.value ?? 0;
-              const streakState = { ...this.ui.hud.streaks.value };
-              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
-              streakState.ready[slot] = true;
-              this.ui.hud.streaks.value = streakState;
-              const streakName = streakState.streaks[slot] ?? "uav";
-              this.ui.hud.streakEarned.value = {
-                name: streakName.toUpperCase().replace(/_/g, " "),
-                icon: `/assets/hud/specialty_${streakName}.png`,
-              };
+            // Only the banner: which slots are ready is the snapshot's to say (`streaks`).
+            const streak = this.ui.hud.streaks.value?.streaks[event.value ?? 0];
+            if (event.player === this.me && streak) {
+              this.ui.hud.streakEarned.value = { streak };
               this.streakEarnedExpiresAt = now + 3500;
-            }
-          } else if (event.what === "uav_active") {
-            if (event.player === this.me) {
-              const streakState = { ...this.ui.hud.streaks.value };
-              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
-              streakState.ready[0] = false;
-              this.ui.hud.streaks.value = streakState;
-            }
-          } else if (event.what === "sentry_placed") {
-            if (event.player === this.me) {
-              const slot = event.value ?? 2;
-              const streakState = { ...this.ui.hud.streaks.value };
-              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
-              streakState.ready[slot] = false;
-              this.ui.hud.streaks.value = streakState;
-            }
-          } else if (event.what === "predator_inbound") {
-            if (event.player === this.me) {
-              const streakState = { ...this.ui.hud.streaks.value };
-              streakState.ready = [...streakState.ready] as [boolean, boolean, boolean];
-              streakState.ready[1] = false;
-              this.ui.hud.streaks.value = streakState;
             }
           }
           break;
@@ -298,6 +270,7 @@ export class Hud {
     this.ui.hud.matchEndReason.value = null;
     this.ui.hud.points.value = null;
     this.ui.hud.counters.value = [];
+    this.ui.hud.streaks.value = null;
     this.lines.length = 0;
     this.ui.hud.player.value = null;
     // Written by `App` rather than here (it is predicted, not the server's), but
@@ -318,13 +291,6 @@ export class Hud {
     this.wasDead = false;
     this.streakEarnedExpiresAt = 0;
     this.ui.hud.streakEarned.value = null;
-    this.ui.hud.streaks.value = {
-      package: "assault",
-      streaks: ["uav", "predator_missile", "sentry_gun"],
-      ready: [false, false, false],
-      killsThisLife: 0,
-      totalPoints: 0,
-    };
   }
 
   triggerFlash(duration: number, now: number): void {
@@ -385,15 +351,6 @@ export class Hud {
     if (this.wasDead && !state.dead) {
       this.resetEquipment();
       this.lastKiller = null;
-    }
-    if (!this.wasDead && state.dead) {
-      const curStreaks = this.ui.hud.streaks.value;
-      if (curStreaks.package !== "support") {
-        this.ui.hud.streaks.value = {
-          ...curStreaks,
-          killsThisLife: 0,
-        };
-      }
     }
     this.wasDead = state.dead;
     const next = this.describe(state);
@@ -466,6 +423,14 @@ export class Hud {
         const alpha = Math.min(1.0, Math.max(0, remaining / (this.flashDuration || 1)));
         this.ui.hud.flashed.value = alpha;
       }
+    }
+  }
+
+  /** This player's strike package as the server keeps it, written only when it changed. */
+  streaks(next: StreakState | null): void {
+    const last = this.ui.hud.streaks.value;
+    if (!sameStreaks(last, next)) {
+      this.ui.hud.streaks.value = next;
     }
   }
 
@@ -557,4 +522,17 @@ function same(a: HudPlayerInfo | null, b: HudPlayerInfo): boolean {
 function relativeAngle(dx: number, dz: number, yaw: number): number {
   const left = Math.atan2(-dx, -dz) - yaw;
   return Math.round((-Math.atan2(Math.sin(left), Math.cos(left)) * 180) / Math.PI);
+}
+
+function sameStreaks(a: StreakState | null, b: StreakState | null): boolean {
+  if (a === null || b === null) {
+    return a === b;
+  }
+  return (
+    a.package === b.package &&
+    a.progress === b.progress &&
+    a.hardline === b.hardline &&
+    a.streaks.every((id, i) => id === b.streaks[i]) &&
+    a.ready.every((ready, i) => ready === b.ready[i])
+  );
 }

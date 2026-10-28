@@ -193,6 +193,7 @@ describe("packets", () => {
       ],
       actors: [],
       projectiles: [],
+      streaks: null,
       // A zombies match's round and a second counter, below zero.
       counters: [12, -3],
       // Both kinds at once: the two write different fields after a shared kind
@@ -247,6 +248,7 @@ describe("packets", () => {
       players: [{ id: "a", state: { ...state, attachments: fitted } }],
       actors: [],
       projectiles: [],
+      streaks: null,
       counters: [],
       events: [],
     };
@@ -278,7 +280,17 @@ describe("packets", () => {
     const state = player.snapshot();
     expect(state.weapon!.fired).toBeGreaterThan(2);
 
-    const message: SnapshotMessage = { tick: 1, ack: 0, presence: null, players: [{ id: "a", state }], actors: [], projectiles: [], counters: [], events: [] };
+    const message: SnapshotMessage = {
+      tick: 1,
+      ack: 0,
+      presence: null,
+      players: [{ id: "a", state }],
+      actors: [],
+      projectiles: [],
+      streaks: null,
+      counters: [],
+      events: [],
+    };
     const wire = (decodePacket(encodePacket(MessageType.snapshot, message)).message as SnapshotMessage).players[0]!.state;
     expect(wire.weapon!.fired).toBe(state.weapon!.fired);
 
@@ -298,14 +310,14 @@ describe("packets", () => {
   });
 
   it("round-trips a snapshot with no players", () => {
-    const empty: SnapshotMessage = { tick: 0, ack: 0, presence: null, players: [], actors: [], projectiles: [], counters: [], events: [] };
+    const empty: SnapshotMessage = { tick: 0, ack: 0, presence: null, players: [], actors: [], projectiles: [], streaks: null, counters: [], events: [] };
     expect(decodePacket(encodePacket(MessageType.snapshot, empty)).message).toEqual(empty);
   });
 
   it("round-trips a world's presence bits, and costs one bit for a world with none", () => {
     // Twelve solids, the first and the last three present: two bytes, the tick they last changed on, and a length.
     const presence = { since: 65535, bits: [0b0000_0001, 0b0000_1110] };
-    const doors: SnapshotMessage = { tick: 70000, ack: 3, presence, players: [], actors: [], projectiles: [], counters: [], events: [] };
+    const doors: SnapshotMessage = { tick: 70000, ack: 3, presence, players: [], actors: [], projectiles: [], streaks: null, counters: [], events: [] };
     expect(decodePacket(encodePacket(MessageType.snapshot, doors)).message).toEqual(doors);
     const none = encodePacket(MessageType.snapshot, { ...doors, presence: null }).length;
     // 16 + 10 + 2 × 8 = 42 bits past the null's one: five or six bytes, by where they start.
@@ -342,6 +354,7 @@ describe("packets", () => {
       players: [{ id: "abc12345", state: player.snapshot() }],
       actors: [],
       projectiles: [],
+      streaks: null,
       counters: [],
       events: [],
     };
@@ -525,6 +538,7 @@ describe("packets", () => {
       players: [{ id: "abc12345", state }],
       actors: [],
       projectiles: [],
+      streaks: null,
       counters: [],
       events: [],
     };
@@ -587,6 +601,7 @@ describe("packets", () => {
       players: [{ id: "a", state: setupPlayer().player.snapshot() }],
       actors: [],
       projectiles: [],
+      streaks: null,
       counters: [],
       events: [],
     });
@@ -640,6 +655,7 @@ describe("the simulation over the wire", () => {
       players: [{ id: "a", state: a.player.snapshot() }],
       actors: [],
       projectiles: [],
+      streaks: null,
       counters: [],
       events: [],
     });

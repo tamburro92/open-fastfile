@@ -33,6 +33,8 @@ export interface MemberStreaks {
   killsThisLife: number;
   totalPoints: number;
   ready: [boolean, boolean, boolean];
+  /** Earned since the count last started: what stops a used streak coming back on the very next kill. */
+  earned: [boolean, boolean, boolean];
 }
 
 export interface MemberPerks {

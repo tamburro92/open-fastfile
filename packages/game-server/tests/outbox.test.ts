@@ -104,7 +104,7 @@ describe("a tail with more to say than it holds", () => {
 
     const heard = { [SHOOTER]: new Set<number>(), [WATCHER]: new Set<number>() };
     const full = new Map<string, number>();
-    const quiet: SnapshotMessage = { tick: 1, ack: 0, presence: null, players: [], actors: [], projectiles: [], counters: [], events: [] };
+    const quiet: SnapshotMessage = { tick: 1, ack: 0, presence: null, players: [], actors: [], projectiles: [], streaks: null, counters: [], events: [] };
     for (let i = 0; i < clock.ticks(KILL_FEED_REPEAT_SECONDS); i++) {
       for (const id of [SHOOTER, WATCHER] as const) {
         const tail = box.for(id);

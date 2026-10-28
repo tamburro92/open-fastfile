@@ -514,6 +514,7 @@ describe("regeneration", () => {
         players: [{ id: "b", state: hurt.state("b") }],
         actors: [],
         projectiles: [],
+        streaks: null,
         counters: [],
         events: [],
       }),
@@ -781,7 +782,17 @@ describe("what the tail carries", () => {
     }
     expect([...heard].sort((x, y) => x - y)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9]);
     expect(() =>
-      encodePacket(MessageType.snapshot, { tick: 1, ack: 0, presence: null, players: [], actors: [], projectiles: [], counters: [], events: tail }),
+      encodePacket(MessageType.snapshot, {
+        tick: 1,
+        ack: 0,
+        presence: null,
+        players: [],
+        actors: [],
+        projectiles: [],
+        streaks: null,
+        counters: [],
+        events: tail,
+      }),
     ).not.toThrow();
   });
 });

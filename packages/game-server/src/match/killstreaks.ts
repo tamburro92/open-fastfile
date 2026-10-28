@@ -9,24 +9,31 @@
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
-import type { KillstreakId, StrikePackageId } from "@3d/shared/sim/loadout.js";
+import type { KillstreakId, LoadoutStrikePackage, StrikePackageId } from "@3d/shared/sim/loadout.js";
+import { streakCost, type StreakState } from "@3d/shared/game/streaks.js";
+import { MAX_STREAK_PROGRESS } from "@3d/shared/net/messages/streaks.js";
 import type { MatchClock } from "./clock.js";
 import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
-import type { Member, Roster } from "./roster.js";
+import type { Member, MemberStreaks, Roster } from "./roster.js";
 
-/** Authentic MW3 Killstreak kill costs */
-export const STREAK_COSTS: Record<KillstreakId, { assault: number; support: number }> = {
-  uav: { assault: 3, support: 4 },
-  counter_uav: { assault: 4, support: 5 },
-  predator_missile: { assault: 5, support: 6 },
-  sentry_gun: { assault: 5, support: 8 },
-  ims: { assault: 5, support: 8 },
-  sam_turret: { assault: 4, support: 8 },
-  strafe_run: { assault: 9, support: 10 },
-  reaper: { assault: 9, support: 12 },
-  ac130: { assault: 12, support: 15 },
-};
+/**
+ * A member takes on a class's strike package. A different one starts over —
+ * three new slots are not the old three's progress — and the same one keeps it,
+ * so re-picking a class does not cost a player the UAV they were holding.
+ */
+export function adoptStrikePackage(streaks: MemberStreaks, chosen: LoadoutStrikePackage): void {
+  const same = streaks.package === chosen.package && streaks.streaks.every((id, slot) => id === chosen.streaks[slot]);
+  if (same) {
+    return;
+  }
+  streaks.package = chosen.package;
+  streaks.streaks = [...chosen.streaks];
+  streaks.killsThisLife = 0;
+  streaks.totalPoints = 0;
+  streaks.ready = [false, false, false];
+  streaks.earned = [false, false, false];
+}
 
 export interface ActiveSentry {
   id: string;
@@ -76,9 +83,7 @@ export class Killstreaks {
     const pkg: StrikePackageId = killer.streaks.package;
     const points = pkg === "support" ? killer.streaks.totalPoints : killer.streaks.killsThisLife;
 
-    // Hardline reduces required kills by 1 (minimum 1)
-    const hasHardline = killer.perks.perk2 === "hardline" || killer.perks.bonusPerks.has("hardline");
-    const discount = hasHardline ? 1 : 0;
+    const hardline = this.hasHardline(killer);
 
     if (pkg === "specialist") {
       // Specialist unlocks bonus perks
@@ -100,27 +105,19 @@ export class Killstreaks {
         killer.perks.bonusPerks.add("sitrep");
       }
     } else {
-      // Assault or Support package streaks:
-      for (let slot = 0; slot < killer.streaks.streaks.length; slot++) {
-        const streakId = killer.streaks.streaks[slot]!;
-        const baseCost = STREAK_COSTS[streakId]?.[pkg === "support" ? "support" : "assault"] ?? 5;
-        const required = Math.max(1, baseCost - discount);
-
-        if (points >= required && !killer.streaks.ready[slot]) {
-          killer.streaks.ready[slot] = true;
-
-          this.outbox.push(
-            {
-              kind: "announce",
-              what: "killstreak_earned",
-              player: killer.id,
-              team: killer.player.side,
-              value: slot,
-            },
-            killer.id,
-            1.5,
-          );
+      // Assault or Support: each streak once per count, the count being a life
+      // for Assault and, for Support, until the dearest of the three is earned.
+      const streaks = killer.streaks;
+      for (let slot = 0; slot < streaks.streaks.length; slot++) {
+        if (!streaks.earned[slot] && points >= streakCost(streaks.streaks[slot]!, pkg, hardline)) {
+          streaks.earned[slot] = true;
+          streaks.ready[slot] = true;
+          this.outbox.push({ kind: "announce", what: "killstreak_earned", player: killer.id, team: killer.player.side, value: slot }, killer.id, 1.5);
         }
+      }
+      if (pkg === "support" && streaks.earned.every(Boolean)) {
+        streaks.totalPoints = 0;
+        streaks.earned = [false, false, false];
       }
     }
   }
@@ -130,6 +127,10 @@ export class Killstreaks {
    */
   onDeath(victim: Member): void {
     victim.streaks.killsThisLife = 0;
+    // Assault starts its count again; what was earned and not used is kept.
+    if (victim.streaks.package === "assault") {
+      victim.streaks.earned = [false, false, false];
+    }
 
     if (victim.streaks.package === "specialist") {
       victim.perks.bonusPerks.clear();
@@ -531,6 +532,21 @@ export class Killstreaks {
     }
 
     this.outbox.push({ kind: "detonate", what: "missile", at: { ...center }, by: missile.ownerId }, null, 1.0);
+  }
+
+  /** What `id`'s own HUD is told on every snapshot; null for nobody in the match. */
+  stateFor(id: PlayerId): StreakState | null {
+    const member = this.roster.get(id);
+    if (!member) {
+      return null;
+    }
+    const { package: pkg, streaks, ready, killsThisLife, totalPoints } = member.streaks;
+    const progress = pkg === "support" ? totalPoints : killsThisLife;
+    return { package: pkg, streaks: [...streaks], ready: [...ready], progress: Math.min(progress, MAX_STREAK_PROGRESS), hardline: this.hasHardline(member) };
+  }
+
+  private hasHardline(member: Member): boolean {
+    return member.perks.perk2 === "hardline" || member.perks.bonusPerks.has("hardline");
   }
 
   /**

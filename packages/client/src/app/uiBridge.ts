@@ -7,7 +7,16 @@ import { signal, type Signal } from "@preact/signals-core";
 import { QUALITY_LEVELS, type QualityLevel } from "../engine/qualityLevel.js";
 import { DEFAULT_SENSITIVITY, SENSITIVITY_RANGE } from "../input/sensitivity.js";
 import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel } from "../engine/audio/mixer.js";
-import { DEFAULT_CLASSES, defaultLoadouts, LOADOUT_COUNT, LOADOUT_GAMES, MAX_LOADOUT_ATTACHMENTS, type Loadout, type KillstreakId, type StrikePackageId } from "@3d/shared/sim/loadout.js";
+import type { StreakState } from "@3d/shared/game/streaks.js";
+import {
+  DEFAULT_CLASSES,
+  defaultLoadouts,
+  LOADOUT_COUNT,
+  LOADOUT_GAMES,
+  MAX_LOADOUT_ATTACHMENTS,
+  type Loadout,
+  type KillstreakId,
+} from "@3d/shared/sim/loadout.js";
 import { CATEGORY_LABEL, CATEGORY_SLOT, WEAPON_CATEGORIES, type WeaponCategory } from "@3d/shared/sim/weaponCategory.js";
 import { DEFAULT_FFA_SCORE_LIMIT, DEFAULT_FFA_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/ffa.js";
 import { TDM_GAMETYPE, DEFAULT_TDM_SCORE_LIMIT, DEFAULT_TDM_TIME_LIMIT_SECONDS } from "@3d/shared/game/gametypes/tdm.js";
@@ -29,17 +38,9 @@ export {
   DEFAULT_TDM_TIME_LIMIT_SECONDS,
 };
 
-export const STREAK_COST_MAP: Record<string, { assault: number; support: number }> = {
-  uav: { assault: 3, support: 4 },
-  counter_uav: { assault: 4, support: 5 },
-  predator_missile: { assault: 5, support: 6 },
-  sentry_gun: { assault: 5, support: 8 },
-  ims: { assault: 5, support: 8 },
-  sam_turret: { assault: 4, support: 8 },
-  strafe_run: { assault: 9, support: 10 },
-  reaper: { assault: 9, support: 12 },
-  ac130: { assault: 12, support: 15 },
-};
+// A streak's price, for the HUD to print beside the count the server sends.
+export { streakCost } from "@3d/shared/game/streaks.js";
+export type { KillstreakId };
 
 export { LOBBY_MODES, type LobbyMode, type MenuBackdrop } from "./lobbyModes.js";
 
@@ -317,17 +318,12 @@ export interface DamageIndicatorInfo {
   expiresAt: number;
 }
 
-export interface KillstreakState {
-  package: StrikePackageId;
-  streaks: [KillstreakId, KillstreakId, KillstreakId];
-  ready: [boolean, boolean, boolean];
-  killsThisLife: number;
-  totalPoints: number;
-}
+/** The player's own strike package, as the server sent it (`@3d/shared/game/streaks.ts`). */
+export type KillstreakState = StreakState;
 
+/** A streak just earned, for the banner: the id, which the HUD turns into a name and an icon. */
 export interface StreakEarnedNotification {
-  name: string;
-  icon: string;
+  streak: KillstreakId;
 }
 
 /** One player's entry on the tactical scoreboard. */
@@ -465,7 +461,7 @@ export interface UiState {
     /** Visual white screen blinding opacity (0 to 1). */
     flashed: Signal<number>;
     /** Authentic MW3 Killstreaks status: ready slots, current streak count, and strike package. */
-    streaks: Signal<KillstreakState>;
+    streaks: Signal<KillstreakState | null>;
     /** Authentic MW3 streak or perk notification popup. */
     streakEarned: Signal<StreakEarnedNotification | null>;
   };
@@ -613,13 +609,7 @@ export function createUiState(): UiState {
       grenadeDanger: signal<GrenadeDangerInfo | null>(null),
       damageIndicator: signal<DamageIndicatorInfo | null>(null),
       flashed: signal<number>(0),
-      streaks: signal<KillstreakState>({
-        package: "assault",
-        streaks: ["uav", "predator_missile", "sentry_gun"],
-        ready: [false, false, false],
-        killsThisLife: 0,
-        totalPoints: 0,
-      }),
+      streaks: signal<KillstreakState | null>(null),
       streakEarned: signal<StreakEarnedNotification | null>(null),
     },
     debug: {

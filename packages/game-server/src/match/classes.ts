@@ -6,6 +6,7 @@ import { DEFAULT_CLASS_RULES, type ArmedWeapon, type ArmedWith, type ClassReques
 import type { Loadout } from "@3d/shared/sim/loadout.js";
 import type { WeaponId, WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
 import type { MatchClock } from "./clock.js";
+import { adoptStrikePackage } from "./killstreaks.js";
 import type { Member } from "./roster.js";
 import type { ScriptHost } from "./scripts.js";
 
@@ -76,8 +77,7 @@ export class Classes {
           member.equipment.tactical = loadout.tactical;
         }
         if (loadout.strikePackage) {
-          member.streaks.package = loadout.strikePackage.package;
-          member.streaks.streaks = loadout.strikePackage.streaks;
+          adoptStrikePackage(member.streaks, loadout.strikePackage);
         }
         if (loadout.perks) {
           member.perks.perk1 = loadout.perks.perk1;
@@ -142,8 +142,7 @@ export class Classes {
         member.equipment.tactical = loadout.tactical;
       }
       if (loadout.strikePackage) {
-        member.streaks.package = loadout.strikePackage.package;
-        member.streaks.streaks = loadout.strikePackage.streaks;
+        adoptStrikePackage(member.streaks, loadout.strikePackage);
       }
       if (loadout.perks) {
         member.perks.perk1 = loadout.perks.perk1;
@@ -177,8 +176,7 @@ export class Classes {
         member.equipment.tactical = kit.loadout.tactical;
       }
       if (kit.loadout.strikePackage) {
-        member.streaks.package = kit.loadout.strikePackage.package;
-        member.streaks.streaks = kit.loadout.strikePackage.streaks;
+        adoptStrikePackage(member.streaks, kit.loadout.strikePackage);
       }
       if (kit.loadout.perks) {
         member.perks.perk1 = kit.loadout.perks.perk1;

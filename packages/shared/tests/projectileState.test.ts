@@ -15,11 +15,13 @@ describe("a snapshot's projectiles", () => {
         { id: 4095, kind: "semtex", position: { x: 1.5, y: 2, z: -3.25 } },
         { id: 0, kind: "flashbang", position: { x: 0, y: 0, z: 0 } },
       ],
+      streaks: { package: "support", streaks: ["uav", "sam_turret", "ac130"], ready: [true, false, true], progress: 11, hardline: true },
       counters: [],
       events: [{ kind: "detonate", id: 9, what: "missile", at: { x: 10, y: 0.5, z: -4 }, by: null }],
     };
     const back = decodePacket(encodePacket(MessageType.snapshot, message)).message as SnapshotMessage;
     expect(back.projectiles).toEqual(message.projectiles);
+    expect(back.streaks).toEqual(message.streaks);
     expect(back.events).toEqual(message.events);
   });
 
@@ -32,6 +34,7 @@ describe("a snapshot's projectiles", () => {
       players: [],
       actors: [],
       projectiles: Array.from({ length: n }, (_, id) => ({ id, kind: "frag" as const, position: at })),
+      streaks: null,
       counters: [],
       events: [],
     });

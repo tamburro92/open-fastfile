@@ -355,7 +355,7 @@ export class MatchController {
     this.roster = EMPTY_ROSTER;
   }
 
-  private snapshot({ tick, self, others, actors, projectiles: thrown, pending, events, presence, counters }: Correction): void {
+  private snapshot({ tick, self, others, actors, projectiles: thrown, streaks, pending, events, presence, counters }: Correction): void {
     const { firstPerson, remotes, corpses, footsteps, weaponAudio, actorVoices, projectiles } = this.systems;
     const { hud, classes, current, content } = this.parts;
     // Before `apply`, which is what would otherwise go on posing a body that
@@ -391,6 +391,8 @@ export class MatchController {
     // Once per server tick, never per frame: a corpse's step count is
     // `tick - spawnTick` and every end has to arrive at the same number.
     corpses.step(tick);
+    // Before the events: a streak's banner names it from the slots this says.
+    hud.streaks(streaks);
     hud.snapshot(self, events, performance.now(), others);
     hud.grenadeThreat(
       self && !self.dead ? projectiles.nearestThreat(self.movement.feet, GRENADE_DANGER_RADIUS) : null,
