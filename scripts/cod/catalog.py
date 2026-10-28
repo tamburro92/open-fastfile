@@ -20,6 +20,7 @@ with no catalogue built has none.
 import glob
 import json
 import os
+import re
 import shutil
 
 from . import attachments, aw_cast, backends, cast_clips, composite, materials, sound, t6_catalog, textures, zones
@@ -46,6 +47,9 @@ from .viewmodel import (
 from .xanim import decode
 
 CATALOG_DIR = "catalog"
+WORLDWEAPONS_KIND = "worldweapons"
+# What a player throws, rigged as it is held. Not indexed: the engine asks for one by id.
+EQUIPMENT_KIND = "equipment"
 INDEX_FILE = "index.json"
 # The shape of a *weapon entry*, which `@3d/shared/sim/weaponRegistry.ts` reads.
 # Bump together — and only for that: a new kind is a new key, which an older
@@ -349,7 +353,9 @@ def _clips_for(info, anim_dir, extra=()):
     return clips
 
 
-def build_one(work, worlds_root, game_key, weapon, info, hands_raw, iwi, states, scratch, fitted=(), absolute_bones=None):
+def build_one(
+    work, worlds_root, game_key, weapon, info, hands_raw, iwi, states, scratch, fitted=(), absolute_bones=None, kind="weapons"
+):
     """One weapon out of a zone dump into the catalogue, or None with a reason.
 
     The heavy half of an export for a single gun: pack its model's textures, decode
@@ -373,7 +379,7 @@ def build_one(work, worlds_root, game_key, weapon, info, hands_raw, iwi, states,
     packed = os.path.join(scratch, f"{weapon}.gun.glb")
     _, missing, _ = pack_one(gun_raw, packed, iwi, VIEW_TEXTURE_SIZE, states, False)
 
-    out = entry_dir(worlds_root, "weapons", game_key, weapon)
+    out = entry_dir(worlds_root, kind, game_key, weapon)
     os.makedirs(out, exist_ok=True)
     glb = os.path.join(out, f"{weapon}.glb")
     extra = attachments.resolve_clips(fitted, clips)
@@ -526,6 +532,126 @@ def _fitted(game_key, weapon, info, guns, defs, models):
     if len(entries) > most:
         raise ValueError(f"{game_key}/{weapon} offers {len(entries)} attachments; the wire carries {most}")
     return entries
+
+
+# Equipment a player throws or calls in, which no player carries as a gun and
+# `player_weapons` therefore never reads. Each one's world model is what the
+# client draws in flight, and its sound keys are roots of the bank.
+EQUIPMENT_WEAPONS = {
+    "iw5": ("frag_grenade_mp", "semtex_mp", "flash_grenade_mp", "remotemissile_projectile_mp", "sentry_minigun_mp"),
+}
+
+# The models a killstreak script spawns by name rather than through a weapon
+# file: MW3's `_autosentry.gsc` puts down `sentry_minigun_weak`, not the
+# campaign's `sentry_minigun`. The scripts are not in the companion zone, so the
+# name is written here.
+EQUIPMENT_SCRIPT_MODELS = {
+    "iw5": ("sentry_minigun_weak",),
+}
+
+
+def equipment_weapons(work, game_key):
+    """`{name: info}` for the equipment `EQUIPMENT_WEAPONS` names that the dump holds."""
+    weapons_dir = os.path.join(work, "weapons", "weapons")
+    found = {}
+    for name in EQUIPMENT_WEAPONS.get(game_key, ()):
+        path = os.path.join(weapons_dir, name)
+        if os.path.exists(path):
+            found[name] = parse_infostring(read_text(path))
+    return found
+
+
+# The numbers a grenade is thrown, flies, bounces and goes off by, copied as the
+# weapon file spells them (CoD units, seconds) into its equipment entry, so the
+# engine's table (`@3d/shared/sim/equipment.ts`) has something to be checked against.
+EQUIPMENT_KEYS = (
+    "fuseTime",
+    "holdFireTime",
+    "fireTime",
+    "cookOffHold",
+    "projectileSpeed",
+    "projectileSpeedUp",
+    "explosionRadius",
+    "explosionRadiusMin",
+    "explosionInnerDamage",
+    "explosionOuterDamage",
+    "stickiness",
+    "rotate",
+    "isRollingGrenade",
+    "projectileModel",
+    "projExplosionSound",
+    "projIgnitionSound",
+    "bounceSound",
+    "fireSound",
+    "pullbackSound",
+)
+BOUNCE_KEY = re.compile(r"^(parallel|perpendicular)([A-Za-z]+)Bounce$")
+
+
+def equipment_numbers(info):
+    """The keys `EQUIPMENT_KEYS` names, and both bounce tables keyed by surface.
+
+    The surfaces are all lowercase, as the engine spells one (`paintedmetal`).
+    """
+    out = {key: info[key] for key in EQUIPMENT_KEYS if info.get(key) not in (None, "")}
+    bounce = {"parallel": {}, "perpendicular": {}}
+    for key, value in info.items():
+        m = BOUNCE_KEY.match(key)
+        if m:
+            bounce[m.group(1)][m.group(2).lower()] = float(value)
+    if bounce["parallel"]:
+        out["bounce"] = bounce
+    return out
+
+
+def build_equipment(work, worlds_root, game_key, states, hands=None):
+    """Equipment into the catalogue: what is seen in the world, and in the hand.
+
+    Each piece's world model goes to `worldweapons/<game>/<model>/`, packed like an
+    attachment — unit scale to metres, base-colour maps, material states — rather
+    than copied from the dump: a raw export is in inches, and a grenade drawn from
+    one is a metre across. A grenade with a view model is also rigged onto the
+    view hands with its clips (idle, the pin, the throw) into
+    `equipment/<game>/<weapon>/`, as a weapon is, beside the numbers it flies by.
+    Returns the entries written.
+    """
+    models = os.path.join(work, "models")
+    iwi = texture_index(os.path.join(work, "img"))
+    infos = equipment_weapons(work, game_key)
+    names = [info.get("projectileModel") for info in infos.values()]
+    names += list(EQUIPMENT_SCRIPT_MODELS.get(game_key, ()))
+    written = []
+    for model in dict.fromkeys(n for n in names if n):
+        raw = _model_glb(models, model)
+        if raw is None:
+            print(f"  !! equipment model {model} is not in the dump")
+            continue
+        out = entry_dir(worlds_root, WORLDWEAPONS_KIND, game_key, model)
+        os.makedirs(out, exist_ok=True)
+        _, missing, _ = pack_one(raw, os.path.join(out, f"{model}.glb"), iwi, VIEW_TEXTURE_SIZE, states, False)
+        print(f"  + {WORLDWEAPONS_KIND}/{game_key}/{model}" + (f" ({missing} texture(s) missing)" if missing else ""))
+        written.append(model)
+
+    hands = hands or default_hands(view_hands(os.path.join(models, "xmodel"))) or BASE_VIEWHANDS
+    hands_raw = _model_glb(models, hands)
+    scratch = os.path.join(work, "catalog")
+    os.makedirs(scratch, exist_ok=True)
+    for name, info in infos.items():
+        if VIEWMODEL_WORD not in info.get("gunModel", "").split("_"):
+            continue  # a missile or a turret: nothing held
+        built, problems = build_one(work, worlds_root, game_key, name, info, hands_raw, iwi, states, scratch, kind=EQUIPMENT_KIND)
+        if built is None:
+            print(f"  !! equipment {name}: {problems}")
+            continue
+        entry, size = built
+        entry["equipment"] = equipment_numbers(info)
+        out = entry_dir(worlds_root, EQUIPMENT_KIND, game_key, name)
+        write_text(os.path.join(out, f"{name}.json"), json.dumps(entry, indent=1) + "\n")
+        note = f"  !! {'; '.join(problems)}" if problems else ""
+        roles = ", ".join(sorted(entry["def"]["roles"]))
+        print(f"  + {EQUIPMENT_KIND}/{game_key}/{name} {size / 1e6:5.1f} MB, roles {roles}{note}")
+        written.append(name)
+    return written
 
 
 def player_weapons(work):
@@ -716,6 +842,8 @@ def dump_sound(game, work):
             ff = os.path.join(zone_dir, name)
             if os.path.exists(ff):
                 backend.dump(ff, os.path.join(work, "snd"), "loadedsound")
+                if name in zones.SOUND_ALIAS_EXTRA_ZONES:
+                    backend.dump(ff, os.path.join(work, "snd-common"), "sound")
 
     # Exactly one map zone, so which one is never a question of what a previous
     # run happened to leave behind.
@@ -785,6 +913,13 @@ def build_sounds(work, worlds_root, game_key, search=None):
     defs, shared, conflicts = sound.merge_dumps(bank, map_defs)
     where = os.path.basename(map_dir) if map_dir else "no map zone"
     print(f"  {len(bank)} alias(es) in the bank + {len(map_defs)} from {where}, {len(shared)} defined by both")
+    common_dir = os.path.join(work, "snd-common", "sound_aliases")
+    if os.path.isdir(common_dir):
+        # Proved like the map zone's: a name both define has to mean the same thing.
+        common_defs = sound.load_dump(common_dir)
+        defs, common_shared, common_conflicts = sound.merge_dumps(defs, common_defs)
+        print(f"  + {len(common_defs)} alias(es) from the companion zone itself, {len(common_shared)} defined by both")
+        conflicts = [*conflicts, *common_conflicts]
     zm_dir = next(iter(sorted(glob.glob(os.path.join(work, "snd-zm", "*")))), None)
     if zm_dir:
         zm_defs = sound.family_closure(sound.load_dump(os.path.join(zm_dir, "sound_aliases")), "zombies")
@@ -798,6 +933,8 @@ def build_sounds(work, worlds_root, game_key, search=None):
         print(f"  !! {len(conflicts)} alias(es) DIFFER between the two zones: {', '.join(conflicts[:6])}")
 
     roots = sound.catalog_roots(defs, player_weapons(work))
+    # A grenade's pin, throw, bounce and warning, a sentry's loop and a missile's blast.
+    roots["equipment"] = sound.equipment_roots(defs, equipment_weapons(work, game_key)) - set().union(*roots.values())
     # Black Ops II names a reload's sounds in its clips' notetracks, not its weapon file.
     notes = sound.notetrack_roots([e for e in scan_kind(worlds_root, "weapons") if e.get("game") == game_key], defs)
     roots["weapons"] |= notes - set().union(*roots.values())
@@ -861,8 +998,14 @@ def main(args):
         game = zone_listing(listing)[0]
     if clips_only:
         return main_clips(work, args.worlds, game)
+    if getattr(args, "equipment_only", False):
+        _, _, _, states = classify_materials(os.path.join(work, "mat", "materials"), set(), game)
+        packed = build_equipment(work, args.worlds, game, states, args.hands)
+        build_sounds(work, args.worlds, game, iwd_search(args.dump or GAME_NAMES.get(game)))
+        return bool(packed)
     _, _, _, states = classify_materials(os.path.join(work, "mat", "materials"), set(), game)
     entries = build_from_zone(work, args.worlds, game, states, args.hands or (t6_catalog.DEFAULT_HANDS if game == "t6" else None))
+    build_equipment(work, args.worlds, game, states, args.hands)
     if game == "s1":
         # AW's bodies are costumes no map ships, so the cast is built here, not harvested.
         for problem in aw_cast.build(work, args.worlds, states):

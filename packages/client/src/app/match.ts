@@ -4,6 +4,15 @@
 
 import type { GameEvent } from "@3d/shared/net/messages/events.js";
 import { GRENADE_DANGER_RADIUS } from "@3d/shared/sim/projectile.js";
+import { THROW_TIMES } from "@3d/shared/game/equipment.js";
+import type { OffhandKind } from "../engine/offhand.js";
+
+/** Each grenade's `pullbackSound` and `fireSound`, as its weapon file names them. */
+const OFFHAND_SOUNDS: Record<OffhandKind, { pin: string; fire: string }> = {
+  frag: { pin: "weap_fraggrenade_pin", fire: "weap_fraggrenade_fire" },
+  semtex: { pin: "weap_semtexgrenade_pin", fire: "weap_semtexgrenade_fire" },
+  flashbang: { pin: "weap_flashgrenade_pin", fire: "weap_flashgrenade_fire" },
+};
 import { isBotId } from "@3d/shared/net/messages/fields.js";
 import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { PlayerView } from "@3d/shared/game/context.js";
@@ -83,36 +92,22 @@ export class MatchController {
     // Peers first; with none, the actors, which are drawn at the same moment.
     const { firstPerson, remotes, actors } = systems;
     firstPerson.onTick = (input, dt, feet) => {
-      if (input.lethal) {
+      // The throw is drawn and heard here, as the server will make it: the pin for
+      // `holdFire`, then the grenade leaving. Not when the pouch is empty or a throw
+      // is already under way, which is when the server refuses the press as well.
+      if (input.lethal || input.tactical) {
         const eq = this.parts.ui.hud.equipment.value;
-        if (eq.lethal && eq.lethal.count > 0) {
-          this.parts.hud.useLethal();
-          this.parts.weapon.triggerThrow();
-          const pin = eq.lethal.id === "semtex_mp" ? "weap_semtexgrenade_pin" : "weap_fraggrenade_pin";
-          const fire = eq.lethal.id === "semtex_mp" ? "weap_semtexgrenade_fire" : "weap_fraggrenade_fire";
-          if (systems.audio.knows(pin, "iw5") || systems.audio.knows(pin)) {
-            systems.audio.playAtListener(pin, { channel: "sfx", game: "iw5" });
+        const held = input.lethal ? eq.lethal : eq.tactical;
+        const kind: OffhandKind = input.lethal ? (held?.id === "semtex_mp" ? "semtex" : "frag") : "flashbang";
+        if (held && held.count > 0 && this.parts.weapon.throwOffhand(kind)) {
+          if (input.lethal) {
+            this.parts.hud.useLethal();
+          } else {
+            this.parts.hud.useTactical();
           }
-          setTimeout(() => {
-            if (systems.audio.knows(fire, "iw5") || systems.audio.knows(fire)) {
-              systems.audio.playAtListener(fire, { channel: "sfx", game: "iw5" });
-            }
-          }, 180);
-        }
-      }
-      if (input.tactical) {
-        const eq = this.parts.ui.hud.equipment.value;
-        if (eq.tactical && eq.tactical.count > 0) {
-          this.parts.hud.useTactical();
-          this.parts.weapon.triggerThrow();
-          if (systems.audio.knows("weap_flashgrenade_pin", "iw5") || systems.audio.knows("weap_flashgrenade_pin")) {
-            systems.audio.playAtListener("weap_flashgrenade_pin", { channel: "sfx", game: "iw5" });
-          }
-          setTimeout(() => {
-            if (systems.audio.knows("weap_flashgrenade_fire", "iw5") || systems.audio.knows("weap_flashgrenade_fire")) {
-              systems.audio.playAtListener("weap_flashgrenade_fire", { channel: "sfx", game: "iw5" });
-            }
-          }, 180);
+          const sounds = OFFHAND_SOUNDS[kind];
+          systems.audio.playAtListener(sounds.pin, { channel: "sfx", game: "iw5" });
+          setTimeout(() => systems.audio.playAtListener(sounds.fire, { channel: "sfx", game: "iw5" }), THROW_TIMES[kind].holdFire * 1000);
         }
       }
       this.connection?.send(input, dt, feet, remotes.renderTick() ?? actors.renderTick());

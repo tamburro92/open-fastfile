@@ -18,6 +18,17 @@ export const GRENADE_THROW_LOFT = 120 * UNIT;
 /** `fuseTime`. */
 export const FUSE = { frag: 3.5, semtex: 2.0, flashbang: 1.5 } as const;
 
+/**
+ * A press, in two parts: `holdFireTime`, the pin coming out before the grenade
+ * leaves, then `fireTime`, the arm coming through after it, before anything
+ * else may be thrown. The first-person clips are timed to the same two.
+ */
+export const THROW_TIMES = {
+  frag: { holdFire: 0.6, fire: 0.36 },
+  semtex: { holdFire: 0.6, fire: 0.36 },
+  flashbang: { holdFire: 0.6, fire: 0.699 },
+} as const;
+
 /** `explosionRadius`, `explosionInnerDamage`, `explosionOuterDamage`: frag and semtex alike. */
 export const GRENADE_BLAST = { radius: 256 * UNIT, inner: 130, outer: 55 } as const;
 /** The flashbang's: `explosionRadius` 800, `explosionRadiusMin` 200. */
@@ -55,7 +66,9 @@ export const GRENADE_BOUNCE: Partial<Record<SurfaceType, { parallel: number; per
   water: { parallel: 0.2, perpendicular: 0.2 },
   wood: { parallel: 0.6, perpendicular: 0.25 },
   asphalt: { parallel: 0.6, perpendicular: 0.25 },
-  ceramic: { parallel: 0.5, perpendicular: 0.5 },
+  ceramic: { parallel: 0.5, perpendicular: 0 },
+  plastic: { parallel: 0.5, perpendicular: 0 },
+  rubber: { parallel: 0.5, perpendicular: 0 },
   cushion: { parallel: 0.5, perpendicular: 0.5 },
   fruit: { parallel: 0.5, perpendicular: 0.5 },
   paintedmetal: { parallel: 0.5, perpendicular: 0.5 },

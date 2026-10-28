@@ -696,6 +696,8 @@ catalog/characters/iw5/mp_body_delta_.../ the body, its head, and what it is
 catalog/viewhands/iw5/viewhands_delta/   viewhands_delta.glb
 catalog/animations/iw5/autorifle/        animations.glb — one clip set per game
 catalog/worldweapons/iw5/weapon_m4_iw5/  the gun a body is seen holding
+catalog/worldweapons/iw5/projectile_*/   a grenade or missile in flight, and the sentry
+catalog/equipment/iw5/frag_grenade_mp/   a grenade in the hand: rig, clips, and its numbers
 catalog/props/iw5/com_barrel_lod0/       com_barrel_lod0.glb — 7,227 of these
 catalog/sounds/iw5/mp/                   sounds.json and clips/ — the shared alias bank
 catalog/actors/t5/zombie_ger/            a creature's bodies, heads and what it is (below)
@@ -706,6 +708,23 @@ catalog/index.json                       the kinds something has to enumerate
 `kind` and `game` are path segments rather than parts of an id, so `m4` can exist
 in both iw4 and iw5 without colliding and a whole branch is a prefix — which is
 what let characters and props move in here without a route each.
+
+### Equipment
+
+`catalog --equipment-only` (also run by a full `catalog`) builds what a player
+throws or calls in, from the weapon files `catalog.EQUIPMENT_WEAPONS` names —
+none of them a gun, so `player_weapons` never reads them:
+
+- **Each one's world model** (`projectileModel`, and `sentry_minigun_weak`, which
+  only a script names) is packed into `worldweapons/` as an attachment is —
+  unit scale to metres, base-colour maps. A raw export is in inches; drawn
+  straight from the dump, a grenade is a metre across.
+- **A grenade with a view model** is rigged onto the view hands as a weapon is,
+  into `equipment/<game>/<weapon>/`, with its `idle`, `holdFire` (the pin) and
+  `fire` (the throw). Its JSON carries the numbers it flies by
+  (`EQUIPMENT_KEYS`, and both bounce tables by surface), which
+  `shared/tests/equipment.test.ts` holds `@3d/shared/game/equipment.ts` to.
+- **Their sound keys are roots of the bank**, as a gun's are.
 
 ### The player clip set
 

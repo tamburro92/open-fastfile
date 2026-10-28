@@ -60,6 +60,11 @@ def main(argv=None):
         help="build the sound bank alone (catalog/sounds/<game>/mp/); weapons, props and the index are left as they are",
     )
     cat.add_argument(
+        "--equipment-only",
+        action="store_true",
+        help="pack the equipment (grenades, predator, sentry) and rebuild the sound bank; weapons are left as they are",
+    )
+    cat.add_argument(
         "--clips-only",
         action="store_true",
         help="build the clip set the game's bodies play (catalog/animations/<game>/) and the index; nothing else is rebuilt",

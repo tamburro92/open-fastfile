@@ -52,6 +52,8 @@ export const CLIP_ROLES = [
   "adsRechamber",
   "reloadStart",
   "reloadEnd",
+  // A grenade's pin coming out, before its throw (`fire`).
+  "holdFire",
 ] as const;
 
 export type ClipRole = (typeof CLIP_ROLES)[number];
@@ -78,7 +80,8 @@ export type WeaponTimes = Partial<
     | "sprintOut"
     | "adsIn"
     | "adsOut"
-    | "adsReloadOut",
+    | "adsReloadOut"
+    | "holdFire",
     number
   >
 >;

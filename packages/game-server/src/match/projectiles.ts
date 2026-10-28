@@ -1,13 +1,17 @@
 // Authoritative flight of what a player throws: frag, semtex and flashbang.
 // Every number is MW3's own, from its weapon files (@3d/shared/game/equipment.ts),
 // except how long a flashbang blinds, which MW3 keeps in a script.
+//
+// A press is MW3's too: the pin comes out for `holdFire`, then the grenade leaves
+// along the aim the thrower has *then*, on top of the thrower's own velocity, and
+// nothing else is thrown until the arm has come through (`fire`). Cooking is not
+// built: the input is a press, not a hold.
 
 import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { InputMessage } from "@3d/shared/net/messages/input.js";
 import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection } from "@3d/shared/sim/recoil.js";
-import type { LethalEquipmentId } from "@3d/shared/sim/loadout.js";
 import { GRAVITY } from "@3d/shared/sim/movementState.js";
 import {
   FLASHBANG_FULL_RADIUS,
@@ -17,6 +21,7 @@ import {
   GRENADE_THROW_LOFT,
   GRENADE_THROW_SPEED,
   grenadeBounce,
+  THROW_TIMES,
 } from "@3d/shared/game/equipment.js";
 import { PROJECTILE_ID_MASK, type ProjectileKind, type ProjectileState } from "@3d/shared/sim/projectile.js";
 import { MAX_SNAPSHOT_PROJECTILES } from "@3d/shared/net/messages/projectiles.js";
@@ -35,6 +40,17 @@ export const FLASHBANG_MIN_DURATION = 1.0;
 /** How long a detonation rides the snapshot tail: a late explosion is still the right one. */
 const DETONATION_HOLD = 0.5;
 
+/** A pin coming out: the grenade has not left the hand yet. */
+interface PendingThrow {
+  readonly kind: GrenadeKind;
+  readonly releaseAt: number;
+  /** When the arm has come through and another may be thrown. */
+  readonly busyUntil: number;
+  released: boolean;
+}
+
+type GrenadeKind = keyof typeof THROW_TIMES;
+
 export interface ActiveProjectile {
   readonly id: number;
   readonly kind: ProjectileKind;
@@ -49,6 +65,7 @@ export interface ActiveProjectile {
 
 export class Projectiles {
   private readonly active: ActiveProjectile[] = [];
+  private readonly throwing = new Map<PlayerId, PendingThrow>();
   private nextId = 1;
   private readonly aimDir: Vec3 = { x: 0, y: 0, z: 0 };
 
@@ -76,37 +93,57 @@ export class Projectiles {
     return this.active.slice(0, MAX_SNAPSHOT_PROJECTILES).map((p) => ({ id: p.id, kind: p.kind, position: { ...p.position } }));
   }
 
-  /**
-   * Throw lethal equipment (Frag or Semtex).
-   */
+  /** A press of the lethal key: the class's frag or semtex, pin first. */
   throwLethal(member: Member, _message: InputMessage): void {
-    if (member.player.dead || member.equipment.lethalCount <= 0) {
-      return;
+    if (member.equipment.lethalCount > 0) {
+      this.pullPin(member, member.equipment.lethal === "semtex_mp" ? "semtex" : "frag");
     }
-
-    const type: LethalEquipmentId = member.equipment.lethal ?? "frag_grenade_mp";
-    member.equipment.lethalCount--;
-
-    const kind: ProjectileKind = type === "semtex_mp" ? "semtex" : "frag";
-    const fuseTime = FUSE[kind];
-
-    this.spawnProjectile(member, kind, fuseTime);
   }
 
-  /**
-   * Throw tactical equipment (Flashbang).
-   */
+  /** A press of the tactical key: the flashbang, pin first. */
   throwTactical(member: Member, _message: InputMessage): void {
-    if (member.player.dead || member.equipment.tacticalCount <= 0) {
+    if (member.equipment.tacticalCount > 0) {
+      this.pullPin(member, "flashbang");
+    }
+  }
+
+  /** Whether `id` is mid-throw: the pin out, or the arm still coming through. */
+  isThrowing(id: PlayerId): boolean {
+    const pending = this.throwing.get(id);
+    return pending !== undefined && this.clock.now < pending.busyUntil;
+  }
+
+  private pullPin(member: Member, kind: GrenadeKind): void {
+    if (member.player.dead || this.isThrowing(member.id)) {
       return;
     }
+    const now = this.clock.now;
+    const times = THROW_TIMES[kind];
+    this.throwing.set(member.id, { kind, releaseAt: now + times.holdFire, busyUntil: now + times.holdFire + times.fire, released: false });
+  }
 
-    member.equipment.tacticalCount--;
-
-    const kind: ProjectileKind = "flashbang";
-    const fuseTime = FUSE.flashbang;
-
-    this.spawnProjectile(member, kind, fuseTime);
+  /** Every pin that has been out long enough leaves the hand now. A death first costs nothing: it never left. */
+  private release(): void {
+    const now = this.clock.now;
+    for (const [id, pending] of this.throwing) {
+      const member = this.roster.get(id);
+      if (!member || member.player.dead) {
+        this.throwing.delete(id);
+        continue;
+      }
+      if (!pending.released && now >= pending.releaseAt) {
+        pending.released = true;
+        if (pending.kind === "flashbang") {
+          member.equipment.tacticalCount--;
+        } else {
+          member.equipment.lethalCount--;
+        }
+        this.spawnProjectile(member, pending.kind, FUSE[pending.kind]);
+      }
+      if (now >= pending.busyUntil) {
+        this.throwing.delete(id);
+      }
+    }
   }
 
   private spawnProjectile(member: Member, kind: ProjectileKind, fuseTime: number): void {
@@ -122,11 +159,12 @@ export class Projectiles {
       z: eye.z + aim.z * 0.4,
     };
 
-    // Initial velocity along aim with slight upward loft
+    // Along the aim, straight up on top, and carried by the thrower's own run.
+    const carried = movement.velocity;
     const velocity: Vec3 = {
-      x: aim.x * GRENADE_THROW_SPEED,
-      y: aim.y * GRENADE_THROW_SPEED + GRENADE_THROW_LOFT,
-      z: aim.z * GRENADE_THROW_SPEED,
+      x: aim.x * GRENADE_THROW_SPEED + carried.x,
+      y: aim.y * GRENADE_THROW_SPEED + GRENADE_THROW_LOFT + carried.y,
+      z: aim.z * GRENADE_THROW_SPEED + carried.z,
     };
 
     const projectile: ActiveProjectile = {
@@ -146,6 +184,7 @@ export class Projectiles {
    * Step all active projectiles across match dt.
    */
   step(dt: number): void {
+    this.release();
     if (this.active.length === 0) {
       return;
     }
@@ -220,9 +259,12 @@ export class Projectiles {
     const hit = this.collision.traceRay(p.position, dir, dist, "shots");
 
     if (hit) {
-      p.position.x += dir.x * hit.distance + hit.normal.x * 0.02;
-      p.position.y += dir.y * hit.distance + hit.normal.y * 0.02;
-      p.position.z += dir.z * hit.distance + hit.normal.z * 0.02;
+      // Imported soup is wound either way, so the normal is turned to face the grenade.
+      const facing = dir.x * hit.normal.x + dir.y * hit.normal.y + dir.z * hit.normal.z > 0 ? -1 : 1;
+      const normal: Vec3 = { x: hit.normal.x * facing, y: hit.normal.y * facing, z: hit.normal.z * facing };
+      p.position.x += dir.x * hit.distance + normal.x * 0.02;
+      p.position.y += dir.y * hit.distance + normal.y * 0.02;
+      p.position.z += dir.z * hit.distance + normal.z * 0.02;
 
       if (p.kind === "semtex") {
         // Semtex sticks to the wall/floor immediately
@@ -231,8 +273,7 @@ export class Projectiles {
         return;
       }
 
-      // Frag or Flashbang: bounce with restitution
-      const normal = hit.normal;
+      // Frag or Flashbang: bounce
       const vDotN = p.velocity.x * normal.x + p.velocity.y * normal.y + p.velocity.z * normal.z;
 
       // What it keeps along the surface and away from it is the surface's own.

@@ -14,10 +14,15 @@ import type { Animator } from "../engine/animator.js";
 import type { FirstPersonControls } from "../engine/controls/firstPerson.js";
 import type { Viewer } from "../engine/viewer.js";
 import { copyLights, type Viewmodel } from "../engine/viewmodel.js";
-import { attachmentModelUrl, overlayImageUrl, weaponModelUrl } from "../net/catalog.js";
+import { attachmentModelUrl, equipmentModelUrl, overlayImageUrl, weaponModelUrl } from "../net/catalog.js";
+import type { OffhandKind } from "../engine/offhand.js";
 import type { AssetStore, GltfAsset } from "../scene/assets.js";
-import { buildViewmodelRig, type FittedAttachment } from "../scene/viewmodel.js";
+import { buildViewmodelRig, type FittedAttachment, type ViewmodelRig } from "../scene/viewmodel.js";
 import type { GameContent } from "./content.js";
+
+/** The grenade each kind is thrown as, by its MW3 weapon file: the catalogue's equipment entries. */
+const OFFHAND: Record<OffhandKind, string> = { frag: "frag_grenade_mp", semtex: "semtex_mp", flashbang: "flash_grenade_mp" };
+const OFFHAND_GAME = "iw5";
 
 export class WeaponViewmodel {
   /** The dev toggle; the hands are also hidden outside walk mode. */
@@ -69,7 +74,7 @@ export class WeaponViewmodel {
     // conditional on having built a class.
     const carried = this.carry(cast.defaultWeapon);
     this.armedSeen = this.player.armed;
-    await this.fetchCarried();
+    await Promise.all([this.fetchCarried(), this.fetchOffhand(assets, hands)]);
     return this.showHeld({ ready: !raise }) ? carried : undefined;
   }
 
@@ -112,14 +117,15 @@ export class WeaponViewmodel {
     this.firstPerson.setZoom(zoom);
   }
 
-  /** Trigger procedural quick-throw animation on the held viewmodel. */
-  triggerThrow(): void {
-    this.viewmodel.triggerThrow();
+  /** Throw `kind` from its own rig in place of the weapon; false when there is none to draw or a throw is under way. */
+  throwOffhand(kind: OffhandKind): boolean {
+    return this.viewmodel.throwOffhand(kind);
   }
 
   /** Let go of everything the mounted world lent: the rig, the models, the lights, and the weapon itself. */
   drop(): void {
     this.viewmodel.clear();
+    this.viewmodel.clearOffhand();
     this.player.equip(undefined);
     this.carried.clear();
     this.hands = undefined;
@@ -175,6 +181,33 @@ export class WeaponViewmodel {
     if (weapon && this.assets === assets) {
       this.carried.set(rigKey(id, fitted), { weapon, attachments: wanted.map((entryFor, i) => ({ entry: entryFor, asset: models[i] })) });
     }
+  }
+
+  /**
+   * The three grenades' rigs on this world's hands. A world whose catalogue has
+   * no equipment built throws with no animation, rather than not at all.
+   */
+  private async fetchOffhand(assets: AssetStore, hands: GltfAsset): Promise<void> {
+    const kinds = Object.keys(OFFHAND) as OffhandKind[];
+    const models = await Promise.all(kinds.map((kind) => assets.gltf(equipmentModelUrl(OFFHAND_GAME, OFFHAND[kind])).catch(() => undefined)));
+    if (this.assets !== assets) {
+      return; // a world left while these were on their way: its store has freed them
+    }
+    const rigs = new Map<OffhandKind, ViewmodelRig>();
+    kinds.forEach((kind, i) => {
+      const model = models[i];
+      if (!model) {
+        return;
+      }
+      try {
+        const rig = buildViewmodelRig(model, hands);
+        this.viewer.applyQualityTo(rig.root);
+        rigs.set(kind, rig);
+      } catch (e) {
+        console.warn(`[viewmodel] ${OFFHAND[kind]}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    });
+    this.viewmodel.setOffhand(rigs);
   }
 
   /**

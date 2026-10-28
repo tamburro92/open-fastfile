@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { THROW_TIMES } from "@3d/shared/game/equipment.js";
 import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import type { ResolvedWorld } from "@3d/shared/dsl/resolved.js";
@@ -298,31 +299,62 @@ describe("MW3 Melee Combat", () => {
   });
 });
 
+type Sim = ReturnType<typeof setupMatch>;
+type Inputs = Parameters<Sim["stepTick"]>[0];
+
+/** Until the pin is out and the grenade has left the hand. */
+function waitForPin(sim: Sim, inputs: Inputs): void {
+  for (let i = 0; i < Math.ceil(THROW_TIMES.frag.holdFire * TICK_RATE); i++) {
+    sim.stepTick(inputs);
+  }
+}
+
+/** Until the whole throw is over, the slowest arm (the flashbang's) included. */
+function waitForThrow(sim: Sim, inputs: Inputs): void {
+  for (let i = 0; i < Math.ceil((THROW_TIMES.flashbang.holdFire + THROW_TIMES.flashbang.fire) * TICK_RATE) + 1; i++) {
+    sim.stepTick(inputs);
+  }
+}
+
 describe("MW3 Lethal & Tactical Equipment", () => {
-  it("spawns with 1 lethal and 2 tactical equipment, and replenishes on respawn", () => {
+  it("takes the pin out first, as MW3 does, and throws nothing else until the arm has come through", () => {
     const sim = setupMatch();
     sim.match.join("player1", loadout());
-
     sim.stepTick({ player1: idleInput(0, 0) });
 
-    // Throw 1 lethal grenade
     sim.stepTick({ player1: { ...idleInput(0, 0), lethal: true } });
-    expect(sim.match.projectiles.live.length).toBe(1);
-
-    // Try to throw lethal again (should have 0 count left)
-    sim.stepTick({ player1: { ...idleInput(0, 0), lethal: true } });
-    expect(sim.match.projectiles.live.length).toBe(1);
-
-    // Throw 2 tactical grenades
+    expect(sim.match.projectiles.live.length).toBe(0);
+    // A second press while the pin is out is the same throw, not another.
     sim.stepTick({ player1: { ...idleInput(0, 0), tactical: true } });
-    expect(sim.match.projectiles.live.length).toBe(2);
+    waitForPin(sim, { player1: idleInput(0, 0) });
+    expect(sim.match.projectiles.live.map((p) => p.kind)).toEqual(["frag"]);
+  });
 
-    sim.stepTick({ player1: { ...idleInput(0, 0), tactical: true } });
-    expect(sim.match.projectiles.live.length).toBe(3);
+  it("spawns with 1 lethal and 2 tactical equipment, and spends one a throw", () => {
+    const sim = setupMatch();
+    sim.match.join("player1", loadout());
+    sim.stepTick({ player1: idleInput(0, 0) });
+    const throwOne = (key: "lethal" | "tactical") => {
+      sim.stepTick({ player1: { ...idleInput(0, 0), [key]: true } });
+      waitForThrow(sim, { player1: idleInput(0, 0) });
+    };
 
-    // 3rd tactical throw fails (0 remaining)
-    sim.stepTick({ player1: { ...idleInput(0, 0), tactical: true } });
-    expect(sim.match.projectiles.live.length).toBe(3);
+    const thrown: string[] = [];
+    const seen = new Set<number>();
+    const record = () => {
+      for (const p of sim.match.projectiles.live) {
+        if (!seen.has(p.id)) {
+          seen.add(p.id);
+          thrown.push(p.kind);
+        }
+      }
+    };
+    for (const key of ["lethal", "lethal", "tactical", "tactical", "tactical"] as const) {
+      throwOne(key);
+      record();
+    }
+    // One frag, two flashbangs, and the third press of each found the pouch empty.
+    expect(thrown).toEqual(["frag", "flashbang", "flashbang"]);
   });
 
   it("detonates Frag grenade after 3.5s fuse dealing radial explosion damage with wall LoS check", () => {
@@ -331,14 +363,15 @@ describe("MW3 Lethal & Tactical Equipment", () => {
     sim.match.join("nearbyEnemy", loadout());
 
     sim.match.place("thrower", { x: 0, y: 0, z: 0 }, 0, 0);
-    // Enemy is positioned at target grenade landing zone (z = -20.0)
-    sim.match.place("nearbyEnemy", { x: 0, y: 0, z: -20.0 }, 0, 0);
+    // A few metres ahead: thrown at the ground at MW3's 940 units a second, it lands and rolls inside 256 units of them.
+    sim.match.place("nearbyEnemy", { x: 0, y: 0, z: -4.0 }, 0, 0);
 
     // Throw frag grenade downward in front of nearbyEnemy
     sim.stepTick({
       thrower: { ...idleInput(0, -Math.PI / 3), lethal: true },
       nearbyEnemy: idleInput(0, 0),
     });
+    waitForPin(sim, { thrower: idleInput(0, -Math.PI / 3), nearbyEnemy: idleInput(0, 0) });
 
     expect(sim.match.projectiles.live.length).toBe(1);
     const frag = sim.match.projectiles.live[0]!;
@@ -389,6 +422,7 @@ describe("MW3 Lethal & Tactical Equipment", () => {
       thrower: { ...idleInput(0, 0), lethal: true },
       victim: idleInput(0, 0),
     });
+    waitForPin(sim, { thrower: idleInput(0, 0), victim: idleInput(0, 0) });
 
     const semtex = sim.match.projectiles.live[0]!;
     expect(semtex.kind).toBe("semtex");
@@ -427,6 +461,7 @@ describe("MW3 Lethal & Tactical Equipment", () => {
       thrower: { ...idleInput(0, -Math.PI / 3), tactical: true },
       victim: idleInput(0, 0),
     });
+    waitForPin(sim, { thrower: idleInput(0, -Math.PI / 3), victim: idleInput(0, 0) });
 
     const flash = sim.match.projectiles.live[0]!;
     expect(flash.kind).toBe("flashbang");

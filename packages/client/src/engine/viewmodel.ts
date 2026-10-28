@@ -12,6 +12,7 @@ import { releaseRig } from "@3d/shared/rig/release.js";
 import type { WeaponController, WeaponEvent } from "@3d/shared/sim/weapon.js";
 import { scaleFov } from "./viewer.js";
 import { WeaponMotion, type MotionFrame, type MotionPose } from "./weaponMotion.js";
+import { mountRig, Offhand, type OffhandKind } from "./offhand.js";
 import type { RenderPass } from "./render/pipeline.js";
 
 /** The game's default `cg_fov`, which its viewmodels are posed for: horizontal degrees at 4:3. */
@@ -161,6 +162,10 @@ export class Viewmodel {
   /** The scope picture and the camera that draws it over the whole frame; both exist whether or not one is fitted. */
   private readonly scope = new Scope();
   private rig: ViewmodelRig | undefined;
+  /** The weapon's rig, mounted: hidden while a grenade is in hand. */
+  private holder: THREE.Group | undefined;
+  /** A grenade's own rig, drawn in place of the weapon for a throw. Outlives a weapon swap, not a world. */
+  private readonly offhand = new Offhand();
   /** The player's weapon, which this draws: it plays the clips the weapon's events ask for. */
   private weapon: WeaponController | undefined;
   private mixer: THREE.AnimationMixer | undefined;
@@ -179,6 +184,7 @@ export class Viewmodel {
   constructor() {
     this.scene.add(this.view);
     this.view.add(this.motionPivot);
+    this.motionPivot.add(this.offhand.root);
   }
 
   /**
@@ -192,14 +198,10 @@ export class Viewmodel {
     this.rig = rig;
 
     // CoD's forward (+X, which OAT's axis change leaves as +X) must face the camera's -Z,
-    // and the eye sits at the origin: turn a quarter about Y, then pull the eye back to it.
-    const holder = new THREE.Group();
-    holder.rotation.y = Math.PI / 2;
-    rig.root.position.set(0, 0, 0);
-    rig.root.updateMatrixWorld(true);
-    rig.root.position.copy(rig.root.worldToLocal(rig.eye.getWorldPosition(new THREE.Vector3())).negate());
-    holder.add(rig.root);
-    this.motionPivot.add(holder);
+    // and the eye sits at the origin (`mountRig`).
+    this.holder = mountRig(rig);
+    this.holder.visible = !this.offhand.busy;
+    this.motionPivot.add(this.holder);
     this.lights = lights;
     for (const light of lights) {
       this.scene.add(light, ...(light instanceof THREE.DirectionalLight ? [light.target] : []));
@@ -232,7 +234,9 @@ export class Viewmodel {
       this.mixer.uncacheRoot(this.rig.root);
       releaseRig(this.rig.root);
     }
-    this.motionPivot.clear();
+    if (this.holder) {
+      this.motionPivot.remove(this.holder);
+    }
     this.scope.use(undefined);
     // Not disposed: a sun copy's shadow is the world light's.
     for (const light of this.lights) {
@@ -240,7 +244,32 @@ export class Viewmodel {
     }
     this.lights = [];
     this.actions.clear();
-    this.rig = this.mixer = this.current = this.adsAction = this.motion = this.weapon = undefined;
+    this.rig = this.holder = this.mixer = this.current = this.adsAction = this.motion = this.weapon = undefined;
+  }
+
+  /** The grenades the world's hands may throw, rigged on those hands. Replaces any before. */
+  setOffhand(rigs: ReadonlyMap<OffhandKind, ViewmodelRig>): void {
+    this.offhand.set(rigs);
+  }
+
+  /** Let go of the grenade rigs, with the world they were lent by. */
+  clearOffhand(): void {
+    this.offhand.clear();
+  }
+
+  /**
+   * Put the weapon away and throw `kind` from its own rig: the pin, then the
+   * throw, then the weapon comes back up. False when that grenade has no rig or a
+   * throw is already under way, which is also when the server would refuse it.
+   */
+  throwOffhand(kind: OffhandKind): boolean {
+    if (!this.offhand.start(kind)) {
+      return false;
+    }
+    if (this.holder) {
+      this.holder.visible = false;
+    }
+    return true;
   }
 
   /**
@@ -287,6 +316,9 @@ export class Viewmodel {
     if (this.adsAction) {
       this.adsAction.time = this.weapon.data.ads * this.adsAction.getClip().duration;
     }
+    if (this.offhand.update(step)) {
+      this.raiseAfterThrow();
+    }
     this.mixer.update(step);
 
     const { movement } = frame;
@@ -316,11 +348,6 @@ export class Viewmodel {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
-  }
-
-  /** Trigger procedural quick-throw animation on the viewmodel. */
-  triggerThrow(): void {
-    this.motion?.triggerThrow();
   }
 
   /**
@@ -386,6 +413,33 @@ export class Viewmodel {
     if (e.type === "play") {
       this.play(e.clip, e.time, e.rate, e.loop, e.fade);
     }
+  }
+
+  /**
+   * The weapon back in hand after a grenade: its quick raise where it has one, as
+   * MW3 brings a gun up after an offhand, then whatever clip the weapon is in.
+   */
+  private raiseAfterThrow(): void {
+    if (!this.holder || !this.rig || !this.mixer) {
+      return;
+    }
+    this.holder.visible = true;
+    const name = this.rig.def.roles.quickRaise ?? this.rig.def.roles.raise;
+    const clip = name ? this.rig.clips.get(name) : undefined;
+    if (!name || !clip) {
+      this.showWeaponClip();
+      return;
+    }
+    this.play(name, 0, 1, false, 0);
+    const raising = this.current;
+    const mixer = this.mixer;
+    const done = (e: { action: THREE.AnimationAction }) => {
+      mixer.removeEventListener("finished", done);
+      if (e.action === raising && this.current === raising) {
+        this.showWeaponClip();
+      }
+    };
+    mixer.addEventListener("finished", done);
   }
 
   /** Cut to the clip the weapon is in, where it is: on attaching, and after a pause. */

@@ -33,6 +33,11 @@ export function attachmentModelUrl(game: string, model: string): string {
   return catalogFilePath("attachments", game, model, `${model}.glb`);
 }
 
+/** Where a grenade's rig is served: its view model on the view hands' skeleton, with the pin and the throw (`catalog --equipment-only`). */
+export function equipmentModelUrl(game: string, weapon: string): string {
+  return catalogFilePath("equipment", game, weapon, `${weapon}.glb`);
+}
+
 /**
  * Where a scope's overlay picture is served. One entry per *material*, not per
  * weapon: `scope_overlay_us_iw5` is what four Modern Warfare 3 snipers and every
