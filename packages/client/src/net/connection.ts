@@ -33,7 +33,8 @@ import { engineName } from "./engineName.js";
 import type { PlayerSnapshot, SnapshotMessage, SnapshotPresence } from "@3d/shared/net/messages/snapshot.js";
 import type { ActorState } from "@3d/shared/game/actors/actor.js";
 import type { ProjectileState } from "@3d/shared/sim/projectile.js";
-import type { StreakState } from "@3d/shared/game/streaks.js";
+import type { SentryState, StreakState } from "@3d/shared/game/streaks.js";
+import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 
 /** Milliseconds between join attempts. geckos gives no delivery guarantee, so we ask until answered. */
 const JOIN_RETRY_MS = 250;
@@ -111,6 +112,10 @@ export interface Correction {
   projectiles: ProjectileState[];
   /** Our own strike package, as the server counts it. */
   streaks: StreakState | null;
+  /** Every placed sentry gun. */
+  sentries: SentryState[];
+  /** Who our UAV shows us, by id; empty with none up. */
+  revealed: PlayerId[];
   /** The inputs sent after `ack`, oldest first: what prediction has to redo. */
   pending: readonly SentInput[];
   /** Which of the world's solids are present, or null for a world with none. */
@@ -423,6 +428,8 @@ export class Connection {
       actors: message.actors,
       projectiles: message.projectiles,
       streaks: message.streaks,
+      sentries: message.sentries,
+      revealed: message.players.filter((_, i) => message.revealed[i] === true).map((p) => p.id),
       pending: this.sent,
       events: this.seen?.unseen(message.events) ?? [],
       presence: message.presence,

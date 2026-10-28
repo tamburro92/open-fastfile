@@ -98,7 +98,19 @@ describe("a snapshot's actors", () => {
   };
 
   it("costs one byte when there are none, and twelve for each", () => {
-    const base: SnapshotMessage = { tick: 9, ack: 3, presence: null, players: players(), actors: [], projectiles: [], streaks: null, counters: [], events: [] };
+    const base: SnapshotMessage = {
+      tick: 9,
+      ack: 3,
+      presence: null,
+      players: players(),
+      actors: [],
+      projectiles: [],
+      streaks: null,
+      sentries: [],
+      revealed: [],
+      counters: [],
+      events: [],
+    };
     const size = (actors: ActorState[]) => encodePacket(MessageType.snapshot, { ...base, actors }).length;
     expect(size([actor(1)])).toBe(size([]) + 12);
     expect(size([actor(1), actor(2), actor(3)])).toBe(size([]) + 36);
@@ -114,10 +126,24 @@ describe("a snapshot's actors", () => {
         actors: [actor(1), actor(2, { action: "attack" })],
         projectiles: [],
         streaks: null,
+        sentries: [],
+        revealed: [],
         counters: [],
         events: [{ kind: "hit" as const, id: 4, lethal: false }],
       },
-      { tick: 9, ack: 0, presence: null, players: [], actors: [actor(3)], projectiles: [], streaks: null, counters: [], events: [] },
+      {
+        tick: 9,
+        ack: 0,
+        presence: null,
+        players: [],
+        actors: [actor(3)],
+        projectiles: [],
+        streaks: null,
+        sentries: [],
+        revealed: [],
+        counters: [],
+        events: [],
+      },
     ] satisfies SnapshotMessage[]) {
       const back = decodePacket(encodePacket(MessageType.snapshot, message)).message as SnapshotMessage;
       expect(back.players.map((p) => p.id)).toEqual(message.players.map((p) => p.id));
@@ -137,6 +163,8 @@ describe("a snapshot's actors", () => {
         actors: full,
         projectiles: [],
         streaks: null,
+        sentries: [],
+        revealed: [],
         counters: [],
         events: [],
       }),

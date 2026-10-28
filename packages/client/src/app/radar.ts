@@ -15,6 +15,8 @@ import type { MinimapPing, UiState } from "./uiBridge.js";
 export const PING_DURATION_MS = 2000;
 /** How long the ping stays fully opaque before fading out: 1.2 seconds. */
 export const PING_SOLID_MS = 1200;
+/** A UAV sweeps on this period, and what it saw fades between sweeps as a ping does. */
+export const UAV_SWEEP_MS = 2000;
 
 interface ActivePing {
   id: string;
@@ -27,6 +29,7 @@ interface ActivePing {
 
 export class Radar {
   private readonly active = new Map<string, ActivePing>();
+  private lastSweep = -Infinity;
 
   constructor(private readonly ui: UiState) {}
 
@@ -34,14 +37,7 @@ export class Radar {
    * Record a shot fired without a silencer.
    * If the shooter already had an active ping, their position and duration are refreshed.
    */
-  record(
-    id: string,
-    worldPos: { x: number; z: number },
-    isEnemy: boolean,
-    isSelf: boolean,
-    map: ResolvedMinimap,
-    now: number = performance.now(),
-  ): void {
+  record(id: string, worldPos: { x: number; z: number }, isEnemy: boolean, isSelf: boolean, map: ResolvedMinimap, now: number = performance.now()): void {
     const { u, v } = minimapPoint(map, worldPos.x, worldPos.z);
     this.active.set(id, {
       id,
@@ -52,6 +48,24 @@ export class Radar {
       isSelf,
     });
     this.publish(now);
+  }
+
+  /**
+   * The enemies a UAV shows, marked once a sweep: between sweeps they fade where
+   * they were, as MW3's radar does, rather than tracking every step.
+   */
+  sweep(targets: readonly { id: string; feet: { x: number; z: number } }[], map: ResolvedMinimap, now: number = performance.now()): void {
+    if (targets.length === 0) {
+      this.lastSweep = -Infinity;
+      return;
+    }
+    if (now - this.lastSweep < UAV_SWEEP_MS) {
+      return;
+    }
+    this.lastSweep = now;
+    for (const target of targets) {
+      this.record(`uav:${target.id}`, target.feet, true, false, map, now);
+    }
   }
 
   /**
@@ -92,10 +106,7 @@ export class Radar {
     const fadeSpan = PING_DURATION_MS - PING_SOLID_MS;
     for (const ping of this.active.values()) {
       const elapsed = now - ping.createdAt;
-      const alpha =
-        elapsed < PING_SOLID_MS
-          ? 1
-          : Math.max(0, 1 - (elapsed - PING_SOLID_MS) / fadeSpan);
+      const alpha = elapsed < PING_SOLID_MS ? 1 : Math.max(0, 1 - (elapsed - PING_SOLID_MS) / fadeSpan);
       pings.push({
         id: ping.id,
         u: ping.u,

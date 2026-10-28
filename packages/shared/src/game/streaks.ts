@@ -7,6 +7,8 @@
 // event for each, and a lost datagram is repaired by the one after it.
 
 import type { KillstreakId, StrikePackageId } from "../sim/loadout.js";
+import type { Vec3 } from "../sim/capsule.js";
+import type { PlayerId } from "../net/messages/fields.js";
 
 /** The order is the format: an id travels as its index. */
 export const KILLSTREAK_IDS = [
@@ -48,4 +50,17 @@ export interface StreakState {
   /** Toward the next: kills this life, or Support's points, which a death does not reset. */
   progress: number;
   hardline: boolean;
+}
+
+/** How long a sentry stands before it packs up, as MW3's does. */
+export const SENTRY_LIFETIME = 90;
+
+/** A placed sentry gun, as everyone is told it: where, which way its gun points, and whether it is firing. */
+export interface SentryState {
+  id: number;
+  owner: PlayerId;
+  position: Vec3;
+  yaw: number;
+  pitch: number;
+  firing: boolean;
 }

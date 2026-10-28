@@ -72,6 +72,7 @@ import { Interactions } from "./use.js";
 import { Melee } from "./melee.js";
 import { Projectiles } from "./projectiles.js";
 import { Killstreaks } from "./killstreaks.js";
+import { MAX_SNAPSHOT_PROJECTILES } from "@3d/shared/net/messages/projectiles.js";
 import { serverVerbs } from "./verbs.js";
 import { Zones } from "./zones.js";
 
@@ -162,7 +163,7 @@ export class Match {
     const use = new Interactions(world, gametype, collision, parts.presence, scripts, view, playing.partBounds);
     const melee = (this.melee = new Melee(clock, roster, damage, outbox, collision));
     const projectiles = (this.projectiles = new Projectiles(clock, roster, damage, outbox, collision));
-    const killstreaks = (this.killstreaks = new Killstreaks(clock, roster, outbox, damage, collision));
+    const killstreaks = (this.killstreaks = new Killstreaks(clock, roster, outbox, damage, collision, () => projectiles.allocateId()));
     const drain = new InputDrain(clock, roster, use, shots, melee, projectiles, killstreaks);
 
     damage.setKillstreakHandler((victimId, killerId) => {
@@ -548,8 +549,10 @@ export class Match {
       presence: this.parts.snapshot,
       players,
       actors: this.actorTick.for(id),
-      projectiles: this.projectiles.states,
+      projectiles: [...this.projectiles.states, ...this.killstreaks.missileStates].slice(0, MAX_SNAPSHOT_PROJECTILES),
       streaks: this.killstreaks.stateFor(id),
+      sentries: this.killstreaks.sentryStates,
+      revealed: this.killstreaks.revealedFor(id, players),
       counters: this.tally.countersNow(),
       events: this.outbox.for(id),
     };

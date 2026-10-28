@@ -9,13 +9,13 @@
 
 import type { Vec3 } from "./capsule.js";
 
-/** The order is the format: a kind travels as its index. */
-export const PROJECTILE_KINDS = ["frag", "semtex", "flashbang"] as const;
+/** The order is the format: a kind travels as its index. A predator's missile is one too, drawn as it falls. */
+export const PROJECTILE_KINDS = ["frag", "semtex", "flashbang", "missile"] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
 
-/** What can go off: every projectile, and a killstreak's missile, which is never drawn in flight. */
-export const DETONATION_KINDS = [...PROJECTILE_KINDS, "missile"] as const;
-export type DetonationKind = (typeof DETONATION_KINDS)[number];
+/** What can go off: every projectile. */
+export const DETONATION_KINDS = PROJECTILE_KINDS;
+export type DetonationKind = ProjectileKind;
 
 /** Twelve bits on the wire: the server wraps its counter there. */
 export const PROJECTILE_ID_MASK = 0xfff;

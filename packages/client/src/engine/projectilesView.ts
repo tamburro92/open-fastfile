@@ -31,8 +31,11 @@ const SOUND_GAME = "iw5";
 /** A fall this fast (m/s) that stops or turns upward was a bounce, worth a sound. */
 const BOUNCE_SPEED = 1.5;
 
-/** The MW3 models, in `worlds/catalog/worldweapons/iw5/`. */
-const MODELS: Record<ProjectileKind, string> = {
+const UP = new THREE.Vector3(0, 1, 0);
+const FLIGHT = new THREE.Vector3();
+
+/** The MW3 models, in `worlds/catalog/worldweapons/iw5/`. A kind with none is drawn as its stand-in. */
+const MODELS: Partial<Record<ProjectileKind, string>> = {
   frag: "projectile_m67fraggrenade",
   semtex: "projectile_semtex_grenade",
   flashbang: "projectile_m84_flashbang_grenade",
@@ -91,7 +94,11 @@ export class ProjectilesView {
   async prewarm(assets: AssetStore): Promise<void> {
     await Promise.all(
       PROJECTILE_KINDS.map(async (kind) => {
-        const url = worldWeaponUrl("iw5", MODELS[kind]);
+        const model = MODELS[kind];
+        if (!model) {
+          return;
+        }
+        const url = worldWeaponUrl("iw5", model);
         try {
           const gltf = await assets.gltf(url);
           if (gltf) {
@@ -157,8 +164,8 @@ export class ProjectilesView {
     let best: Vec3 | null = null;
     let bestDistance = radius;
     for (const drawn of this.live.values()) {
-      if (drawn.kind === "flashbang") {
-        continue;
+      if (drawn.kind === "flashbang" || drawn.kind === "missile") {
+        continue; // MW3 marks a grenade at your feet, and nothing else
       }
       const p = drawn.to.position;
       const offset = { x: p.x - feet.x, y: p.y - feet.y, z: p.z - feet.z };
@@ -188,7 +195,13 @@ export class ProjectilesView {
         from.position.z + (to.position.z - from.position.z) * t,
       );
       const moved = Math.hypot(to.position.x - from.position.x, to.position.y - from.position.y, to.position.z - from.position.z);
-      if (moved > 0.01) {
+      if (drawn.kind === "missile") {
+        // Nose along its flight rather than tumbling: the stand-in's long axis is y.
+        if (moved > 0.01) {
+          FLIGHT.set(to.position.x - from.position.x, to.position.y - from.position.y, to.position.z - from.position.z).normalize();
+          object.quaternion.setFromUnitVectors(UP, FLIGHT);
+        }
+      } else if (moved > 0.01) {
         object.rotation.x += drawn.spin.x * dt;
         object.rotation.y += drawn.spin.y * dt;
         object.rotation.z += drawn.spin.z * dt;
@@ -262,7 +275,10 @@ export class ProjectilesView {
           ? { geometry: new THREE.SphereGeometry(0.065, 12, 12), material: new THREE.MeshStandardMaterial({ color: 0x445533, roughness: 0.6 }) }
           : kind === "semtex"
             ? { geometry: new THREE.BoxGeometry(0.08, 0.14, 0.06), material: new THREE.MeshStandardMaterial({ color: 0x224422, roughness: 0.9 }) }
-            : { geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.13, 12), material: new THREE.MeshStandardMaterial({ color: 0x778899, metalness: 0.7 }) };
+            : kind === "flashbang"
+              ? { geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.13, 12), material: new THREE.MeshStandardMaterial({ color: 0x778899, metalness: 0.7 }) }
+              : // A hellfire, nose down its flight and burning: unlit, so it reads against a dark sky.
+                { geometry: new THREE.CylinderGeometry(0.09, 0.09, 1.6, 10), material: new THREE.MeshBasicMaterial({ color: 0xffd28a }) };
       this.fallbacks.set(kind, built);
     }
     return [built.geometry, built.material];

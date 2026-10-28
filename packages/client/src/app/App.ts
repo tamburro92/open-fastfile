@@ -182,7 +182,7 @@ export class App {
 
   /** Every per-frame step, in the slots frame.ts orders them by. */
   private fillUpdates(presenters: Presenters): void {
-    const { animator, firstPerson, dollhouse, footsteps, weaponAudio, remotes, actors, fx, audio, shadowFit, viewer, projectiles } = this.systems;
+    const { animator, firstPerson, dollhouse, footsteps, weaponAudio, remotes, actors, fx, audio, shadowFit, viewer, projectiles, sentries } = this.systems;
     const u = this.updates;
     u.use("animation", (dt) => animator.update(dt));
     u.use("controls", (dt) => {
@@ -201,6 +201,7 @@ export class App {
     u.use("effects", (dt) => {
       fx.update(dt, viewer.camera);
       projectiles.update(dt, performance.now(), viewer.camera);
+      sentries.update(dt, performance.now());
     });
     u.use("presenters", () => presenters.update());
     u.use("listener", (dt) => audio.update(dt, viewer.camera));

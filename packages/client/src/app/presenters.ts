@@ -40,6 +40,10 @@ export class Presenters {
   update(): void {
     const walking = this.pause.mode === "walk" && this.screens.current === "world";
     this.updateMinimap();
+    const map = this.current.world?.minimap;
+    if (map) {
+      this.radar.sweep(this.match.revealed, map);
+    }
     this.radar.update();
     this.updateHud(walking);
     this.updateCone();

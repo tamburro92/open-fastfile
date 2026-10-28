@@ -10,12 +10,20 @@ import type { PlayerId } from "@3d/shared/net/messages/fields.js";
 import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import type { KillstreakId, LoadoutStrikePackage, StrikePackageId } from "@3d/shared/sim/loadout.js";
-import { streakCost, type StreakState } from "@3d/shared/game/streaks.js";
-import { MAX_STREAK_PROGRESS } from "@3d/shared/net/messages/streaks.js";
+import { SENTRY_LIFETIME, streakCost, type SentryState, type StreakState } from "@3d/shared/game/streaks.js";
+import { MAX_SNAPSHOT_SENTRIES, MAX_STREAK_PROGRESS } from "@3d/shared/net/messages/streaks.js";
+import type { ProjectileState } from "@3d/shared/sim/projectile.js";
 import type { MatchClock } from "./clock.js";
 import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
 import type { Member, MemberStreaks, Roster } from "./roster.js";
+
+/** A sentry's rounds: 600 a minute. */
+const SENTRY_FIRE_INTERVAL = 0.1;
+/** Where its gun is, above the point it was set down on. */
+const SENTRY_MUZZLE_HEIGHT = 0.8;
+
+const uavKey = (owner: PlayerId, side: number | null): string => (side === null ? `player:${owner}` : `side:${side}`);
 
 /**
  * A member takes on a class's strike package. A different one starts over —
@@ -36,19 +44,22 @@ export function adoptStrikePackage(streaks: MemberStreaks, chosen: LoadoutStrike
 }
 
 export interface ActiveSentry {
-  id: string;
+  id: number;
   ownerId: PlayerId;
   team: number | null;
   position: Vec3;
+  /** Where it was set down facing: the middle of the arc it may turn through. */
+  baseYaw: number;
   yaw: number;
   pitch: number;
+  expiresAt: number;
   health: number;
   lastFiredAt: number;
   targetId: PlayerId | null;
 }
 
 export interface ActiveMissile {
-  id: string;
+  id: number;
   ownerId: PlayerId;
   position: Vec3;
   velocity: Vec3;
@@ -56,7 +67,8 @@ export interface ActiveMissile {
 }
 
 export class Killstreaks {
-  private readonly uavActiveUntil = new Map<number | null, number>();
+  /** Keyed by side, or by the owner in a game with no sides: a free-for-all's UAV is its caller's alone. */
+  private readonly uavActiveUntil = new Map<string, number>();
   private readonly sentries: ActiveSentry[] = [];
   private readonly missiles: ActiveMissile[] = [];
   private nextEntityId = 1;
@@ -67,6 +79,8 @@ export class Killstreaks {
     private readonly outbox: EventOutbox,
     private readonly damage: Damage,
     private readonly collision: CapsuleWorld,
+    /** A missile is drawn as a projectile, so it takes its id from the same counter as a grenade. */
+    private readonly projectileId: () => number,
   ) {}
 
   /**
@@ -177,7 +191,7 @@ export class Killstreaks {
     switch (streakId) {
       case "uav": {
         // Activate UAV radar for 30 seconds
-        this.uavActiveUntil.set(side, this.clock.now + 30.0);
+        this.uavActiveUntil.set(uavKey(member.id, side), this.clock.now + 30.0);
 
         this.outbox.push(
           {
@@ -203,17 +217,20 @@ export class Killstreaks {
         const sy = feet.y;
 
         const sentry: ActiveSentry = {
-          id: `sentry-${this.nextEntityId++}`,
+          id: this.nextEntityId,
           ownerId: member.id,
           team: side,
           position: { x: sx, y: sy, z: sz },
+          baseYaw: yaw,
           yaw,
           pitch: 0,
+          expiresAt: this.clock.now + SENTRY_LIFETIME,
           health: 300,
-          lastFiredAt: 0,
+          lastFiredAt: -Infinity,
           targetId: null,
         };
 
+        this.nextEntityId = (this.nextEntityId + 1) & 0xff;
         this.sentries.push(sentry);
 
         this.outbox.push(
@@ -238,7 +255,7 @@ export class Killstreaks {
         const targetZ = feet.z - Math.cos(yaw) * 15.0;
         const startY = feet.y + 100.0;
         const missile: ActiveMissile = {
-          id: `predator-${this.nextEntityId++}`,
+          id: this.projectileId(),
           ownerId: member.id,
           position: { x: targetX, y: startY, z: targetZ },
           velocity: { x: 0, y: -40.0, z: 0 },
@@ -307,7 +324,7 @@ export class Killstreaks {
     for (let i = this.sentries.length - 1; i >= 0; i--) {
       const sentry = this.sentries[i]!;
 
-      if (sentry.health <= 0) {
+      if (sentry.health <= 0 || now >= sentry.expiresAt) {
         this.sentries.splice(i, 1);
         this.outbox.push(
           {
@@ -345,7 +362,7 @@ export class Killstreaks {
 
         const tFeet = target.player.movement.feet;
         const dx = tFeet.x - sentry.position.x;
-        const dy = tFeet.y + eyeHeight(target.player.movement) - (sentry.position.y + 0.8);
+        const dy = tFeet.y + eyeHeight(target.player.movement) - (sentry.position.y + SENTRY_MUZZLE_HEIGHT);
         const dz = tFeet.z - sentry.position.z;
         const dist = Math.hypot(dx, dy, dz);
 
@@ -355,7 +372,7 @@ export class Killstreaks {
 
         // Conical facing check (yaw angle):
         const angleToTarget = Math.atan2(-dx, -dz);
-        let relYaw = angleToTarget - sentry.yaw;
+        let relYaw = angleToTarget - sentry.baseYaw;
         while (relYaw > Math.PI) {
           relYaw -= 2 * Math.PI;
         }
@@ -370,7 +387,7 @@ export class Killstreaks {
 
         // Line-of-sight check against collision geometry:
         const dir: Vec3 = { x: dx / dist, y: dy / dist, z: dz / dist };
-        const rayOrigin: Vec3 = { x: sentry.position.x, y: sentry.position.y + 0.8, z: sentry.position.z };
+        const rayOrigin: Vec3 = { x: sentry.position.x, y: sentry.position.y + SENTRY_MUZZLE_HEIGHT, z: sentry.position.z };
         const hit = this.collision.traceRay(rayOrigin, dir, dist, "shots");
 
         if (hit !== null && hit.distance < dist - 0.5) {
@@ -383,13 +400,20 @@ export class Killstreaks {
       }
 
       sentry.targetId = bestTarget ? bestTarget.id : null;
+      if (bestTarget) {
+        const t = bestTarget.player.movement.feet;
+        const dx = t.x - sentry.position.x;
+        const dz = t.z - sentry.position.z;
+        sentry.yaw = Math.atan2(-dx, -dz);
+        sentry.pitch = Math.atan2(t.y + 1.0 - (sentry.position.y + SENTRY_MUZZLE_HEIGHT), Math.hypot(dx, dz));
+      }
 
       // Sentry firing at target:
-      if (bestTarget && now - sentry.lastFiredAt >= 0.1) {
+      if (bestTarget && now - sentry.lastFiredAt >= SENTRY_FIRE_INTERVAL) {
         // 10 shots per second (600 RPM)
         sentry.lastFiredAt = now;
 
-        const sentryMuzzle: Vec3 = { x: sentry.position.x, y: sentry.position.y + 0.8, z: sentry.position.z };
+        const sentryMuzzle: Vec3 = { x: sentry.position.x, y: sentry.position.y + SENTRY_MUZZLE_HEIGHT, z: sentry.position.z };
         const tFeet = bestTarget.player.movement.feet;
         const dir: Vec3 = {
           x: tFeet.x - sentryMuzzle.x,
@@ -417,18 +441,6 @@ export class Killstreaks {
         if (bestTarget.player.health < wasHealth) {
           this.outbox.push({ kind: "hit", lethal: bestTarget.player.dead }, sentry.ownerId, 0);
         }
-
-        this.outbox.push(
-          {
-            kind: "announce",
-            what: "sentry_fire",
-            player: sentry.ownerId,
-            team: sentry.team,
-            value: Math.round(sentry.yaw * 100),
-          },
-          null,
-          0.1,
-        );
       }
     }
   }
@@ -550,21 +562,44 @@ export class Killstreaks {
   }
 
   /**
-   * Check if a player is visible on radar (UAV active for opposing team and player not using Assassin).
+   * Which of `players` `viewer`'s UAV shows them, in that order; empty while
+   * they have none up. A player is never shown to themself or their own side,
+   * and Assassin hides them from it.
    */
-  isRevealedByUav(playerId: PlayerId, viewerTeam: number | null): boolean {
-    const member = this.roster.get(playerId);
-    if (!member || member.player.dead) {
-      return false;
+  revealedFor(viewer: PlayerId, players: readonly { id: PlayerId }[]): boolean[] {
+    const member = this.roster.get(viewer);
+    if (!member) {
+      return [];
     }
-
-    // Assassin perk protects from UAV
-    if (member.perks.perk2 === "assassin" || member.perks.bonusPerks.has("assassin")) {
-      return false;
+    const side = member.player.side;
+    const until = this.uavActiveUntil.get(uavKey(viewer, side));
+    if (until === undefined || this.clock.now >= until) {
+      return [];
     }
+    return players.map(({ id }) => {
+      const other = this.roster.get(id);
+      if (!other || other.id === viewer || other.player.dead || (side !== null && other.player.side === side)) {
+        return false;
+      }
+      return !(other.perks.perk2 === "assassin" || other.perks.bonusPerks.has("assassin"));
+    });
+  }
 
-    // Check if viewer's team has active UAV
-    const expiry = this.uavActiveUntil.get(viewerTeam);
-    return expiry !== undefined && this.clock.now < expiry;
+  /** Every placed sentry, for every snapshot. Firing is a shot within the last two of its rounds' interval. */
+  get sentryStates(): SentryState[] {
+    const now = this.clock.now;
+    return this.sentries.slice(0, MAX_SNAPSHOT_SENTRIES).map((sentry) => ({
+      id: sentry.id,
+      owner: sentry.ownerId,
+      position: { ...sentry.position },
+      yaw: sentry.yaw,
+      pitch: sentry.pitch,
+      firing: now - sentry.lastFiredAt < SENTRY_FIRE_INTERVAL * 2,
+    }));
+  }
+
+  /** Missiles in the air, drawn beside the grenades. */
+  get missileStates(): ProjectileState[] {
+    return this.missiles.map((missile) => ({ id: missile.id, kind: "missile", position: { ...missile.position } }));
   }
 }

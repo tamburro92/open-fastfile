@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createUiState } from "../src/app/uiBridge.js";
-import { Radar, PING_DURATION_MS, PING_SOLID_MS } from "../src/app/radar.js";
+import { Radar, PING_DURATION_MS, PING_SOLID_MS, UAV_SWEEP_MS } from "../src/app/radar.js";
 import type { ResolvedMinimap } from "@3d/shared/dsl/resolved.js";
 
 const DOME: ResolvedMinimap = {
@@ -83,5 +83,21 @@ describe("radar gunfire pings", () => {
 
     radar.clear();
     expect(ui.minimap.pings.value).toHaveLength(0);
+  });
+});
+
+describe("a UAV on the radar", () => {
+  it("marks the enemies it shows once a sweep, and not on every snapshot between", () => {
+    const ui = createUiState();
+    const radar = new Radar(ui);
+    radar.sweep([{ id: "a", feet: { x: 5.08, z: -24.587 } }], DOME, 0);
+    expect(ui.minimap.pings.value.map((p) => [p.id, p.isEnemy])).toEqual([["uav:a", true]]);
+
+    // They moved, but the next sweep has not come round: the mark stays where they were.
+    radar.sweep([{ id: "a", feet: { x: 30, z: -24.587 } }], DOME, UAV_SWEEP_MS / 2);
+    const where = () => [ui.minimap.pings.value[0]!.u, ui.minimap.pings.value[0]!.v].map((n) => n.toFixed(3));
+    expect(where()).toEqual(["0.500", "0.500"]);
+    radar.sweep([{ id: "a", feet: { x: 30, z: -24.587 } }], DOME, UAV_SWEEP_MS);
+    expect(where()).not.toEqual(["0.500", "0.500"]);
   });
 });

@@ -66,6 +66,8 @@ export class MatchController {
    * Empty offline.
    */
   private roster: Roster = EMPTY_ROSTER;
+  /** The enemies this player's UAV shows, as of the last snapshot; empty with none up. */
+  private revealedNow: readonly { id: string; feet: { x: number; z: number } }[] = [];
   /**
    * The server's tick rate, from `joined`, and what turns a snapshot's tick into
    * the clock a script reads. Zero until a match says otherwise.
@@ -225,7 +227,7 @@ export class MatchController {
    */
   private join(ticket: MatchTicket): void {
     this.disconnect();
-    const { firstPerson, footsteps, weaponAudio, remotes, actors, projectiles } = this.systems;
+    const { firstPerson, footsteps, weaponAudio, remotes, actors, projectiles, sentries } = this.systems;
     const { hud, classes, dev, toaster, ui, content, pause, current } = this.parts;
     const connection = new Connection(
       {
@@ -247,6 +249,7 @@ export class MatchController {
           remotes.setTickRate(tickRate);
           actors.setTickRate(tickRate);
           projectiles.setTickRate(tickRate);
+          sentries.setTickRate(tickRate);
           // From here the HUD is the server's: its rules give the health bar a
           // denominator, and its id says which feed lines are this player's.
           hud.joined(joined, ticket.playerId, gametype(id));
@@ -351,11 +354,13 @@ export class MatchController {
     footsteps.clear();
     weaponAudio.clear();
     projectiles.clear();
+    this.systems.sentries.clear();
+    this.revealedNow = [];
     this.parts.hud.clear();
     this.roster = EMPTY_ROSTER;
   }
 
-  private snapshot({ tick, self, others, actors, projectiles: thrown, streaks, pending, events, presence, counters }: Correction): void {
+  private snapshot({ tick, self, others, actors, projectiles: thrown, streaks, sentries, revealed, pending, events, presence, counters }: Correction): void {
     const { firstPerson, remotes, corpses, footsteps, weaponAudio, actorVoices, projectiles } = this.systems;
     const { hud, classes, current, content } = this.parts;
     // Before `apply`, which is what would otherwise go on posing a body that
@@ -372,6 +377,8 @@ export class MatchController {
     // Before the detonations below: one that went off this tick has already left
     // the list, and the blast is drawn where the server says it was.
     projectiles.apply(thrown, performance.now());
+    this.systems.sentries.apply(sentries, performance.now());
+    this.revealedNow = others.filter((p) => revealed.includes(p.id)).map((p) => ({ id: p.id, feet: p.state.movement.feet }));
     for (const event of events) {
       if (event.kind === "detonate") {
         projectiles.detonate(event);
@@ -468,6 +475,11 @@ export class MatchController {
   }
 
   /** The players in one snapshot, as a script sees them: sides resolved to names. */
+  /** The enemies this player's UAV shows them now, for the minimap. */
+  get revealed(): readonly { id: string; feet: { x: number; z: number } }[] {
+    return this.revealedNow;
+  }
+
   private rosterOf(tick: number, self: PlayerState | undefined, others: readonly PlayerSnapshot[], counters: readonly number[]): Roster {
     const sideOf = (team: number | null): string | undefined => (team === null ? undefined : this.parts.content.gametype.teams[team]);
     const me = this.ticket?.playerId;

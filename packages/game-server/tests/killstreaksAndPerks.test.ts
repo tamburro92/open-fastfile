@@ -335,16 +335,14 @@ describe("MW3 Strike Packages & Killstreaks", () => {
       drawn: { tick: 0, frac: 0 },
     };
     match.receive("pilot", msg);
-    match.step();
-
-    // UAV is now active for team 0
+    const { players } = match.step();
     expect(pilot.streaks.ready[0]).toBe(false);
 
-    // Normal enemy is revealed by UAV
-    expect(match.killstreaks.isRevealedByUav("enemyNormal", 0)).toBe(true);
-
-    // Assassin enemy is NOT revealed by UAV
-    expect(match.killstreaks.isRevealedByUav("enemyAssassin", 0)).toBe(false);
+    // The pilot's own snapshot flags the normal enemy and not the Assassin, nor themself.
+    const shown = (viewer: string) => players.filter((_, i) => match.snapshotFor(viewer, players).revealed[i]).map((p) => p.id);
+    expect(shown("pilot")).toEqual(["enemyNormal"]);
+    // A UAV is its side's, not the other side's.
+    expect(match.snapshotFor("enemyNormal", players).revealed).toEqual([]);
   });
 
   it("deploys Sentry Gun which targets enemies and ignores Blind Eye users", () => {

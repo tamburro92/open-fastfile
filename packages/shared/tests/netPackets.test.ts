@@ -194,6 +194,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       // A zombies match's round and a second counter, below zero.
       counters: [12, -3],
       // Both kinds at once: the two write different fields after a shared kind
@@ -249,6 +251,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     };
@@ -288,6 +292,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     };
@@ -310,14 +316,38 @@ describe("packets", () => {
   });
 
   it("round-trips a snapshot with no players", () => {
-    const empty: SnapshotMessage = { tick: 0, ack: 0, presence: null, players: [], actors: [], projectiles: [], streaks: null, counters: [], events: [] };
+    const empty: SnapshotMessage = {
+      tick: 0,
+      ack: 0,
+      presence: null,
+      players: [],
+      actors: [],
+      projectiles: [],
+      streaks: null,
+      sentries: [],
+      revealed: [],
+      counters: [],
+      events: [],
+    };
     expect(decodePacket(encodePacket(MessageType.snapshot, empty)).message).toEqual(empty);
   });
 
   it("round-trips a world's presence bits, and costs one bit for a world with none", () => {
     // Twelve solids, the first and the last three present: two bytes, the tick they last changed on, and a length.
     const presence = { since: 65535, bits: [0b0000_0001, 0b0000_1110] };
-    const doors: SnapshotMessage = { tick: 70000, ack: 3, presence, players: [], actors: [], projectiles: [], streaks: null, counters: [], events: [] };
+    const doors: SnapshotMessage = {
+      tick: 70000,
+      ack: 3,
+      presence,
+      players: [],
+      actors: [],
+      projectiles: [],
+      streaks: null,
+      sentries: [],
+      revealed: [],
+      counters: [],
+      events: [],
+    };
     expect(decodePacket(encodePacket(MessageType.snapshot, doors)).message).toEqual(doors);
     const none = encodePacket(MessageType.snapshot, { ...doors, presence: null }).length;
     // 16 + 10 + 2 × 8 = 42 bits past the null's one: five or six bytes, by where they start.
@@ -355,6 +385,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     };
@@ -528,7 +560,7 @@ describe("packets", () => {
    * — and therefore whether it needs one more byte — depends on how many players
    * the snapshot carried.
    */
-  it("costs nothing for a quiet tail, two bytes for a hit marker and twenty-one for a death", () => {
+  it("costs nothing for a quiet tail, three bytes for a hit marker and twenty-one for a death", () => {
     const { player } = setupPlayer();
     const state = player.snapshot();
     const quiet: SnapshotMessage = {
@@ -539,6 +571,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     };
@@ -565,11 +599,11 @@ describe("packets", () => {
     };
 
     expect(size([])).toBe(encodePacket(MessageType.snapshot, quiet).length);
-    // Two or three, by where the tail starts. Here it is two.
-    expect(size([{ kind: "hit", id: 1, lethal: false }])).toBe(size([]) + 2);
+    // Two or three, by where the tail starts. Here it is three.
+    expect(size([{ kind: "hit", id: 1, lethal: false }])).toBe(size([]) + 3);
     // Twenty-one: the two ids, and three bits of cause.
     expect(size([death])).toBe(size([]) + 21);
-    expect(size([{ kind: "announce", id: 5, what: "go", team: null, value: null, player: null }])).toBe(size([]) + 5);
+    expect(size([{ kind: "announce", id: 5, what: "go", team: null, value: null, player: null }])).toBe(size([]) + 6);
     // Fourteen or fifteen, by where the tail starts: a name is bytes and
     // everything around it is bits, 118 of them. Here it is fifteen.
     expect(size([{ kind: "announce", id: 5, what: "flagTaken", team: 1, value: 3, player: null }])).toBe(size([]) + 15);
@@ -583,7 +617,7 @@ describe("packets", () => {
       ...Array.from({ length: MAX_SPAWNS_PER_SNAPSHOT }, (_, i) => ({ ...spawn, id: i + 1 })),
       ...Array.from({ length: MAX_SNAPSHOT_EVENTS - MAX_SPAWNS_PER_SNAPSHOT }, (_, i) => ({ ...death, id: i + 3 })),
     ];
-    expect(size(busiest)).toBeLessThanOrEqual(size([]) + 314);
+    expect(size(busiest)).toBeLessThanOrEqual(size([]) + 315);
 
     // And the count is a hard edge rather than a widening field: an eighth event
     // throws here rather than arriving as a differently shaped packet.
@@ -602,6 +636,8 @@ describe("packets", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     });
@@ -656,6 +692,8 @@ describe("the simulation over the wire", () => {
       actors: [],
       projectiles: [],
       streaks: null,
+      sentries: [],
+      revealed: [],
       counters: [],
       events: [],
     });

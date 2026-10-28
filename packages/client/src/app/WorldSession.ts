@@ -484,13 +484,14 @@ export class WorldSession {
 
   /** Let go of the built scene and everything attached to it. The highlight borrows its geometry, so it lets go first. */
   private releaseScene(): void {
-    const { animator, fx, audio, remotes, actors, corpses, projectiles } = this.systems;
+    const { animator, fx, audio, remotes, actors, corpses, projectiles, sentries } = this.systems;
     this.dev.beforeSwap();
     animator.clear();
     fx.clear();
     audio.clear();
     // The models it cloned are the store's, and go with it.
     projectiles.dispose();
+    sentries.clear();
     remotes.setKit(undefined);
     actors.setKits(new Map());
     // Before the scene goes. A Rapier world is wasm memory that no garbage

@@ -20,6 +20,7 @@ import { ActorsView } from "../net/actors.js";
 import { Corpses } from "../net/corpses.js";
 import { RemotePlayers } from "../net/remotePlayers.js";
 import { ProjectilesView } from "../engine/projectilesView.js";
+import { SentriesView } from "../engine/sentriesView.js";
 
 export class Systems {
   readonly viewer: Viewer;
@@ -60,6 +61,8 @@ export class Systems {
   readonly actors = new ActorsView();
   /** 3D in-world equipment projectiles and explosion effects. */
   readonly projectiles = new ProjectilesView();
+  /** Placed sentry guns, as the server aims them. */
+  readonly sentries = new SentriesView();
 
   constructor(container: HTMLElement) {
     this.viewer = new Viewer(container);
@@ -71,8 +74,9 @@ export class Systems {
     // the frozen-matrix rules that apply to everything in it.
     this.audio.attachTo(this.viewer.camera);
     this.projectiles.attachSystems(this.audio, this.firstPerson);
+    this.sentries.attachAudio(this.audio);
     // Beside the world rather than inside it, because the world root's matrices are frozen.
-    this.viewer.roots.keep(this.remotes.root, this.audio.root, this.corpses.root, this.actors.root, this.projectiles.root);
+    this.viewer.roots.keep(this.remotes.root, this.audio.root, this.corpses.root, this.actors.root, this.projectiles.root, this.sentries.root);
     this.viewer.pipeline.use("effects", this.fx.pass);
     this.viewer.pipeline.use("viewmodel", this.viewmodel.pass);
   }

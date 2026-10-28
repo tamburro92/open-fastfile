@@ -1,5 +1,6 @@
 import { bool, enumOf, struct, uint, type Codec } from "../codec/schema.js";
-import { KILLSTREAK_IDS, STRIKE_PACKAGE_IDS, type StreakState } from "../../game/streaks.js";
+import { KILLSTREAK_IDS, STRIKE_PACKAGE_IDS, type SentryState, type StreakState } from "../../game/streaks.js";
+import { pitch, playerId, vec3, yaw } from "./fields.js";
 import type { KillstreakId, StrikePackageId } from "../../sim/loadout.js";
 
 /** Three of one thing, in order: a package always holds exactly three slots. */
@@ -28,3 +29,17 @@ export const streakStateSchema = struct({
 }) satisfies Codec<StreakState>;
 
 export const MAX_STREAK_PROGRESS = 2 ** 6 - 1;
+
+/** About twenty-five bytes: who owns it is what tells a client whose side it is on. */
+export const sentryStateSchema = struct({
+  id: uint(8),
+  owner: playerId,
+  position: vec3,
+  yaw,
+  pitch,
+  firing: bool,
+}) satisfies Codec<SentryState>;
+
+/** Three bits of count: seven sentries at once is a lobby of nothing else. */
+export const SENTRY_COUNT_BITS = 3;
+export const MAX_SNAPSHOT_SENTRIES = 2 ** SENTRY_COUNT_BITS - 1;

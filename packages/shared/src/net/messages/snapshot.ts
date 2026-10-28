@@ -1,13 +1,13 @@
 // Server → clients, every tick: the authoritative state of everyone.
 
-import { array, int, nullable, struct, uint, type Codec } from "../codec/schema.js";
+import { array, bool, int, nullable, struct, uint, type Codec } from "../codec/schema.js";
 import { MATCH_VALUE_MAX, MAX_COUNTERS } from "../../game/matchValues.js";
 import type { PlayerState } from "../../sim/player.js";
 import type { ActorState } from "../../game/actors/actor.js";
 import { actorStateSchema } from "./actors.js";
 import type { ProjectileState } from "../../sim/projectile.js";
-import type { StreakState } from "../../game/streaks.js";
-import { streakStateSchema } from "./streaks.js";
+import type { SentryState, StreakState } from "../../game/streaks.js";
+import { SENTRY_COUNT_BITS, sentryStateSchema, streakStateSchema } from "./streaks.js";
 import { PROJECTILE_COUNT_BITS, projectileStateSchema } from "./projectiles.js";
 import { gameEvents, type GameEvent } from "./events.js";
 import { playerId, type PlayerId } from "./fields.js";
@@ -65,6 +65,14 @@ export interface SnapshotMessage {
   projectiles: ProjectileState[];
   /** The receiving player's own strike package; null for one not in the match yet. */
   streaks: StreakState | null;
+  /** Every placed sentry gun, for everyone alike. */
+  sentries: SentryState[];
+  /**
+   * Which of `players` this receiver's UAV shows them, one flag each in the same
+   * order; empty while they have no UAV up. Everyone's position is in the
+   * snapshot already, so a UAV costs a bit a player rather than a position.
+   */
+  revealed: boolean[];
   /**
    * The gametype's counters (`GametypeDecl.counters`), values only and in its
    * order: both ends hold the declaration that names them. Empty for a gametype
@@ -95,6 +103,9 @@ export const snapshotMessage = struct({
   actors: array(actorStateSchema, 8),
   projectiles: array(projectileStateSchema, PROJECTILE_COUNT_BITS),
   streaks: nullable(streakStateSchema),
+  sentries: array(sentryStateSchema, SENTRY_COUNT_BITS),
+  // Eight bits of count, as `players` has.
+  revealed: array(bool, 8),
   counters: array(counterValue, COUNTER_COUNT_BITS),
   // Last, and usually empty: three bits on a quiet tick. This is the only place
   // on the wire where something that *happened* can arrive, so it is also the

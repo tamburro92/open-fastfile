@@ -146,7 +146,19 @@ describe("the connection that does the de-duping", () => {
   }
 
   const tail = (tick: number, events: GameEvent[] = []) =>
-    encodePacket(MessageType.snapshot, { tick, ack: 0, presence: null, players: [], actors: [], projectiles: [], streaks: null, counters: [], events });
+    encodePacket(MessageType.snapshot, {
+      tick,
+      ack: 0,
+      presence: null,
+      players: [],
+      actors: [],
+      projectiles: [],
+      streaks: null,
+      sentries: [],
+      revealed: [],
+      counters: [],
+      events,
+    });
 
   it("hears each event once across the snapshots that repeat it", () => {
     const { heard, receive } = client();

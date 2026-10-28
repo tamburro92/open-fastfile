@@ -61,6 +61,13 @@ export class Projectiles {
     private readonly collision: CapsuleWorld,
   ) {}
 
+  /** The next id on the wire's twelve bits: a killstreak's missile is drawn as one of these too. */
+  allocateId(): number {
+    const id = this.nextId;
+    this.nextId = (this.nextId + 1) & PROJECTILE_ID_MASK;
+    return id;
+  }
+
   get live(): readonly ActiveProjectile[] {
     return this.active;
   }
@@ -124,7 +131,7 @@ export class Projectiles {
     };
 
     const projectile: ActiveProjectile = {
-      id: this.nextId,
+      id: this.allocateId(),
       kind,
       thrower: member.id,
       position,
@@ -133,7 +140,6 @@ export class Projectiles {
       settled: false,
     };
 
-    this.nextId = (this.nextId + 1) & PROJECTILE_ID_MASK;
     this.active.push(projectile);
   }
 
