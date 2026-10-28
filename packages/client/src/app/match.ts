@@ -22,7 +22,7 @@ import type { PlayerState } from "@3d/shared/sim/player.js";
 import { worldHash } from "@3d/shared/worlds/hash.js";
 import { getLoadout, LOADOUT_COUNT } from "@3d/shared/sim/loadout.js";
 import { Connection, type Correction, type MatchTicket } from "../net/connection.js";
-import { dropBody } from "../net/corpses.js";
+import { dropBody, dropTheUnfallen } from "../net/corpses.js";
 import type { ClassChoice } from "./classChoice.js";
 import type { GameContent } from "./content.js";
 import type { CurrentWorld } from "./currentWorld.js";
@@ -365,6 +365,8 @@ export class MatchController {
     // Before the corpses step: a part leaves at the tick it left on the server.
     current.session?.applyPresence(presence, tick);
     remotes.apply(others, tick, performance.now());
+    // After `apply` has seen who is dead: anyone the server's corpse never reached falls here.
+    dropTheUnfallen(remotes, corpses, performance.now());
     // Every body's hit boxes fetched before its first death, not at it.
     corpses.prepare(remotes.drawnBodies());
     this.systems.actors.apply(actors, tick, performance.now());

@@ -105,6 +105,14 @@ export class RemotePlayers {
    * rig — exactly right, since the old one is on the floor.
    */
   private readonly handedOver = new Set<string>();
+  /**
+   * Dead in the snapshot and still drawn: when each was first seen so. The
+   * server's corpse normally arrives on the very tick they die and hands them
+   * over at once; one still here a moment later never got a body on the floor,
+   * and `unfallen` says so, because a dead player drawn in their last living
+   * pose is a body frozen standing or crouched until they respawn.
+   */
+  private readonly deadSince = new Map<string, number>();
   /** A capsule per stance, each the hull the collision resolves for it. */
   private readonly geometry: Record<StanceKind, THREE.CapsuleGeometry>;
   private readonly material: THREE.Material;
@@ -171,6 +179,11 @@ export class RemotePlayers {
           continue;
         }
       }
+      if (!state.dead) {
+        this.deadSince.delete(id);
+      } else if (!this.deadSince.has(id)) {
+        this.deadSince.set(id, now);
+      }
       const sample: Sample = { at: now, tick, state: state.movement };
       const existing = this.players.get(id);
       if (existing) {
@@ -198,6 +211,7 @@ export class RemotePlayers {
         if (!present.has(id)) {
           this.release(remote);
           this.players.delete(id);
+          this.deadSince.delete(id);
         }
       }
     }
@@ -293,13 +307,21 @@ export class RemotePlayers {
    * rig itself is the caller's from here, and so is releasing it (`releaseRig`).
    *
    * Their respawn comes back through `apply` and spawns them a fresh rig, which is
-   * exactly right — the old one is on the floor. Returns nothing for a peer drawn
-   * as a capsule, which has no bones to fall over.
+   * exactly right — the old one is on the floor. A peer drawn as a capsule is
+   * hidden the same way and returns nothing, having no bones to fall over.
    */
   handOver(id: string): CharacterRig | undefined {
     const remote = this.players.get(id);
-    const held = remote?.rig;
-    if (!remote || !held) {
+    if (!remote) {
+      return undefined;
+    }
+    this.deadSince.delete(id);
+    const held = remote.rig;
+    if (!held) {
+      // A capsule has no bones to fall over, and a dead one must not stand there either.
+      this.release(remote);
+      this.players.delete(id);
+      this.handedOver.add(id);
       return undefined;
     }
     const rig = held.rig;
@@ -311,16 +333,15 @@ export class RemotePlayers {
     return rig;
   }
 
-  /**
-   * Take a handed-over player back.
-   *
-   * For the one case the hand-over could not be completed — a world with no
-   * physics, or a body whose hit boxes have not arrived — where the body has left
-   * here and nothing else took it. Without this they would be invisible until they
-   * respawned, which is worse than the standing corpse this replaced.
-   */
-  takeBack(id: string): void {
-    this.handedOver.delete(id);
+  /** Who has been dead and drawn for at least `graceMs`: the server's corpse is not coming for them. */
+  unfallen(now: number, graceMs: number): string[] {
+    const late: string[] = [];
+    for (const [id, since] of this.deadSince) {
+      if (now - since >= graceMs) {
+        late.push(id);
+      }
+    }
+    return late;
   }
 
   /** Everyone leaves: a world change, or the connection going away. */
@@ -330,6 +351,7 @@ export class RemotePlayers {
     }
     this.players.clear();
     this.handedOver.clear();
+    this.deadSince.clear();
     this.drawnAt = undefined;
   }
 

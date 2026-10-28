@@ -39,6 +39,8 @@ import type { CharacterKit, CharacterRig } from "@3d/shared/rig/character.js";
 import { readHitboxes } from "@3d/shared/rig/hitboxes.js";
 import { releaseRig } from "@3d/shared/rig/release.js";
 import { hitboxUrl, type SidecarSource } from "../engine/hitboxView.js";
+import { poseFromRig } from "@3d/shared/rig/ragdollPose.js";
+import { RAGDOLL_SEGMENTS } from "@3d/shared/sim/ragdollBones.js";
 import type { RemotePlayers } from "./remotePlayers.js";
 
 /**
@@ -58,14 +60,34 @@ export type RagdollApi = typeof import("@3d/shared/physics/ragdoll.js");
 /**
  * One death's body, out of the living and onto the floor. Where `corpses` will not
  * take it (no physics, or its hit boxes have not arrived) nothing may hold it, so it
- * is released here and the player handed back: out of both is a player invisible
- * until they respawn, and the next snapshot draws them standing instead.
+ * is released and the player stays hidden until they respawn. Handing them back
+ * would draw a dead player in their last living pose — standing, or crouched, for
+ * the whole of their respawn — which is worse than no body at all.
  */
 export function dropBody(remotes: RemotePlayers, corpses: Corpses, event: SpawnEvent): void {
   const rig = remotes.handOver(event.ragdoll.victim);
   if (rig && !corpses.spawn(rig, event)) {
     releaseRig(rig.root);
-    remotes.takeBack(event.ragdoll.victim);
+  }
+}
+
+/**
+ * How long a dead player may be drawn waiting for the server's corpse. It rides
+ * the tick they die on, so this only ever runs out when it was lost, delayed past
+ * a full event tail, or refused here.
+ */
+export const CORPSE_GRACE_MS = 300;
+
+/**
+ * Everyone dead and still drawn past the grace: their body falls from the pose it
+ * was drawn in, or is hidden where it cannot. Called after each snapshot's `apply`.
+ */
+export function dropTheUnfallen(remotes: RemotePlayers, corpses: Corpses, now: number): void {
+  for (const id of remotes.unfallen(now, CORPSE_GRACE_MS)) {
+    const rig = remotes.handOver(id);
+    if (rig && !corpses.fallFrom(rig, id)) {
+      releaseRig(rig.root);
+    }
   }
 }
 
@@ -83,6 +105,8 @@ export class Corpses {
   private sidecars: SidecarSource | undefined;
   private kit: CharacterKit | undefined;
   private readonly corpses = new Map<number, Corpse>();
+  /** The last id `fallFrom` used, in its own range above the server's. */
+  private localEntity = LOCAL_ENTITY_LAST;
   /**
    * A body's ragdoll shape by its sidecar URL: `null` where the boxes could not be
    * read, absent while they are in flight.
@@ -173,6 +197,40 @@ export class Corpses {
     this.corpses.set(id, { id, rig, shape });
     this.root.add(rig.root);
     return true;
+  }
+
+  /**
+   * A body the server never sent a corpse for, dropped from the pose it was drawn
+   * in, with nothing pushing it.
+   *
+   * Cosmetic, as every corpse is, and this one alone is not the same on every
+   * client: each starts it from its own drawing. Its id is above the server's
+   * twelve bits, so it can never be mistaken for one the server names.
+   */
+  fallFrom(rig: CharacterRig, victim: string): boolean {
+    const physics = this.physics;
+    const pose = poseFromRig(rig);
+    if (!physics || !pose) {
+      return false;
+    }
+    const still = { x: 0, y: 0, z: 0 };
+    this.localEntity = this.localEntity >= LOCAL_ENTITY_LAST ? LOCAL_ENTITY_FIRST : this.localEntity + 1;
+    return this.spawn(rig, {
+      kind: "spawn",
+      id: 0,
+      entity: this.localEntity,
+      what: "ragdoll",
+      tick: physics.at & 0xffff,
+      ragdoll: {
+        victim,
+        origin: pose[0]!.position,
+        rotations: pose.map((at) => at.rotation),
+        velocity: still,
+        knock: still,
+        segment: RAGDOLL_SEGMENTS.indexOf("chest"),
+        impulse: still,
+      },
+    });
   }
 
   /**
@@ -294,6 +352,10 @@ export class Corpses {
     return undefined;
   }
 }
+
+/** Corpses this client drops itself: above the server's twelve bits, and never on the wire. */
+const LOCAL_ENTITY_FIRST = 0x1000;
+const LOCAL_ENTITY_LAST = 0x1fff;
 
 /**
  * Unwraps a 16-bit wire tick against the local 32-bit physics clock so a match

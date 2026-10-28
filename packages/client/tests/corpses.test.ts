@@ -14,7 +14,7 @@ import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { SpawnEvent } from "@3d/shared/net/messages/events.js";
 import { RAGDOLL_SEGMENTS } from "@3d/shared/sim/ragdollBones.js";
 import { RemotePlayers } from "../src/net/remotePlayers.js";
-import { Corpses, dropBody, type RagdollApi } from "../src/net/corpses.js";
+import { CORPSE_GRACE_MS, Corpses, dropBody, dropTheUnfallen, type RagdollApi } from "../src/net/corpses.js";
 import type { PhysicsWorld } from "@3d/shared/physics/world.js";
 import { HITBOX_FORMAT_VERSION } from "@3d/shared/rig/hitboxes.js";
 import type { CharacterRig } from "@3d/shared/rig/character.js";
@@ -225,20 +225,50 @@ describe("corpses with no physics", () => {
     remotes.dispose();
   });
 
-  it("puts a body back where nothing could take it", () => {
-    // No physics in this world, so `Corpses.spawn` says no — and the player must go
-    // on being drawn standing rather than vanishing until they respawn.
+  it("keeps a body nothing could take out of sight until they respawn, never standing in its last pose", () => {
+    // No physics in this world, so `Corpses.spawn` says no. Handed back, the dead
+    // player would be drawn frozen as they stood — or crouched — for the whole wait.
     const remotes = new RemotePlayers();
     remotes.setKit(kit());
     remotes.apply([at("a")], 1, 0);
-    const rig = remotes.handOver("a")!;
     const corpses = new Corpses();
-
-    expect(corpses.spawn(rig, spawnEvent("a"))).toBe(false);
-    remotes.takeBack("a");
+    dropBody(remotes, corpses, spawnEvent("a"));
     remotes.apply([at("a", true)], 2, 16);
-    expect(remotes.drawnBodies().map((one) => one.id)).toEqual(["a"]);
+    expect(remotes.drawnBodies()).toEqual([]);
 
+    remotes.apply([at("a")], 3, 32);
+    expect(remotes.drawnBodies().map((one) => one.id)).toEqual(["a"]);
+    corpses.dispose();
+    remotes.dispose();
+  });
+
+  it("takes a dead player whose corpse never came off the living once the grace is up", () => {
+    const remotes = new RemotePlayers();
+    remotes.setKit(kit());
+    const corpses = new Corpses(); // no physics: it cannot fall, so it is hidden
+    remotes.apply([at("a"), at("b")], 1, 0);
+    remotes.apply([at("a", true), at("b")], 2, 16);
+
+    dropTheUnfallen(remotes, corpses, 16 + CORPSE_GRACE_MS - 1);
+    expect(
+      remotes
+        .drawnBodies()
+        .map((one) => one.id)
+        .sort(),
+    ).toEqual(["a", "b"]);
+    dropTheUnfallen(remotes, corpses, 16 + CORPSE_GRACE_MS);
+    expect(remotes.drawnBodies().map((one) => one.id)).toEqual(["b"]);
+
+    // Still dead on the next snapshot: still not drawn. Alive again: a fresh body.
+    remotes.apply([at("a", true), at("b")], 3, 400);
+    expect(remotes.drawnBodies().map((one) => one.id)).toEqual(["b"]);
+    remotes.apply([at("a"), at("b")], 4, 416);
+    expect(
+      remotes
+        .drawnBodies()
+        .map((one) => one.id)
+        .sort(),
+    ).toEqual(["a", "b"]);
     corpses.dispose();
     remotes.dispose();
   });
@@ -314,7 +344,7 @@ describe("letting go of a body", () => {
     dropBody(remotes, corpses, spawnEvent("a"));
     expect(counts.get(skeleton)).toBe(1);
 
-    remotes.apply([at("a", true)], 2, 16);
+    remotes.apply([at("a")], 2, 16);
     expect(skeletonOf(remotes.drawnBodies()[0]!.rig)).not.toBe(skeleton);
     corpses.dispose();
     remotes.dispose();

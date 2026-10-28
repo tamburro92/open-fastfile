@@ -217,6 +217,14 @@ Three things have gone wrong here and each is worth knowing about:
 rebuilt**: the rig `RemotePlayers` is drawing is already the one `bodyIndex` chose
 from that player's id, which is the body the server traced the killing round against.
 
+**A dead player is never drawn in a living pose.** The server's corpse rides the
+tick they die on; one still drawn dead `CORPSE_GRACE_MS` later never got one — lost,
+delayed past a full event tail, or refused here for want of physics or hit boxes —
+and falls from the pose it was drawn in instead (`Corpses.fallFrom`, an id above the
+server's twelve bits), or is hidden until the respawn where even that cannot be
+built. Handing it back to the living, as this used to, drew a body frozen standing
+or crouched for the whole wait.
+
 There is **no death clip**, and there should not be one — `CHARACTER_ROLES` has none
 because the source games have none. CoD multiplayer deaths are ragdolls.
 
