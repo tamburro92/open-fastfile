@@ -91,6 +91,21 @@ export interface Ragdoll {
 const SMALLEST_HALF_EXTENT = 0.01;
 
 /**
+ * A corpse touches the map and nothing else: not its own other segments, and not
+ * another corpse — the IW engine's ragdolls behave the same way.
+ *
+ * Load-bearing, for the reason `setContactsEnabled(false)` is on every joint: the
+ * boxes come from hit boxes, which a vest, a pack or a ghillie's fringe fattens,
+ * so non-adjacent segments — the two thighs, a thigh and the abdomen — overlap in
+ * the pose a body dies in. Left to collide, they fight the joints and the corpse
+ * locks there, sitting up or propped on stiff legs. Membership in the high half,
+ * filter in the low: the map keeps Rapier's default of every group.
+ */
+const CORPSE_GROUP = 0x0002;
+const MAP_GROUP = 0x0001;
+const CORPSE_COLLISION_GROUPS = (CORPSE_GROUP << 16) | MAP_GROUP;
+
+/**
  * Measure a body once: sixteen boxes and fifteen joint anchors.
  *
  * Throws where a segment has no bone or no volume, rather than quietly building a
@@ -236,7 +251,8 @@ export function buildRagdoll(world: RAPIER.World, shape: RagdollShape, pose: rea
     world.createCollider(
       RAPIER.ColliderDesc.cuboid(part.halfExtents.x, part.halfExtents.y, part.halfExtents.z)
         .setTranslation(part.centre.x, part.centre.y, part.centre.z)
-        .setMass(part.mass),
+        .setMass(part.mass)
+        .setCollisionGroups(CORPSE_COLLISION_GROUPS),
       body,
     );
     bodies.push(body);

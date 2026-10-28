@@ -129,10 +129,20 @@ describe("a corpse on an exported map", () => {
       // most floors are thick; that tests Rapier's continuous collision rather than
       // anything about a body. `groundBelow` is the same query the player's own step
       // uses, so this lands on the floor a player would be standing on.
-      const surface = collision!.world.groundBelow({ x: 0, y: 60, z: 0 }, 120);
-      expect(surface, `${IMPORTED} has no floor under its origin`).not.toBeNull();
+      //
+      // At a spawn point, which is open floor by construction, rather than at the
+      // origin: an export is free to put a ledge there, and a body that rolls off one
+      // and lands on the floor below has done nothing wrong.
+      const spawn = loaded.world!.spawnPoints[0];
+      expect(spawn, `${IMPORTED} has no spawn point`).toBeDefined();
+      const where = spawn!.position;
+      const surface = collision!.world.groundBelow({ x: where.x, y: where.y + 1, z: where.z }, 4);
+      expect(surface, `${IMPORTED} has no floor under its first spawn`).not.toBeNull();
       const drop = surface! + 1.5;
-      const pose = chosen.shape.rest.map((at) => ({ position: { ...at.position, y: at.position.y + drop }, rotation: at.rotation }));
+      const pose = chosen.shape.rest.map((at) => ({
+        position: { x: at.position.x + where.x, y: at.position.y + drop, z: at.position.z + where.z },
+        rotation: at.rotation,
+      }));
       world.spawn(1, "ragdoll", 1, (raw) => buildRagdoll(raw, chosen.shape, pose));
       world.step(1);
 
@@ -151,7 +161,12 @@ describe("a corpse on an exported map", () => {
 
       const pelvis = ragdoll.bodies[0]!.translation();
       expect(pelvis.y, "it never fell").toBeLessThan(startY - 0.4);
-      expect(pelvis.y, "it fell through the map").toBeGreaterThan(surface! - 0.5);
+      // Against the floor where it ended up, in case it slid off an edge on the way.
+      const below = collision!.world.groundBelow({ x: pelvis.x, y: pelvis.y + 0.5, z: pelvis.z }, 2);
+      expect(below, "it fell through the map").not.toBeNull();
+      expect(pelvis.y, "it fell through the map").toBeGreaterThan(below! - 0.5);
+      // And it is lying down, not sitting up or propped on its legs.
+      expect(pelvis.y - below!, "it never went down").toBeLessThan(0.45);
 
       // Still a body: fifteen joints holding sixteen segments within arm's reach.
       for (const part of ragdoll.bodies) {
