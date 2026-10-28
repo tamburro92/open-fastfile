@@ -5,6 +5,8 @@ import { MATCH_VALUE_MAX, MAX_COUNTERS } from "../../game/matchValues.js";
 import type { PlayerState } from "../../sim/player.js";
 import type { ActorState } from "../../game/actors/actor.js";
 import { actorStateSchema } from "./actors.js";
+import type { ProjectileState } from "../../sim/projectile.js";
+import { PROJECTILE_COUNT_BITS, projectileStateSchema } from "./projectiles.js";
 import { gameEvents, type GameEvent } from "./events.js";
 import { playerId, type PlayerId } from "./fields.js";
 import { playerStateSchema } from "./player.js";
@@ -57,6 +59,8 @@ export interface SnapshotMessage {
    * disappearing a despawn — there is no other message for either.
    */
   actors: ActorState[];
+  /** Everything thrown and still in the air or on the floor, for everyone alike. */
+  projectiles: ProjectileState[];
   /**
    * The gametype's counters (`GametypeDecl.counters`), values only and in its
    * order: both ends hold the declaration that names them. Empty for a gametype
@@ -85,6 +89,7 @@ export const snapshotMessage = struct({
   players: array(struct({ id: playerId, state: playerStateSchema })),
   // Eight bits of count, so a snapshot with none grows by exactly one byte.
   actors: array(actorStateSchema, 8),
+  projectiles: array(projectileStateSchema, PROJECTILE_COUNT_BITS),
   counters: array(counterValue, COUNTER_COUNT_BITS),
   // Last, and usually empty: three bits on a quiet tick. This is the only place
   // on the wire where something that *happened* can arrive, so it is also the

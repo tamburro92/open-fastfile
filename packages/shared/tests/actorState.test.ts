@@ -98,7 +98,7 @@ describe("a snapshot's actors", () => {
   };
 
   it("costs one byte when there are none, and twelve for each", () => {
-    const base: SnapshotMessage = { tick: 9, ack: 3, presence: null, players: players(), actors: [], counters: [], events: [] };
+    const base: SnapshotMessage = { tick: 9, ack: 3, presence: null, players: players(), actors: [], projectiles: [], counters: [], events: [] };
     const size = (actors: ActorState[]) => encodePacket(MessageType.snapshot, { ...base, actors }).length;
     expect(size([actor(1)])).toBe(size([]) + 12);
     expect(size([actor(1), actor(2), actor(3)])).toBe(size([]) + 36);
@@ -112,10 +112,11 @@ describe("a snapshot's actors", () => {
         presence: null,
         players: players(),
         actors: [actor(1), actor(2, { action: "attack" })],
+        projectiles: [],
         counters: [],
         events: [{ kind: "hit" as const, id: 4, lethal: false }],
       },
-      { tick: 9, ack: 0, presence: null, players: [], actors: [actor(3)], counters: [], events: [] },
+      { tick: 9, ack: 0, presence: null, players: [], actors: [actor(3)], projectiles: [], counters: [], events: [] },
     ] satisfies SnapshotMessage[]) {
       const back = decodePacket(encodePacket(MessageType.snapshot, message)).message as SnapshotMessage;
       expect(back.players.map((p) => p.id)).toEqual(message.players.map((p) => p.id));
@@ -126,8 +127,9 @@ describe("a snapshot's actors", () => {
 
   it("carries the cap, which is what a match sends at most", () => {
     const full = Array.from({ length: MAX_SNAPSHOT_ACTORS }, (_, i) => actor(i + 1));
-    const back = decodePacket(encodePacket(MessageType.snapshot, { tick: 1, ack: 0, presence: null, players: [], actors: full, counters: [], events: [] }))
-      .message as SnapshotMessage;
+    const back = decodePacket(
+      encodePacket(MessageType.snapshot, { tick: 1, ack: 0, presence: null, players: [], actors: full, projectiles: [], counters: [], events: [] }),
+    ).message as SnapshotMessage;
     expect(back.actors).toHaveLength(MAX_SNAPSHOT_ACTORS);
   });
 });

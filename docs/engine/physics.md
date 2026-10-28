@@ -238,6 +238,15 @@ the corrections.
 **If it needs a change to `physics/world.ts` or `net/messages/entities.ts`, the seam
 was drawn in the wrong place.**
 
+What there is today is not that. A thrown frag, semtex or flashbang is a point
+the game server moves itself (`game-server/src/match/projectiles.ts`), with no
+Rapier body, and every snapshot carries each one's position
+(`sim/projectile.ts`, `net/messages/projectiles.ts`); the client interpolates
+them like actors and never simulates a throw. Only the end travels as an event —
+`detonate`, with where it was — so the blast is drawn and heard at the server's
+place. Moving them onto this layer later changes the server's flight and nothing
+the client reads.
+
 ## Tuning it
 
 Everything that decides how a death _feels_ is a named constant in

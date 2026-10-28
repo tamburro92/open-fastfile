@@ -3,6 +3,7 @@
 // or sounds it. With no match, nothing here runs and the world plays offline.
 
 import type { GameEvent } from "@3d/shared/net/messages/events.js";
+import { GRENADE_DANGER_RADIUS } from "@3d/shared/sim/projectile.js";
 import { isBotId } from "@3d/shared/net/messages/fields.js";
 import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { PlayerView } from "@3d/shared/game/context.js";
@@ -224,7 +225,7 @@ export class MatchController {
    */
   private join(ticket: MatchTicket): void {
     this.disconnect();
-    const { firstPerson, footsteps, weaponAudio, remotes, actors } = this.systems;
+    const { firstPerson, footsteps, weaponAudio, remotes, actors, projectiles } = this.systems;
     const { hud, classes, dev, toaster, ui, content, pause, current } = this.parts;
     const connection = new Connection(
       {
@@ -245,6 +246,7 @@ export class MatchController {
           // Snapshots arrive at that rate, so it is also how far back peers are drawn.
           remotes.setTickRate(tickRate);
           actors.setTickRate(tickRate);
+          projectiles.setTickRate(tickRate);
           // From here the HUD is the server's: its rules give the health bar a
           // denominator, and its id says which feed lines are this player's.
           hud.joined(joined, ticket.playerId, gametype(id));
@@ -348,13 +350,13 @@ export class MatchController {
     corpses.clear();
     footsteps.clear();
     weaponAudio.clear();
-    projectiles?.clear();
+    projectiles.clear();
     this.parts.hud.clear();
     this.roster = EMPTY_ROSTER;
   }
 
-  private snapshot({ tick, self, others, actors, pending, events, presence, counters }: Correction): void {
-    const { firstPerson, remotes, corpses, footsteps, weaponAudio, actorVoices } = this.systems;
+  private snapshot({ tick, self, others, actors, projectiles: thrown, pending, events, presence, counters }: Correction): void {
+    const { firstPerson, remotes, corpses, footsteps, weaponAudio, actorVoices, projectiles } = this.systems;
     const { hud, classes, current, content } = this.parts;
     // Before `apply`, which is what would otherwise go on posing a body that
     // has stopped being sent inputs — a corpse standing up, idling and
@@ -367,6 +369,14 @@ export class MatchController {
     corpses.prepare(remotes.drawnBodies());
     this.systems.actors.apply(actors, tick, performance.now());
     actorVoices.apply(actors, performance.now() / 1000);
+    // Before the detonations below: one that went off this tick has already left
+    // the list, and the blast is drawn where the server says it was.
+    projectiles.apply(thrown, performance.now());
+    for (const event of events) {
+      if (event.kind === "detonate") {
+        projectiles.detonate(event);
+      }
+    }
     // Off the snapshot and not off a frame: these are the server's own tick
     // states, so every client hears the same step at the same place.
     footsteps.remote(others, tick);
@@ -382,6 +392,11 @@ export class MatchController {
     // `tick - spawnTick` and every end has to arrive at the same number.
     corpses.step(tick);
     hud.snapshot(self, events, performance.now(), others);
+    hud.grenadeThreat(
+      self && !self.dead ? projectiles.nearestThreat(self.movement.feet, GRENADE_DANGER_RADIUS) : null,
+      self?.movement.yaw ?? 0,
+      performance.now(),
+    );
     hud.counters(counters);
     // The menu's marks: a waiting class is the one in hand once they are up.
     // The weapons themselves arrive in `self` (`PlayerState.armed`).
@@ -414,27 +429,12 @@ export class MatchController {
         if (fell) {
           weaponAudio.death(fell.movement.feet);
         }
-      } else if (event.kind === "announce") {
-        if (event.what === "melee_hit") {
-          if (audio.knows("melee_knife_stab")) {
-            audio.playAtListener("melee_knife_stab", { channel: "sfx" });
-          }
-        } else if (event.what === "melee_swing") {
-          if (audio.knows("melee_swing_small")) {
-            audio.playAtListener("melee_swing_small", { channel: "sfx" });
-          }
-        } else if (event.what === "explosion") {
-          if (audio.knows("grenade_explode_default")) {
-            audio.playAtListener("grenade_explode_default", { channel: "sfx" });
-          }
-        } else if (event.what === "flashbang_explode") {
-          if (audio.knows("flashbang_explode_default")) {
-            audio.playAtListener("flashbang_explode_default", { channel: "sfx" });
-          }
-        } else if (event.what === "grenade_bounce") {
-          if (audio.knows("grenade_bounce_flesh")) {
-            audio.playAtListener("grenade_bounce_flesh", { channel: "sfx" });
-          }
+      } else if (event.kind === "announce" && (event.what === "melee_hit" || event.what === "melee_swing")) {
+        // At the attacker: a knife across the map is not a knife in your ear.
+        const by = event.player === this.ticket?.playerId ? self : others.find((p) => p.id === event.player)?.state;
+        const alias = event.what === "melee_hit" ? "melee_knife_stab" : "melee_swing_small";
+        if (by) {
+          audio.playAt(alias, by.movement.feet, { channel: "sfx", game: "iw5" });
         }
       }
     }

@@ -46,6 +46,12 @@
 // it can afford: announcements are rare where deaths are not, and it is the
 // smallest event here.
 //
+// A **detonation** is a grenade's or a missile's end, and the one event with a
+// place: the flight before it is state, in the snapshot, and this is what that
+// state cannot say — where the blast was, so every client draws and hears it
+// there. Repeated briefly, like an announcement, since a late explosion is
+// still the right explosion.
+//
 // The mechanism is one field; the reliability is the retention, which is
 // `Match`'s to set per event. A tail too full to carry everything retained
 // carries it in turns (`EventOutbox.for`), so a cap delays an event by a few
@@ -55,10 +61,12 @@ import { array, bool, enumOf, int, nullable, str, struct, uint, type Codec } fro
 import { ragdollSpawn, type RagdollSpawn } from "./entities.js";
 import { ENTITY_KINDS, type EntityKindId } from "../../sim/entityKinds.js";
 import { DAMAGE_CAUSES, type DamageCause } from "../../game/damage.js";
-import { playerId, type PlayerId } from "./fields.js";
+import { playerId, vec3, type PlayerId } from "./fields.js";
+import { DETONATION_KINDS, type DetonationKind } from "../../sim/projectile.js";
+import type { Vec3 } from "../../sim/capsule.js";
 
 /** The order is the format: a kind travels as its index. */
-const GAME_EVENT_KINDS = ["hit", "death", "spawn", "announce"] as const;
+const GAME_EVENT_KINDS = ["hit", "death", "spawn", "announce", "detonate"] as const;
 
 /**
  * A round of yours cost somebody health. The server's own answer about its own
@@ -140,13 +148,22 @@ export interface AnnounceEvent {
   player: PlayerId | null;
 }
 
+/** Something went off at `at`. `by` is who threw or called it in, null for nobody. */
+export interface DetonateEvent {
+  kind: "detonate";
+  id: number;
+  what: DetonationKind;
+  at: Vec3;
+  by: PlayerId | null;
+}
+
 /**
  * One thing that happened. `id` counts up for the life of a match and is what a
  * client de-dupes on; `JoinedMessage.eventId` is where its count starts, so a
  * player joining an hour in does not have to wait for the counter to wrap past
  * whatever it had reached.
  */
-export type GameEvent = HitEvent | DeathEvent | SpawnEvent | AnnounceEvent;
+export type GameEvent = HitEvent | DeathEvent | SpawnEvent | AnnounceEvent | DetonateEvent;
 
 /**
  * How many events one snapshot carries, and the field that counts them.
@@ -190,6 +207,8 @@ const announceFields = struct({
   player: nullable(playerId),
 });
 
+const detonateFields = struct({ what: enumOf(DETONATION_KINDS) as Codec<DetonationKind>, at: vec3, by: nullable(playerId) });
+
 /**
  * How many spawns one snapshot's tail may carry.
  *
@@ -222,6 +241,9 @@ const gameEvent: Codec<GameEvent> = {
       case "announce":
         announceFields.write(w, event);
         return;
+      case "detonate":
+        detonateFields.write(w, event);
+        return;
     }
   },
   read(r) {
@@ -236,6 +258,8 @@ const gameEvent: Codec<GameEvent> = {
         return { kind, id, ...spawnFields.read(r) };
       case "announce":
         return { kind, id, ...announceFields.read(r) };
+      case "detonate":
+        return { kind, id, ...detonateFields.read(r) };
     }
   },
 };

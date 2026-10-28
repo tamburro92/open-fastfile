@@ -126,27 +126,12 @@ export class Hud {
         this.ui.hud.points.value = points;
       }
       if (this.previousHealth !== undefined && self.health < this.previousHealth && !self.dead) {
+        // Towards the blast that did it, if one went off on this tick; ahead otherwise.
         let damageAngle: number | null = null;
         for (const event of events) {
-          if (event.kind === "announce" && event.what.startsWith("proj_detonate:")) {
-            const parts = event.what.split(":");
-            const coords = parts[2]?.split(",").map(Number);
-            if (coords && coords.length >= 3 && coords[0] !== undefined && coords[2] !== undefined) {
-              const ex = coords[0];
-              const ez = coords[2];
-              const dx = ex - self.movement.feet.x;
-              const dz = ez - self.movement.feet.z;
-              const angleToBlast = Math.atan2(-dx, -dz);
-              let relAngle = angleToBlast - self.movement.yaw;
-              while (relAngle > Math.PI) {
-                relAngle -= 2 * Math.PI;
-              }
-              while (relAngle < -Math.PI) {
-                relAngle += 2 * Math.PI;
-              }
-              damageAngle = Math.round((relAngle * 180) / Math.PI);
-              break;
-            }
+          if (event.kind === "detonate" && event.what !== "flashbang") {
+            damageAngle = relativeAngle(event.at.x - self.movement.feet.x, event.at.z - self.movement.feet.z, self.movement.yaw);
+            break;
           }
         }
         this.ui.hud.damageIndicator.value = {
@@ -172,6 +157,8 @@ export class Hud {
           break;
         case "spawn":
           break; // the HUD has nothing to say about a body on the floor
+        case "detonate":
+          break; // drawn and heard by the projectiles view; a hit already said what it cost
         case "announce":
           if (event.what === "ffaWinner") {
             this.ui.hud.matchWinner.value = event.player ? this.nameOf(event.player) : null;
@@ -190,11 +177,6 @@ export class Hud {
           } else if (event.what === "tdmDraw") {
             this.ui.hud.matchWinner.value = "draw";
             this.ui.hud.matchEndReason.value = "Time Limit Reached";
-          } else if (event.what === "grenade_danger") {
-            if (event.player === this.me || event.player === null) {
-              this.ui.hud.grenadeDanger.value = { angle: event.value ?? 0 };
-              this.grenadeDangerExpiresAt = now + 350;
-            }
           } else if (event.what === "flashbang") {
             if (event.player === this.me || event.player === null) {
               const durSeconds = (event.value ?? 30) / 10;
@@ -488,6 +470,19 @@ export class Hud {
   }
 
   /**
+   * The nearest live grenade, as an offset from this player's feet, or null for
+   * none in range. Read off the snapshot's projectiles rather than told: the
+   * client already knows where every grenade is.
+   */
+  grenadeThreat(offset: { x: number; z: number } | null, yaw: number, now: number): void {
+    if (!offset) {
+      return; // the last one fades on its own (`expire`)
+    }
+    this.ui.hud.grenadeDanger.value = { angle: relativeAngle(offset.x, offset.z, yaw) };
+    this.grenadeDangerExpiresAt = now + 350;
+  }
+
+  /**
    * A player's name as the lobby gave it. The wire carries ids and nothing else —
    * they are what a snapshot is keyed by — and the lobby the player came from is
    * the only place a browser has ever been told a name.
@@ -508,20 +503,7 @@ export class Hud {
 }
 
 /** Call of Duty multiplayer bot names. */
-const BOT_NAMES = [
-  "Ghost",
-  "Soap",
-  "Price",
-  "Roach",
-  "Gaz",
-  "Yuri",
-  "Nikolai",
-  "Makarov",
-  "Shepherd",
-  "Frost",
-  "Sandman",
-  "Grinch",
-];
+const BOT_NAMES = ["Ghost", "Soap", "Price", "Roach", "Gaz", "Yuri", "Nikolai", "Makarov", "Shepherd", "Frost", "Sandman", "Grinch"];
 
 export function botDisplayName(id: string): string {
   const match = id.match(/^#b(\d+)$/);
@@ -565,4 +547,14 @@ function same(a: HudPlayerInfo | null, b: HudPlayerInfo): boolean {
     a.weapon?.ammo === b.weapon?.ammo &&
     a.weapon?.reloading === b.weapon?.reloading
   );
+}
+
+/**
+ * Where a horizontal offset lies relative to a view, in whole degrees clockwise
+ * from ahead — positive to the right — because that is how CSS's `rotate` and
+ * both indicators draw it. Yaw itself turns the other way, hence the sign.
+ */
+function relativeAngle(dx: number, dz: number, yaw: number): number {
+  const left = Math.atan2(-dx, -dz) - yaw;
+  return Math.round((-Math.atan2(Math.sin(left), Math.cos(left)) * 180) / Math.PI);
 }

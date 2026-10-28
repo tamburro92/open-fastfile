@@ -9,6 +9,7 @@ import {
   MAX_SPAWNS_PER_SNAPSHOT,
   MIN_ANNOUNCE_VALUE,
   type AnnounceEvent,
+  type DetonateEvent,
   type DeathEvent,
   type GameEvent,
   type HitEvent,
@@ -56,7 +57,7 @@ const MAX_ANNOUNCEMENTS_PER_TICK = 8;
 const NAME_BYTES = new TextEncoder();
 
 /** An event before the outbox has numbered it. */
-type UnissuedEvent = Omit<HitEvent, "id"> | Omit<DeathEvent, "id"> | Omit<SpawnEvent, "id"> | Omit<AnnounceEvent, "id">;
+type UnissuedEvent = Omit<HitEvent, "id"> | Omit<DeathEvent, "id"> | Omit<SpawnEvent, "id"> | Omit<AnnounceEvent, "id"> | Omit<DetonateEvent, "id">;
 
 /**
  * An event waiting to go out, with the last tick it may ride on and who is to

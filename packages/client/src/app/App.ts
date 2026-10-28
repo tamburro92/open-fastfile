@@ -200,7 +200,7 @@ export class App {
     u.use("viewmodel", (dt) => this.weapon.update(dt, this.pause.mode === "walk"));
     u.use("effects", (dt) => {
       fx.update(dt, viewer.camera);
-      projectiles.update(dt, viewer.camera);
+      projectiles.update(dt, performance.now(), viewer.camera);
     });
     u.use("presenters", () => presenters.update());
     u.use("listener", (dt) => audio.update(dt, viewer.camera));

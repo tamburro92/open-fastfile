@@ -32,6 +32,7 @@ import type { ClassTiming } from "@3d/shared/game/classes.js";
 import { engineName } from "./engineName.js";
 import type { PlayerSnapshot, SnapshotMessage, SnapshotPresence } from "@3d/shared/net/messages/snapshot.js";
 import type { ActorState } from "@3d/shared/game/actors/actor.js";
+import type { ProjectileState } from "@3d/shared/sim/projectile.js";
 
 /** Milliseconds between join attempts. geckos gives no delivery guarantee, so we ask until answered. */
 const JOIN_RETRY_MS = 250;
@@ -105,6 +106,8 @@ export interface Correction {
   others: PlayerSnapshot[];
   /** The actors this server tells us about, to be drawn. */
   actors: ActorState[];
+  /** Everything thrown that has not gone off yet, to be drawn. */
+  projectiles: ProjectileState[];
   /** The inputs sent after `ack`, oldest first: what prediction has to redo. */
   pending: readonly SentInput[];
   /** Which of the world's solids are present, or null for a world with none. */
@@ -415,6 +418,7 @@ export class Connection {
       self,
       others,
       actors: message.actors,
+      projectiles: message.projectiles,
       pending: this.sent,
       events: this.seen?.unseen(message.events) ?? [],
       presence: message.presence,

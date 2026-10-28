@@ -547,6 +547,7 @@ export class Match {
       presence: this.parts.snapshot,
       players,
       actors: this.actorTick.for(id),
+      projectiles: this.projectiles.states,
       counters: this.tally.countersNow(),
       events: this.outbox.for(id),
     };

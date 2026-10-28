@@ -105,23 +105,11 @@ describe("Equipment HUD & Vitals", () => {
     );
     expect(queryByTestId("hud-grenade-indicator")).toBeNull();
 
-    // Server announces grenade_danger to "me" with relative angle 45 deg
-    hud.snapshot(
-      state({ health: 100 }),
-      [
-        {
-          kind: "announce",
-          id: 1,
-          what: "grenade_danger",
-          player: "me",
-          team: null,
-          value: 45,
-        },
-      ],
-      1000,
-    );
-
-    expect(ui.hud.grenadeDanger.value).toEqual({ angle: 45 });
+    // A grenade two metres to the right of a player looking down -z: clockwise, as the indicator draws it.
+    hud.grenadeThreat({ x: 2, z: 0 }, 0, 1000);
+    expect(ui.hud.grenadeDanger.value).toEqual({ angle: 90 });
+    hud.grenadeThreat({ x: -1, z: -1 }, 0, 1000);
+    expect(ui.hud.grenadeDanger.value).toEqual({ angle: -45 });
 
     rerender(
       <UiContext.Provider value={{ state: ui, commands: stubCommands }}>

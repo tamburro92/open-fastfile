@@ -344,6 +344,8 @@ describe("MW3 Lethal & Tactical Equipment", () => {
     const frag = sim.match.projectiles.live[0]!;
     expect(frag.kind).toBe("frag");
     expect(frag.fuseRemaining).toBeCloseTo(3.5, 0.1);
+    // Every client is told where it is, on every snapshot.
+    expect(sim.match.snapshotFor("nearbyEnemy", []).projectiles).toEqual([{ id: frag.id, kind: "frag", position: frag.position }]);
 
     // Step for 3.4 seconds (not yet exploded)
     const ticks34s = Math.round(3.4 * TICK_RATE);
@@ -366,6 +368,10 @@ describe("MW3 Lethal & Tactical Equipment", () => {
     }
 
     expect(sim.match.projectiles.live.length).toBe(0);
+    expect(sim.match.snapshotFor("nearbyEnemy", []).projectiles).toEqual([]);
+    // Everyone hears where it went off, not just that it did.
+    const blast = sim.getEvents("nearbyEnemy").find((event) => event.kind === "detonate");
+    expect(blast).toMatchObject({ what: "frag", by: "thrower" });
     // Nearby enemy within blast radius took explosion damage
     const enemyAfter = sim.getLatest("nearbyEnemy");
     expect(enemyAfter?.state.health).toBeLessThan(100);

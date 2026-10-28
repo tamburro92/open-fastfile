@@ -489,7 +489,8 @@ export class WorldSession {
     animator.clear();
     fx.clear();
     audio.clear();
-    projectiles.clear();
+    // The models it cloned are the store's, and go with it.
+    projectiles.dispose();
     remotes.setKit(undefined);
     actors.setKits(new Map());
     // Before the scene goes. A Rapier world is wasm memory that no garbage

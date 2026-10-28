@@ -344,7 +344,7 @@ export class Killstreaks {
 
         const tFeet = target.player.movement.feet;
         const dx = tFeet.x - sentry.position.x;
-        const dy = (tFeet.y + eyeHeight(target.player.movement)) - (sentry.position.y + 0.8);
+        const dy = tFeet.y + eyeHeight(target.player.movement) - (sentry.position.y + 0.8);
         const dz = tFeet.z - sentry.position.z;
         const dist = Math.hypot(dx, dy, dz);
 
@@ -392,7 +392,7 @@ export class Killstreaks {
         const tFeet = bestTarget.player.movement.feet;
         const dir: Vec3 = {
           x: tFeet.x - sentryMuzzle.x,
-          y: (tFeet.y + 1.0) - sentryMuzzle.y,
+          y: tFeet.y + 1.0 - sentryMuzzle.y,
           z: tFeet.z - sentryMuzzle.z,
         };
         const len = Math.hypot(dir.x, dir.y, dir.z);
@@ -512,12 +512,7 @@ export class Killstreaks {
       }
 
       const fraction = 1.0 - dist / RADIUS;
-      let rawDamage = Math.round(MIN_DAMAGE + (MAX_DAMAGE - MIN_DAMAGE) * fraction);
-
-      // Blast Shield perk check: caps explosive damage to 65
-      if (member.perks.perk2 === "blast_shield" || member.perks.bonusPerks.has("blast_shield")) {
-        rawDamage = Math.min(rawDamage, 65);
-      }
+      const rawDamage = Math.round(MIN_DAMAGE + (MAX_DAMAGE - MIN_DAMAGE) * fraction);
 
       const wasHealth = member.player.health;
       const pushDir: Vec3 = dist > 0.1 ? { x: -dx / dist, y: 0.3, z: -dz / dist } : { x: 0, y: 1, z: 0 };
@@ -535,17 +530,7 @@ export class Killstreaks {
       }
     }
 
-    this.outbox.push(
-      {
-        kind: "announce",
-        what: "explosion",
-        player: missile.ownerId,
-        team: null,
-        value: 0,
-      },
-      null,
-      1.0,
-    );
+    this.outbox.push({ kind: "detonate", what: "missile", at: { ...center }, by: missile.ownerId }, null, 1.0);
   }
 
   /**

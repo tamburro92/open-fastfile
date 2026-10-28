@@ -14,6 +14,7 @@ import * as THREE from "three";
 import type { Vec3 } from "@3d/shared/sim/capsule.js";
 import type { AudioSystem } from "../audio/system.js";
 import type { FirstPersonControls } from "../controls/firstPerson.js";
+import type { DetonationKind } from "@3d/shared/sim/projectile.js";
 
 interface Spark {
   position: THREE.Vector3;
@@ -33,7 +34,7 @@ interface SmokePuff {
 }
 
 interface ActiveExplosion {
-  kind: "frag" | "semtex" | "flashbang";
+  kind: DetonationKind;
   origin: THREE.Vector3;
   age: number;
   light?: THREE.PointLight;
@@ -65,17 +66,12 @@ export class ExplosionFx {
   /**
    * Spawn an authentic explosion effect at the given 3D position.
    */
-  spawn(
-    position: Vec3,
-    kind: "frag" | "semtex" | "flashbang" = "frag",
-    audio?: AudioSystem,
-    controls?: FirstPersonControls,
-  ): void {
+  spawn(position: Vec3, kind: DetonationKind = "frag", audio?: AudioSystem, controls?: FirstPersonControls): void {
     const pos = new THREE.Vector3(position.x, position.y, position.z);
 
     // 1. Audio: 3D spatialized explosion sound
     if (audio) {
-      const alias = kind === "flashbang" ? "flashbang_explode_default" : "grenade_explode_default";
+      const alias = kind === "flashbang" ? "flashbang_explode_default" : kind === "missile" ? "rocket_explode_default" : "grenade_explode_default";
       if (audio.knows(alias, "iw5") || audio.knows(alias)) {
         audio.playAt(alias, position, { channel: "sfx", game: "iw5" });
       }
@@ -164,21 +160,13 @@ export class ExplosionFx {
         depthWrite: false,
       });
       const puffMesh = new THREE.Mesh(this.smokeGeometry, mat);
-      puffMesh.position.set(
-        pos.x + Math.cos(angle) * 0.3,
-        pos.y + 0.2 + Math.random() * 0.3,
-        pos.z + Math.sin(angle) * 0.3,
-      );
+      puffMesh.position.set(pos.x + Math.cos(angle) * 0.3, pos.y + 0.2 + Math.random() * 0.3, pos.z + Math.sin(angle) * 0.3);
       puffMesh.scale.setScalar(0.4);
       this.root.add(puffMesh);
 
       smoke.push({
         mesh: puffMesh,
-        velocity: new THREE.Vector3(
-          Math.cos(angle) * speed * 0.4,
-          1.2 + Math.random() * 1.0,
-          Math.sin(angle) * speed * 0.4,
-        ),
+        velocity: new THREE.Vector3(Math.cos(angle) * speed * 0.4, 1.2 + Math.random() * 1.0, Math.sin(angle) * speed * 0.4),
         age: 0,
         lifetime: 1.4 + Math.random() * 0.8,
         initialScale: 0.4,
@@ -196,11 +184,7 @@ export class ExplosionFx {
 
       sparks.push({
         position: pos.clone().add(new THREE.Vector3(0, 0.2, 0)),
-        velocity: new THREE.Vector3(
-          Math.cos(theta) * Math.cos(phi) * speed,
-          Math.sin(phi) * speed + 3.0,
-          Math.sin(theta) * Math.cos(phi) * speed,
-        ),
+        velocity: new THREE.Vector3(Math.cos(theta) * Math.cos(phi) * speed, Math.sin(phi) * speed + 3.0, Math.sin(theta) * Math.cos(phi) * speed),
         age: 0,
         lifetime: 0.4 + Math.random() * 0.45,
         color: new THREE.Color(kind === "flashbang" ? 0xffffff : Math.random() > 0.3 ? 0xffaa22 : 0xff3300),
@@ -337,10 +321,7 @@ export class ExplosionFx {
             this.dummy.position.copy(spark.position);
             // Orient along velocity vector
             if (spark.velocity.lengthSq() > 0.1) {
-              this.dummy.quaternion.setFromUnitVectors(
-                new THREE.Vector3(0, 0, 1),
-                spark.velocity.clone().normalize(),
-              );
+              this.dummy.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), spark.velocity.clone().normalize());
             }
             const sparkFrac = 1.0 - spark.age / spark.lifetime;
             this.dummy.scale.set(sparkFrac, sparkFrac, sparkFrac * 2.0);
@@ -363,14 +344,7 @@ export class ExplosionFx {
       }
 
       // 7. Cleanup active explosion entry when all parts are done
-      if (
-        !exp.light &&
-        !exp.fireball &&
-        !exp.shockwave &&
-        !exp.sparksMesh &&
-        exp.smoke.length === 0 &&
-        (!exp.scorch || exp.age >= 6.0)
-      ) {
+      if (!exp.light && !exp.fireball && !exp.shockwave && !exp.sparksMesh && exp.smoke.length === 0 && (!exp.scorch || exp.age >= 6.0)) {
         if (exp.scorch) {
           this.root.remove(exp.scorch);
           (exp.scorch.material as THREE.Material).dispose();

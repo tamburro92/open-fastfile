@@ -13,6 +13,9 @@ import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection } from "@3d/shared/sim/recoil.js";
 import type { LethalEquipmentId } from "@3d/shared/sim/loadout.js";
+import { GRAVITY } from "@3d/shared/sim/movementState.js";
+import { PROJECTILE_ID_MASK, type ProjectileKind, type ProjectileState } from "@3d/shared/sim/projectile.js";
+import { MAX_SNAPSHOT_PROJECTILES } from "@3d/shared/net/messages/projectiles.js";
 import type { MatchClock } from "./clock.js";
 import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
@@ -20,17 +23,18 @@ import type { Member, Roster } from "./roster.js";
 
 export const GRENADE_THROW_SPEED = 20.0; // m/s
 export const GRENADE_UPWARD_LOFT = 2.0; // m/s
-export const GRENADE_GRAVITY = -15.0; // m/s^2 parabolic gravity
+/** The games' own gravity, as a player falls: a grenade that drops slower than its thrower reads as a bug. */
+export const GRENADE_GRAVITY = -GRAVITY;
 export const GRENADE_BLAST_RADIUS = 6.5; // meters (256 units in MW3)
 export const GRENADE_INNER_DAMAGE = 130;
 export const GRENADE_OUTER_DAMAGE = 55;
-export const GRENADE_DANGER_RADIUS = 8.0; // meters for HUD danger indicator
 
 export const FLASHBANG_RADIUS = 20.0; // meters (800 units in MW3)
 export const FLASHBANG_MAX_DURATION = 3.5; // seconds
 export const FLASHBANG_MIN_DURATION = 1.0; // seconds
 
-export type ProjectileKind = "frag" | "semtex" | "flashbang";
+/** How long a detonation rides the snapshot tail: a late explosion is still the right one. */
+const DETONATION_HOLD = 0.5;
 
 export interface ActiveProjectile {
   readonly id: number;
@@ -39,7 +43,6 @@ export interface ActiveProjectile {
   position: Vec3;
   velocity: Vec3;
   fuseRemaining: number;
-  lastBeepRemaining: number;
   stuckToPlayer?: PlayerId;
   stuckOffset?: Vec3;
   settled: boolean;
@@ -60,6 +63,11 @@ export class Projectiles {
 
   get live(): readonly ActiveProjectile[] {
     return this.active;
+  }
+
+  /** What every snapshot says is in the air: the oldest first, past the wire's cap. */
+  get states(): ProjectileState[] {
+    return this.active.slice(0, MAX_SNAPSHOT_PROJECTILES).map((p) => ({ id: p.id, kind: p.kind, position: { ...p.position } }));
   }
 
   /**
@@ -116,29 +124,17 @@ export class Projectiles {
     };
 
     const projectile: ActiveProjectile = {
-      id: this.nextId++,
+      id: this.nextId,
       kind,
       thrower: member.id,
       position,
       velocity,
       fuseRemaining: fuseTime,
-      lastBeepRemaining: fuseTime,
       settled: false,
     };
 
+    this.nextId = (this.nextId + 1) & PROJECTILE_ID_MASK;
     this.active.push(projectile);
-
-    this.outbox.push(
-      {
-        kind: "announce",
-        what: `${kind}_throw`,
-        player: member.id,
-        team: null,
-        value: 0,
-      },
-      null,
-      0.5,
-    );
   }
 
   /**
@@ -153,34 +149,11 @@ export class Projectiles {
       const p = this.active[i]!;
       p.fuseRemaining -= dt;
 
-      // Handle Semtex beeps
-      if (p.kind === "semtex") {
-        if (p.lastBeepRemaining - p.fuseRemaining >= 0.5) {
-          p.lastBeepRemaining = p.fuseRemaining;
-          this.outbox.push(
-            {
-              kind: "announce",
-              what: "semtex_beep",
-              player: p.thrower,
-              team: null,
-              value: Math.round(p.fuseRemaining * 10),
-            },
-            null,
-            0.4,
-          );
-        }
-      }
-
       // Check detonation
       if (p.fuseRemaining <= 0) {
         this.detonate(p);
         this.active.splice(i, 1);
         continue;
-      }
-
-      // Check grenade danger indication for nearby players
-      if (p.kind === "frag" || p.kind === "semtex") {
-        this.checkDangerToPlayers(p);
       }
 
       // Physics update:
@@ -223,11 +196,7 @@ export class Projectiles {
         }
         const tFeet = target.player.movement.feet;
         const targetCenter: Vec3 = { x: tFeet.x, y: tFeet.y + 0.9, z: tFeet.z };
-        const distToTarget = Math.hypot(
-          targetCenter.x - p.position.x,
-          targetCenter.y - p.position.y,
-          targetCenter.z - p.position.z,
-        );
+        const distToTarget = Math.hypot(targetCenter.x - p.position.x, targetCenter.y - p.position.y, targetCenter.z - p.position.z);
         if (distToTarget <= 0.75) {
           // Stick to player!
           p.stuckToPlayer = target.id;
@@ -271,19 +240,7 @@ export class Projectiles {
 
       const speed = Math.hypot(p.velocity.x, p.velocity.y, p.velocity.z);
 
-      if (speed > 2.0) {
-        this.outbox.push(
-          {
-            kind: "announce",
-            what: "grenade_bounce",
-            player: p.thrower,
-            team: null,
-            value: Math.round(speed),
-          },
-          null,
-          0.3,
-        );
-      } else if (speed < 0.4) {
+      if (speed < 0.4) {
         p.velocity = { x: 0, y: 0, z: 0 };
         p.settled = true;
       }
@@ -294,47 +251,8 @@ export class Projectiles {
     }
   }
 
-  private checkDangerToPlayers(p: ActiveProjectile): void {
-    for (const member of this.roster.values()) {
-      if (member.player.dead) {
-        continue;
-      }
-
-      const mFeet = member.player.movement.feet;
-      const dx = p.position.x - mFeet.x;
-      const dy = p.position.y - mFeet.y;
-      const dz = p.position.z - mFeet.z;
-      const dist = Math.hypot(dx, dy, dz);
-
-      if (dist <= GRENADE_DANGER_RADIUS) {
-        // Calculate relative angle to member's view yaw:
-        const angleToGrenade = Math.atan2(-dx, -dz);
-        let relAngle = angleToGrenade - member.player.movement.yaw;
-        while (relAngle > Math.PI) {
-          relAngle -= 2 * Math.PI;
-        }
-        while (relAngle < -Math.PI) {
-          relAngle += 2 * Math.PI;
-        }
-
-        const deg = Math.round((relAngle * 180) / Math.PI);
-
-        this.outbox.push(
-          {
-            kind: "announce",
-            what: "grenade_danger",
-            player: member.id,
-            team: null,
-            value: deg,
-          },
-          member.id,
-          0.25,
-        );
-      }
-    }
-  }
-
   private detonate(p: ActiveProjectile): void {
+    this.outbox.push({ kind: "detonate", what: p.kind, at: { ...p.position }, by: p.thrower }, null, DETONATION_HOLD);
     if (p.kind === "flashbang") {
       this.detonateFlashbang(p);
     } else {
@@ -393,9 +311,7 @@ export class Projectiles {
 
       // Linear damage falloff: 130 inner down to 55 outer
       const fraction = dist / GRENADE_BLAST_RADIUS;
-      const dmg = Math.round(
-        GRENADE_INNER_DAMAGE - (GRENADE_INNER_DAMAGE - GRENADE_OUTER_DAMAGE) * fraction,
-      );
+      const dmg = Math.round(GRENADE_INNER_DAMAGE - (GRENADE_INNER_DAMAGE - GRENADE_OUTER_DAMAGE) * fraction);
 
       const wasHealth = member.player.health;
       this.damage.hurt({
@@ -414,18 +330,6 @@ export class Projectiles {
         this.outbox.push({ kind: "hit", lethal: member.player.dead }, p.thrower, 0);
       }
     }
-
-    this.outbox.push(
-      {
-        kind: "announce",
-        what: "explosion",
-        player: p.thrower,
-        team: null,
-        value: 0,
-      },
-      null,
-      0.5,
-    );
   }
 
   private detonateFlashbang(p: ActiveProjectile): void {
@@ -466,10 +370,7 @@ export class Projectiles {
         const dot = aim.x * toFlash.x + aim.y * toFlash.y + aim.z * toFlash.z;
 
         const distanceFraction = 1.0 - dist / FLASHBANG_RADIUS;
-        const duration =
-          dot >= 0.2
-            ? FLASHBANG_MAX_DURATION * distanceFraction
-            : FLASHBANG_MIN_DURATION * distanceFraction;
+        const duration = dot >= 0.2 ? FLASHBANG_MAX_DURATION * distanceFraction : FLASHBANG_MIN_DURATION * distanceFraction;
 
         if (duration > 0.2) {
           member.equipment.flashedUntil = this.clock.now + duration;
@@ -493,17 +394,5 @@ export class Projectiles {
         }
       }
     }
-
-    this.outbox.push(
-      {
-        kind: "announce",
-        what: "flashbang_explode",
-        player: p.thrower,
-        team: null,
-        value: 0,
-      },
-      null,
-      0.5,
-    );
   }
 }

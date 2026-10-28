@@ -192,6 +192,7 @@ describe("packets", () => {
         },
       ],
       actors: [],
+      projectiles: [],
       // A zombies match's round and a second counter, below zero.
       counters: [12, -3],
       // Both kinds at once: the two write different fields after a shared kind
@@ -245,6 +246,7 @@ describe("packets", () => {
       presence: null,
       players: [{ id: "a", state: { ...state, attachments: fitted } }],
       actors: [],
+      projectiles: [],
       counters: [],
       events: [],
     };
@@ -276,7 +278,7 @@ describe("packets", () => {
     const state = player.snapshot();
     expect(state.weapon!.fired).toBeGreaterThan(2);
 
-    const message: SnapshotMessage = { tick: 1, ack: 0, presence: null, players: [{ id: "a", state }], actors: [], counters: [], events: [] };
+    const message: SnapshotMessage = { tick: 1, ack: 0, presence: null, players: [{ id: "a", state }], actors: [], projectiles: [], counters: [], events: [] };
     const wire = (decodePacket(encodePacket(MessageType.snapshot, message)).message as SnapshotMessage).players[0]!.state;
     expect(wire.weapon!.fired).toBe(state.weapon!.fired);
 
@@ -296,14 +298,14 @@ describe("packets", () => {
   });
 
   it("round-trips a snapshot with no players", () => {
-    const empty: SnapshotMessage = { tick: 0, ack: 0, presence: null, players: [], actors: [], counters: [], events: [] };
+    const empty: SnapshotMessage = { tick: 0, ack: 0, presence: null, players: [], actors: [], projectiles: [], counters: [], events: [] };
     expect(decodePacket(encodePacket(MessageType.snapshot, empty)).message).toEqual(empty);
   });
 
   it("round-trips a world's presence bits, and costs one bit for a world with none", () => {
     // Twelve solids, the first and the last three present: two bytes, the tick they last changed on, and a length.
     const presence = { since: 65535, bits: [0b0000_0001, 0b0000_1110] };
-    const doors: SnapshotMessage = { tick: 70000, ack: 3, presence, players: [], actors: [], counters: [], events: [] };
+    const doors: SnapshotMessage = { tick: 70000, ack: 3, presence, players: [], actors: [], projectiles: [], counters: [], events: [] };
     expect(decodePacket(encodePacket(MessageType.snapshot, doors)).message).toEqual(doors);
     const none = encodePacket(MessageType.snapshot, { ...doors, presence: null }).length;
     // 16 + 10 + 2 × 8 = 42 bits past the null's one: five or six bytes, by where they start.
@@ -339,6 +341,7 @@ describe("packets", () => {
       presence: null,
       players: [{ id: "abc12345", state: player.snapshot() }],
       actors: [],
+      projectiles: [],
       counters: [],
       events: [],
     };
@@ -512,10 +515,19 @@ describe("packets", () => {
    * — and therefore whether it needs one more byte — depends on how many players
    * the snapshot carried.
    */
-  it("costs nothing for a quiet tail, three bytes for a hit marker and twenty-one for a death", () => {
+  it("costs nothing for a quiet tail, two bytes for a hit marker and twenty-one for a death", () => {
     const { player } = setupPlayer();
     const state = player.snapshot();
-    const quiet: SnapshotMessage = { tick: 1, ack: 1, presence: null, players: [{ id: "abc12345", state }], actors: [], counters: [], events: [] };
+    const quiet: SnapshotMessage = {
+      tick: 1,
+      ack: 1,
+      presence: null,
+      players: [{ id: "abc12345", state }],
+      actors: [],
+      projectiles: [],
+      counters: [],
+      events: [],
+    };
     const size = (events: GameEvent[]): number => encodePacket(MessageType.snapshot, { ...quiet, events }).length;
 
     // The ids are eight characters because that is what the api mints
@@ -539,14 +551,16 @@ describe("packets", () => {
     };
 
     expect(size([])).toBe(encodePacket(MessageType.snapshot, quiet).length);
-    // Two or three, by where the tail starts. Here it is three.
-    expect(size([{ kind: "hit", id: 1, lethal: false }])).toBe(size([]) + 3);
+    // Two or three, by where the tail starts. Here it is two.
+    expect(size([{ kind: "hit", id: 1, lethal: false }])).toBe(size([]) + 2);
     // Twenty-one: the two ids, and three bits of cause.
     expect(size([death])).toBe(size([]) + 21);
-    expect(size([{ kind: "announce", id: 5, what: "go", team: null, value: null, player: null }])).toBe(size([]) + 6);
+    expect(size([{ kind: "announce", id: 5, what: "go", team: null, value: null, player: null }])).toBe(size([]) + 5);
     // Fourteen or fifteen, by where the tail starts: a name is bytes and
-    // everything around it is bits, 117 of them. Here it is fifteen.
+    // everything around it is bits, 118 of them. Here it is fifteen.
     expect(size([{ kind: "announce", id: 5, what: "flagTaken", team: 1, value: 3, player: null }])).toBe(size([]) + 15);
+    // A detonation: a kind, a place in three floats, and who threw it.
+    expect(size([{ kind: "detonate", id: 6, what: "frag", at: { x: 1, y: 2, z: 3 }, by: "abc12345" }])).toBe(size([]) + 24);
     // The expensive one, and the reason it is capped per tail.
     expect(size([spawn])).toBe(size([]) + 105);
     expect(size(Array.from({ length: MAX_SNAPSHOT_EVENTS }, (_, i) => ({ ...death, id: i + 1 })))).toBeLessThanOrEqual(size([]) + 146);
@@ -572,6 +586,7 @@ describe("packets", () => {
       presence: null,
       players: [{ id: "a", state: setupPlayer().player.snapshot() }],
       actors: [],
+      projectiles: [],
       counters: [],
       events: [],
     });
@@ -624,6 +639,7 @@ describe("the simulation over the wire", () => {
       presence: null,
       players: [{ id: "a", state: a.player.snapshot() }],
       actors: [],
+      projectiles: [],
       counters: [],
       events: [],
     });

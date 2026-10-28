@@ -31,6 +31,11 @@ export function catalogRefUrl(ref: CatalogRef): string {
   return castFilePath(ref);
 }
 
+/** A thrown piece of equipment's model: a `worldweapons` entry, whose one file is named after it. */
+export function worldWeaponUrl(game: string, id: string): string {
+  return catalogFilePath("worldweapons", game, id, `${id}.glb`);
+}
+
 /**
  * Which alias table a sound came out of, and therefore where its clips are: a
  * world's own `assets/sounds/`, or the catalogue's bank for one game.
