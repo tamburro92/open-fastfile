@@ -113,6 +113,9 @@ const inputSchema = struct({
   reload: bool,
   swap: bool,
   use: bool,
+  melee: bool,
+  lethal: bool,
+  tactical: bool,
 }) satisfies Codec<PlayerInput>;
 
 /**

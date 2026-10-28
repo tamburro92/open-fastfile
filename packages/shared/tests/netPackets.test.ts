@@ -91,6 +91,9 @@ describe("packets", () => {
       reload: true,
       swap: false,
       use: true,
+      melee: false,
+      lethal: false,
+      tactical: false,
     };
     const claim = { x: 1.5, y: 2.25, z: -3.75 };
     // A tick at the top of its range and a fraction that is not a round number:
@@ -456,9 +459,9 @@ describe("packets", () => {
     // repeats `REDUNDANT_INPUTS` (two) of them, 94 bits each — twelve of `dt`, 57
     // of command and 25 of the moment it was aimed at, with no seq and no claim —
     // which is 24 bytes more, the price of a lost datagram costing no input.
-    expect(encodePacket(MessageType.input, input).length).toBeLessThanOrEqual(27);
+    expect(encodePacket(MessageType.input, input).length).toBeLessThanOrEqual(28);
     const repeated = { ...input, earlier: Array.from({ length: REDUNDANT_INPUTS }, () => input) };
-    expect(encodePacket(MessageType.input, repeated).length).toBeLessThanOrEqual(51);
+    expect(encodePacket(MessageType.input, repeated).length).toBeLessThanOrEqual(53);
     expect(encodePacket(MessageType.snapshot, snapshot).length).toBeLessThanOrEqual(94);
 
     // Still most of an order of magnitude, which is what justifies the machinery.

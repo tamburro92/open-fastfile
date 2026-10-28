@@ -286,6 +286,16 @@ export interface UseFocusInfo {
   thing: { kind: "trigger" | "solid"; index: number; tags: readonly string[] };
 }
 
+export interface EquipmentState {
+  lethal: { name: string; id: string; count: number } | null;
+  tactical: { name: string; id: string; count: number } | null;
+}
+
+export interface GrenadeDangerInfo {
+  angle: number; // degrees relative to local player view (-180 to 180)
+  distance?: number;
+}
+
 /** One player's entry on the tactical scoreboard. */
 export interface ScoreboardEntry {
   rank: number;
@@ -412,6 +422,12 @@ export interface UiState {
     matchWinner: Signal<string | null>;
     /** Why the match ended ("scoreLimitReached", "timeLimitReached", etc.). */
     matchEndReason: Signal<string | null>;
+    /** Lethal and tactical equipment inventory counts. */
+    equipment: Signal<EquipmentState>;
+    /** Active incoming grenade warning relative to player aim. */
+    grenadeDanger: Signal<GrenadeDangerInfo | null>;
+    /** Visual white screen blinding opacity (0 to 1). */
+    flashed: Signal<number>;
   };
   debug: {
     /** Whether dev panels are available at all (development builds). */
@@ -550,6 +566,12 @@ export function createUiState(): UiState {
       scoreboard: signal<ScoreboardEntry[]>([]),
       matchWinner: signal<string | null>(null),
       matchEndReason: signal<string | null>(null),
+      equipment: signal<EquipmentState>({
+        lethal: { name: "Frag", id: "frag_grenade_mp", count: 1 },
+        tactical: { name: "Flash", id: "flash_grenade_mp", count: 2 },
+      }),
+      grenadeDanger: signal<GrenadeDangerInfo | null>(null),
+      flashed: signal<number>(0),
     },
     debug: {
       enabled: signal(false),

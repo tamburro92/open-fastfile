@@ -69,6 +69,8 @@ import { ScriptHost } from "./scripts.js";
 import { Shots, type FiredShot, type ShotResult } from "./shots.js";
 import { Spawns } from "./spawns.js";
 import { Interactions } from "./use.js";
+import { Melee } from "./melee.js";
+import { Projectiles } from "./projectiles.js";
 import { serverVerbs } from "./verbs.js";
 import { Zones } from "./zones.js";
 
@@ -88,6 +90,8 @@ export class Match {
   private readonly classes: Classes;
   private readonly spawns: Spawns;
   private readonly shots: Shots;
+  readonly melee: Melee;
+  readonly projectiles: Projectiles;
   private readonly bots: MatchBots;
   private readonly cast: MatchCast;
   private readonly actorTick: ActorTick;
@@ -154,7 +158,9 @@ export class Match {
       (id) => this.leave(id),
     ));
     const use = new Interactions(world, gametype, collision, parts.presence, scripts, view, playing.partBounds);
-    const drain = new InputDrain(clock, roster, use, shots);
+    const melee = (this.melee = new Melee(clock, roster, damage, outbox, collision));
+    const projectiles = (this.projectiles = new Projectiles(clock, roster, damage, outbox, collision));
+    const drain = new InputDrain(clock, roster, use, shots, melee, projectiles);
 
     // Before any other hook, so the first `combatRules` already has its state.
     const end = (reason: string): void => void (this.endedBy ??= reason);
@@ -192,7 +198,10 @@ export class Match {
     phases.use("health", () => damage.health());
     phases.use("occupancy", () => zones.step());
     phases.use("scripts", () => this.tickScripts());
-    phases.use("physics", () => dynamics.step());
+    phases.use("physics", () => {
+      dynamics.step();
+      projectiles.step(clock.dt);
+    });
     phases.use("parts", () =>
       parts.flush(clock.tick, {
         physics: dynamics.current,
@@ -235,6 +244,10 @@ export class Match {
   /** The api sized the lobby in people, so bots do not count against it. */
   get full(): boolean {
     return this.humans >= this.maxPlayers;
+  }
+
+  place(id: PlayerId, feet: Vec3, yaw = 0, pitch = 0): void {
+    this.roster.get(id)?.player.place(feet, yaw, pitch);
   }
 
   has(id: PlayerId): boolean {
@@ -405,6 +418,15 @@ export class Match {
       body: this.cast.bodyOf(id),
       kit: newClassState(this.clock.tick),
       bot,
+      equipment: {
+        lethal: loadout?.lethal ?? "frag_grenade_mp",
+        lethalCount: 1,
+        tactical: loadout?.tactical ?? "flash_grenade_mp",
+        tacticalCount: 2,
+        lastMeleeAt: -10,
+        flashedUntil: -10,
+        flashDuration: 0,
+      },
     };
     // In the roster and on a side, not yet placed, before a script is asked about
     // them: a hook sees them, anything it calls on them lands, and a side it

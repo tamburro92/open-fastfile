@@ -50,6 +50,10 @@ export class Hud {
   private readonly playerDeaths = new Map<PlayerId, number>();
   /** Current gametype declaration, if known. */
   private gametype?: GametypeDecl;
+  private grenadeDangerExpiresAt = 0;
+  private flashedUntil = 0;
+  private flashDuration = 0;
+  private wasDead = false;
 
   constructor(
     private readonly ui: UiState,
@@ -149,6 +153,16 @@ export class Hud {
           } else if (event.what === "tdmDraw") {
             this.ui.hud.matchWinner.value = "draw";
             this.ui.hud.matchEndReason.value = "Time Limit Reached";
+          } else if (event.what === "grenade_danger") {
+            if (event.player === this.me || event.player === null) {
+              this.ui.hud.grenadeDanger.value = { angle: event.value ?? 0 };
+              this.grenadeDangerExpiresAt = now + 350;
+            }
+          } else if (event.what === "flashbang") {
+            if (event.player === this.me || event.player === null) {
+              const durSeconds = (event.value ?? 30) / 10;
+              this.triggerFlash(durSeconds, now);
+            }
           }
           break;
       }
@@ -237,6 +251,58 @@ export class Hud {
     this.ui.hud.ads.value = 0;
     this.ui.hud.hit.value = null;
     this.ui.hud.feed.value = [];
+    this.resetEquipment();
+    this.ui.hud.grenadeDanger.value = null;
+    this.ui.hud.flashed.value = 0;
+    this.grenadeDangerExpiresAt = 0;
+    this.flashedUntil = 0;
+    this.flashDuration = 0;
+    this.wasDead = false;
+  }
+
+  triggerFlash(duration: number, now: number): void {
+    this.flashDuration = duration;
+    this.flashedUntil = now + duration * 1000;
+    this.ui.hud.flashed.value = 1.0;
+  }
+
+  useLethal(): void {
+    const eq = this.ui.hud.equipment.value;
+    if (eq.lethal && eq.lethal.count > 0) {
+      this.ui.hud.equipment.value = {
+        ...eq,
+        lethal: { ...eq.lethal, count: eq.lethal.count - 1 },
+      };
+    }
+  }
+
+  useTactical(): void {
+    const eq = this.ui.hud.equipment.value;
+    if (eq.tactical && eq.tactical.count > 0) {
+      this.ui.hud.equipment.value = {
+        ...eq,
+        tactical: { ...eq.tactical, count: eq.tactical.count - 1 },
+      };
+    }
+  }
+
+  resetEquipment(): void {
+    const selected = this.ui.selectedLoadout.value;
+    const loadout = this.ui.loadouts.value[selected];
+    const lethalId = loadout?.lethal ?? "frag_grenade_mp";
+    const tacticalId = loadout?.tactical ?? "flash_grenade_mp";
+    this.ui.hud.equipment.value = {
+      lethal: {
+        id: lethalId,
+        name: lethalId === "semtex_mp" ? "Semtex" : "Frag",
+        count: 1,
+      },
+      tactical: {
+        id: tacticalId,
+        name: "Flash",
+        count: 2,
+      },
+    };
   }
 
   /**
@@ -248,6 +314,10 @@ export class Hud {
     if (!this.walking) {
       return;
     }
+    if (this.wasDead && !state.dead) {
+      this.resetEquipment();
+    }
+    this.wasDead = state.dead;
     const next = this.describe(state);
     if (!same(this.ui.hud.player.value, next)) {
       this.ui.hud.player.value = next;
@@ -292,6 +362,20 @@ export class Hud {
     if (this.lines.length !== before) {
       this.ui.hud.feed.value = this.lines.map((held) => held.line);
     }
+    if (this.grenadeDangerExpiresAt > 0 && now >= this.grenadeDangerExpiresAt) {
+      this.ui.hud.grenadeDanger.value = null;
+      this.grenadeDangerExpiresAt = 0;
+    }
+    if (this.flashedUntil > 0) {
+      if (now >= this.flashedUntil) {
+        this.ui.hud.flashed.value = 0;
+        this.flashedUntil = 0;
+      } else {
+        const remaining = (this.flashedUntil - now) / 1000;
+        const alpha = Math.min(1.0, Math.max(0, remaining / (this.flashDuration || 1)));
+        this.ui.hud.flashed.value = alpha;
+      }
+    }
   }
 
   /**
@@ -307,7 +391,7 @@ export class Hud {
     if (player) {
       return player.username;
     }
-    if (id.startsWith("#b")) {
+    if (typeof id === "string" && id.startsWith("#b")) {
       return botDisplayName(id);
     }
     return id;
@@ -349,7 +433,7 @@ const BY_THE_WORLD: Record<DamageCause, string> = {
   fall: "fell to their death",
   explosion: "was blown up",
   script: "died",
-  melee: "was mauled",
+  melee: "was knifed",
 };
 const BY_THEMSELVES: Record<DamageCause, string> = {
   bullet: "shot themselves",
@@ -357,7 +441,7 @@ const BY_THEMSELVES: Record<DamageCause, string> = {
   fall: "fell to their death",
   explosion: "blew themselves up",
   script: "killed themselves",
-  melee: "beat themselves to death",
+  melee: "knifed themselves",
 };
 
 function same(a: HudPlayerInfo | null, b: HudPlayerInfo): boolean {

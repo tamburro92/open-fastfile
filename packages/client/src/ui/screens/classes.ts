@@ -15,5 +15,7 @@ export function classSummary(loadout: Loadout, weapons: readonly UiWeapon[]): st
     return "No game chosen yet.";
   }
   const name = (id: string | null) => (id === null ? "Nothing" : (weapons.find((w) => w.id === id)?.name ?? "Nothing"));
-  return `${game} — ${name(loadout.primary.weapon)} / ${name(loadout.secondary.weapon)}`;
+  const lethalName = loadout.lethal === "semtex_mp" ? "Semtex" : "Frag";
+  const tacticalName = "Flash";
+  return `${game} — ${name(loadout.primary.weapon)} / ${name(loadout.secondary.weapon)} · ${lethalName} & ${tacticalName}`;
 }

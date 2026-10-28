@@ -234,7 +234,7 @@ export class Damage {
    * rather than a person. In a free-for-all nobody has a side, so nobody is a
    * teammate.
    */
-  private mayHurt(id: PlayerId, by: PlayerId | null): boolean {
+  mayHurt(id: PlayerId, by: PlayerId | null): boolean {
     if (this.ruled.friendlyFire || by === null || by === id) {
       return true;
     }

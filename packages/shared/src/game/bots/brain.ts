@@ -41,6 +41,9 @@ export type Goal =
       readonly ads?: boolean;
       readonly crouch?: boolean;
       readonly reload?: boolean;
+      readonly melee?: boolean;
+      readonly lethal?: boolean;
+      readonly tactical?: boolean;
     }
   /**
    * Stand, facing this player, and hit them. The motor only stands and faces;
@@ -55,6 +58,9 @@ export type Goal =
       readonly ads?: boolean;
       readonly crouch?: boolean;
       readonly reload?: boolean;
+      readonly melee?: boolean;
+      readonly lethal?: boolean;
+      readonly tactical?: boolean;
     }
   | MoveTo;
 
@@ -85,6 +91,12 @@ export interface MoveTo {
   readonly crouch?: boolean;
   /** Whether to press reload this tick. */
   readonly reload?: boolean;
+  /** Whether to press melee (knife) this tick. */
+  readonly melee?: boolean;
+  /** Whether to throw lethal equipment this tick. */
+  readonly lethal?: boolean;
+  /** Whether to throw tactical equipment this tick. */
+  readonly tactical?: boolean;
 }
 
 export const IDLE: Goal = { kind: "idle" };

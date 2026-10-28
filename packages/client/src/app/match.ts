@@ -76,7 +76,15 @@ export class MatchController {
     // shot against what the shooter actually saw rather than against the present.
     // Peers first; with none, the actors, which are drawn at the same moment.
     const { firstPerson, remotes, actors } = systems;
-    firstPerson.onTick = (input, dt, feet) => this.connection?.send(input, dt, feet, remotes.renderTick() ?? actors.renderTick());
+    firstPerson.onTick = (input, dt, feet) => {
+      if (input.lethal) {
+        this.parts.hud.useLethal();
+      }
+      if (input.tactical) {
+        this.parts.hud.useTactical();
+      }
+      this.connection?.send(input, dt, feet, remotes.renderTick() ?? actors.renderTick());
+    };
   }
 
   /** Whether this player holds a ticket to a match, connected or not. */
@@ -364,7 +372,7 @@ export class MatchController {
    * are wherever the same snapshot already put them.
    */
   private soundEvents(events: readonly GameEvent[], self: PlayerState | undefined, others: readonly PlayerSnapshot[]): void {
-    const { weaponAudio } = this.systems;
+    const { weaponAudio, audio } = this.systems;
     for (const event of events) {
       if (event.kind === "hit") {
         weaponAudio.hitMarker();
@@ -372,6 +380,24 @@ export class MatchController {
         const fell = event.victim === this.ticket?.playerId ? self : others.find((p) => p.id === event.victim)?.state;
         if (fell) {
           weaponAudio.death(fell.movement.feet);
+        }
+      } else if (event.kind === "announce") {
+        if (event.what === "melee_hit") {
+          if (audio.knows("melee_knife_stab")) {
+            audio.playAtListener("melee_knife_stab", { channel: "sfx" });
+          }
+        } else if (event.what === "melee_swing") {
+          if (audio.knows("melee_swing_small")) {
+            audio.playAtListener("melee_swing_small", { channel: "sfx" });
+          }
+        } else if (event.what === "explosion") {
+          if (audio.knows("grenade_explode_default")) {
+            audio.playAtListener("grenade_explode_default", { channel: "sfx" });
+          }
+        } else if (event.what === "grenade_bounce") {
+          if (audio.knows("grenade_bounce_flesh")) {
+            audio.playAtListener("grenade_bounce_flesh", { channel: "sfx" });
+          }
         }
       }
     }

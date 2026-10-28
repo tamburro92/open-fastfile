@@ -174,6 +174,15 @@ export class Motor implements MotorView {
     if ("fire" in goal && goal.fire !== undefined) {
       out.fire = goal.fire;
     }
+    if ("melee" in goal && goal.melee !== undefined) {
+      out.melee = goal.melee;
+    }
+    if ("lethal" in goal && goal.lethal !== undefined) {
+      out.lethal = goal.lethal;
+    }
+    if ("tactical" in goal && goal.tactical !== undefined) {
+      out.tactical = goal.tactical;
+    }
     if ("aimAt" in goal && goal.aimAt !== undefined) {
       aimAtPoint(out, m, goal.aimAt);
     }

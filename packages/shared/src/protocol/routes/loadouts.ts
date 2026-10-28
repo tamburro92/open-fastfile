@@ -42,6 +42,8 @@ export const loadoutSchema: z.ZodMiniType<Loadout> = z.object({
   game: z.nullable(z.string().check(z.maxLength(16), z.regex(/^[a-z0-9]+$/, { error: "not a game" }))),
   primary: loadoutWeapon,
   secondary: loadoutWeapon,
+  lethal: z.optional(z.enum(["frag_grenade_mp", "semtex_mp"])),
+  tactical: z.optional(z.enum(["flash_grenade_mp"])),
 });
 
 /** Which class this player spawns with, and all five of them. */

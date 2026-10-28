@@ -69,6 +69,12 @@ export class Classes {
       if (timing === "now") {
         member.kit.loadout = loadout;
         member.kit.index = index;
+        if (loadout.lethal) {
+          member.equipment.lethal = loadout.lethal;
+        }
+        if (loadout.tactical) {
+          member.equipment.tactical = loadout.tactical;
+        }
       }
     }
     this.arm(member);
@@ -120,6 +126,12 @@ export class Classes {
       kit.loadout = loadout;
       kit.index = index;
       kit.pending = undefined;
+      if (loadout.lethal) {
+        member.equipment.lethal = loadout.lethal;
+      }
+      if (loadout.tactical) {
+        member.equipment.tactical = loadout.tactical;
+      }
       // A script's weapons outrank a class (`setLoadout`): the class is theirs
       // again the moment the script lets go, and not before.
       if (kit.forced === undefined) {
@@ -138,6 +150,14 @@ export class Classes {
       kit.loadout = kit.pending.loadout;
       kit.index = kit.pending.index;
       kit.pending = undefined;
+    }
+    if (kit.loadout) {
+      if (kit.loadout.lethal) {
+        member.equipment.lethal = kit.loadout.lethal;
+      }
+      if (kit.loadout.tactical) {
+        member.equipment.tactical = kit.loadout.tactical;
+      }
     }
     this.arm(member);
     kit.spawnedAt = this.clock.tick;

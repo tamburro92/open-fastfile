@@ -71,6 +71,9 @@ export const bool: Codec<boolean> = {
   read(r) {
     return r.bool();
   },
+  round(value) {
+    return Boolean(value);
+  },
 };
 
 /**

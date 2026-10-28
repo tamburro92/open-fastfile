@@ -37,6 +37,12 @@ export interface PlayerInput {
    * simulation reads it; bots and actors never set it.
    */
   use: boolean;
+  /** Pressed this step: quick melee knife swipe (Call of Duty MW3 135 damage). */
+  melee: boolean;
+  /** Pressed this step: throw lethal equipment (Frag / Semtex). */
+  lethal: boolean;
+  /** Pressed this step: throw tactical equipment (Flashbang). */
+  tactical: boolean;
 }
 
 /** Nothing held, looking at `yaw`/`pitch`. */
@@ -55,5 +61,8 @@ export function idleInput(yaw: number, pitch: number): PlayerInput {
     reload: false,
     swap: false,
     use: false,
+    melee: false,
+    lethal: false,
+    tactical: false,
   };
 }

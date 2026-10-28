@@ -10,6 +10,9 @@ import { Scoreboard } from "./Scoreboard.js";
 import { UsePrompt } from "./UsePrompt.js";
 import { Counters, Points } from "./Tally.js";
 import { Ammo, Health } from "./Vitals.js";
+import { EquipmentHud } from "./EquipmentHud.js";
+import { GrenadeIndicator } from "./GrenadeIndicator.js";
+import { FlashOverlay } from "./FlashOverlay.js";
 
 /**
  * The in-game HUD. Each widget (minimap, weapon, score, connection status)
@@ -23,6 +26,7 @@ import { Ammo, Health } from "./Vitals.js";
 export function HudLayer() {
   return (
     <div class={styles.layer}>
+      <FlashOverlay />
       <div class={styles.topLeft} data-region="top-left">
         <Minimap />
       </div>
@@ -37,10 +41,12 @@ export function HudLayer() {
       </div>
       <div class={styles.bottomCenter} data-region="bottom-center" />
       <div class={styles.bottomRight} data-region="bottom-right">
+        <EquipmentHud />
         <Points />
         <Ammo />
       </div>
       <Reticle />
+      <GrenadeIndicator />
       <UsePrompt />
       <Scoreboard />
       <MatchEnd />

@@ -623,4 +623,49 @@ describe("Motor Tactical Execution", () => {
     expect(out.forward).toBeCloseTo(-0.707, 0.05);
     expect(out.right).toBeCloseTo(-0.707, 0.05);
   });
+
+  it("triggers melee when visible target is within 2.0 meters", () => {
+    const self = {
+      id: "#b1",
+      index: 1,
+      team: "allies",
+      objective: { kind: "none" as const },
+      movement: createMovement(at([0, 0, 0]), 0, 0),
+      motor: new Motor(),
+    };
+    const mem = combatBrain.init(self, () => 0.5, { difficulty: "veteran" }) as CombatMemory;
+    const players: TestPlayer[] = [
+      { id: "#b1", team: "allies", feet: at([0, 0, 0]) },
+      { id: "closeEnemy", team: "axis", feet: at([0, 0, -1.5]) },
+    ];
+    const ctx = mockContext({ players, now: 1.0 });
+    const goal = combatBrain.think(ctx, self, mem);
+
+    expect(goal.kind).toBe("look");
+    if (goal.kind === "look") {
+      expect(goal.melee).toBe(true);
+    }
+  });
+
+  it("passes melee, lethal, and tactical flags through motor into PlayerInput", () => {
+    const motor = new Motor();
+    const nav = new NavPlanner(testGraph(), new NavMatchState(testGraph()));
+    const m = createMovement(at([0, 0, 0]), 0, 0);
+
+    const goal: Goal = {
+      kind: "look",
+      point: at([0, 0, -5]),
+      melee: true,
+      lethal: true,
+      tactical: true,
+    };
+
+    motor.setGoal(goal, nav);
+    const out = idleInput(0, 0);
+    motor.step(m, 1 / 60, nav, out);
+
+    expect(out.melee).toBe(true);
+    expect(out.lethal).toBe(true);
+    expect(out.tactical).toBe(true);
+  });
 });

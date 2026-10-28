@@ -33,6 +33,10 @@ export class Spawns {
   respawn(member: Member): void {
     this.place(member);
     this.classes.spawned(member);
+    member.equipment.lethalCount = 1;
+    member.equipment.tacticalCount = 2;
+    member.equipment.flashedUntil = -10;
+    member.equipment.flashDuration = 0;
     member.player.respawn();
     member.player.revive(this.rules().maxHealth);
   }

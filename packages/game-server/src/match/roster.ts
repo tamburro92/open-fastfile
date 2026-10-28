@@ -12,9 +12,20 @@ import type { Player } from "@3d/shared/sim/player.js";
 import type { LoadedBody } from "../bodies.js";
 import type { PlayerHistory } from "../history.js";
 import { capsuleIn } from "../parts.js";
+import type { LethalEquipmentId, TacticalEquipmentId } from "@3d/shared/sim/loadout.js";
 import type { BotState } from "./bots.js";
 import type { ClassState } from "./classes.js";
 import type { InputQueue } from "./inputs.js";
+
+export interface MemberEquipment {
+  lethal?: LethalEquipmentId;
+  lethalCount: number;
+  tactical?: TacticalEquipmentId;
+  tacticalCount: number;
+  lastMeleeAt: number;
+  flashedUntil: number;
+  flashDuration: number;
+}
 
 export interface Member {
   readonly id: PlayerId;
@@ -54,6 +65,8 @@ export interface Member {
   readonly kit: ClassState;
   /** Set for a bot: what writes its input, since no client sends any. */
   readonly bot: BotState | undefined;
+  /** Equipment state (lethal, tactical, counts, melee/flash timers). */
+  readonly equipment: MemberEquipment;
 }
 
 export class Roster {

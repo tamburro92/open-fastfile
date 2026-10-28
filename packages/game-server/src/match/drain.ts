@@ -6,6 +6,8 @@ import type { MatchClock } from "./clock.js";
 import type { Member, Roster } from "./roster.js";
 import type { Shots } from "./shots.js";
 import type { Interactions } from "./use.js";
+import type { Melee } from "./melee.js";
+import type { Projectiles } from "./projectiles.js";
 
 export class InputDrain {
   constructor(
@@ -13,6 +15,8 @@ export class InputDrain {
     private readonly roster: Roster,
     private readonly use: Interactions,
     private readonly shots: Shots,
+    private readonly melee: Melee,
+    private readonly projectiles: Projectiles,
   ) {}
 
   run(): void {
@@ -36,6 +40,22 @@ export class InputDrain {
       // is where the prompt they read was worked out from.
       if (pressed) {
         this.use.press(member, message.input);
+      }
+
+      // Check equipment & melee actions:
+      if (message.input.melee) {
+        this.melee.attack(member, message);
+      }
+      if (message.input.lethal) {
+        this.projectiles.throwLethal(member, message);
+      }
+      if (message.input.tactical) {
+        this.projectiles.throwTactical(member, message);
+      }
+
+      // Flashbang stun effect reduces sprinting capability
+      if (member.equipment.flashedUntil > this.clock.now) {
+        message.input.run = false;
       }
 
       // The client's own dt, not our wall clock: re-simulating the step they

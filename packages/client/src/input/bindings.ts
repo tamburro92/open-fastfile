@@ -14,6 +14,9 @@ export type Action =
   | "reload"
   | "swap"
   | "use"
+  | "melee"
+  | "lethal"
+  | "tactical"
   | "toggleView"
   | "menu"
   | "quality"
@@ -68,6 +71,9 @@ export const DEFAULT_BINDINGS: Bindings = {
   swap: { keys: ["Digit1", "Digit2"], scope: "walk", label: "Swap weapon" },
   // Held, like fire: the server acts on the press, and the prompt names this key.
   use: { keys: ["KeyF"], scope: "walk", label: "Use" },
+  melee: { keys: ["KeyE", "KeyV"], scope: "walk", label: "Melee Attack" },
+  lethal: { keys: ["KeyG"], scope: "walk", label: "Throw Lethal Equipment" },
+  tactical: { keys: ["Digit4"], scope: "walk", label: "Throw Tactical Equipment" },
   toggleView: { keys: ["Tab"], scope: "world", label: "Dollhouse view" },
   menu: { keys: ["Escape"], scope: "always", label: "Pause" },
   quality: { keys: ["KeyQ"], scope: "always", label: "Cycle quality" },
@@ -77,12 +83,12 @@ export const DEFAULT_BINDINGS: Bindings = {
   hitboxes: { keys: ["KeyB"], scope: "world", label: "Hit boxes on other players", dev: true },
   surfaces: { keys: ["KeyN"], scope: "world", label: "Collision by surface type", dev: true },
   navigation: { keys: ["KeyK"], scope: "world", label: "Navigation graph (baked here)", dev: true },
-  // SHOTTRACE: `G` was free. Removing this entry removes the binding.
-  shotTraces: { keys: ["KeyG"], scope: "world", label: "Shot traces (client vs server)", dev: true },
+  // SHOTTRACE
+  shotTraces: { keys: ["BracketRight"], scope: "world", label: "Shot traces (client vs server)", dev: true },
   sun: { keys: ["KeyL"], scope: "world", label: "Sun marker", dev: true },
   hideModels: { keys: ["KeyH"], scope: "world", label: "Hide models", dev: true },
   pauseAnimation: { keys: ["KeyT"], scope: "world", label: "Pause animation", dev: true },
-  viewmodel: { keys: ["KeyV"], scope: "world", label: "Show or hide the viewmodel", dev: true },
+  viewmodel: { keys: ["KeyO"], scope: "world", label: "Show or hide the viewmodel", dev: true },
   capturePose: { keys: ["KeyP"], scope: "world", label: "Copy camera pose", dev: true },
 };
 

@@ -117,6 +117,11 @@ export function CreateClass() {
                   onFit={(ids) => edit((was) => ({ ...was, [which]: { ...was[which], attachments: ids } }))}
                 />
               ))}
+              <EquipmentRow
+                loadout={loadout}
+                disabled={loadout.game === null}
+                onSelectLethal={(lethal) => edit((was) => ({ ...was, lethal }))}
+              />
             </div>
             {picking && loadout.game !== null ? (
               <WeaponPicker
@@ -287,5 +292,36 @@ function Preview(props: { weapon: string | null; attachments: readonly string[] 
         Choose<span class={menuStyles.key}>Enter</span>
       </p>
     </div>
+  );
+}
+
+function EquipmentRow(props: {
+  loadout: Loadout;
+  disabled: boolean;
+  onSelectLethal: (lethal: "frag_grenade_mp" | "semtex_mp") => void;
+}) {
+  const lethal = props.loadout.lethal ?? "frag_grenade_mp";
+  return (
+    <>
+      <section class={styles.slot}>
+        <h4 class={styles.slotName}>Lethal Equipment</h4>
+        <button
+          type="button"
+          class={styles.pick}
+          disabled={props.disabled}
+          onClick={() => props.onSelectLethal(lethal === "frag_grenade_mp" ? "semtex_mp" : "frag_grenade_mp")}
+        >
+          {lethal === "semtex_mp" ? "Semtex" : "Frag Grenade"}
+          <span class={styles.kind}>Lethal</span>
+        </button>
+      </section>
+      <section class={styles.slot}>
+        <h4 class={styles.slotName}>Tactical Equipment</h4>
+        <button type="button" class={styles.pick} disabled>
+          Flashbang (x2)
+          <span class={styles.kind}>Tactical</span>
+        </button>
+      </section>
+    </>
   );
 }

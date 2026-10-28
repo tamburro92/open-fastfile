@@ -68,7 +68,14 @@ describe("a class", () => {
   it("gives a player five to start with, each named by its place and carrying nothing", () => {
     const classes = defaultLoadouts();
     expect(classes).toHaveLength(LOADOUT_COUNT);
-    expect(classes[0]).toEqual({ name: "Class 1", game: null, primary: { weapon: null, attachments: [] }, secondary: { weapon: null, attachments: [] } });
+    expect(classes[0]).toEqual({
+      name: "Class 1",
+      game: null,
+      primary: { weapon: null, attachments: [] },
+      secondary: { weapon: null, attachments: [] },
+      lethal: "frag_grenade_mp",
+      tactical: "flash_grenade_mp",
+    });
     expect(defaultLoadout(4).name).toBe("Class 5");
   });
 

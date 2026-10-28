@@ -44,6 +44,9 @@ export const LOADOUT_GAMES = [
   { id: "iw6", name: "Ghosts" },
 ] as const;
 
+export type LethalEquipmentId = "frag_grenade_mp" | "semtex_mp";
+export type TacticalEquipmentId = "flash_grenade_mp";
+
 /** One of a player's classes. */
 export interface Loadout {
   /** What the player called it. Theirs to choose, so it is not an id and nothing keys by it. */
@@ -52,6 +55,10 @@ export interface Loadout {
   game: string | null;
   primary: LoadoutWeapon;
   secondary: LoadoutWeapon;
+  /** Lethal equipment (Frag Grenade or Semtex in MW3). */
+  lethal?: LethalEquipmentId;
+  /** Tactical equipment (Flashbang in MW3). */
+  tactical?: TacticalEquipmentId;
 }
 
 /** How many classes a player has. */
@@ -76,7 +83,14 @@ export function emptyLoadoutWeapon(): LoadoutWeapon {
 
 /** The class a player has before they have made one: named by its place, carrying nothing. */
 export function defaultLoadout(index: number): Loadout {
-  return { name: `Class ${index + 1}`, game: null, primary: emptyLoadoutWeapon(), secondary: emptyLoadoutWeapon() };
+  return {
+    name: `Class ${index + 1}`,
+    game: null,
+    primary: emptyLoadoutWeapon(),
+    secondary: emptyLoadoutWeapon(),
+    lethal: "frag_grenade_mp",
+    tactical: "flash_grenade_mp",
+  };
 }
 
 /** A player's five, as they start out. */

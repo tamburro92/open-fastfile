@@ -93,6 +93,7 @@ export interface CombatMemory {
   pauseUntil: number;
   aimOffset: Vec3;
   crouchActive: boolean;
+  lastGrenadeAt: number;
   rng: () => number;
 }
 
@@ -115,6 +116,7 @@ export const combatBrain = defineBrain<CombatMemory>({
       pauseUntil: 0,
       aimOffset: { x: 0, y: 0, z: 0 },
       crouchActive: false,
+      lastGrenadeAt: -20,
       rng,
     };
   },
@@ -240,6 +242,21 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
       z: bestTarget.feet.z + memory.aimOffset.z,
     };
 
+    const melee = bestTarget.distance <= 2.0;
+    let lethal = false;
+    let tactical = false;
+    if (!melee && bestTarget.distance >= 10 && bestTarget.distance <= 22 && ctx.now - memory.lastGrenadeAt > 15) {
+      const throwProb = memory.difficulty === "veteran" ? 0.35 : memory.difficulty === "hardened" ? 0.25 : 0.15;
+      if (memory.rng() < throwProb) {
+        memory.lastGrenadeAt = ctx.now;
+        if (memory.rng() > 0.5) {
+          lethal = true;
+        } else {
+          tactical = true;
+        }
+      }
+    }
+
     // Movement while engaged:
     if (bestTarget.distance > 18) {
       // Advance to effective combat range:
@@ -255,6 +272,9 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
         ads,
         crouch: memory.crouchActive,
         reload,
+        melee,
+        lethal,
+        tactical,
       };
     }
 
@@ -267,6 +287,9 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
       ads,
       crouch: memory.crouchActive,
       reload,
+      melee,
+      lethal,
+      tactical,
     };
   }
 
