@@ -13,6 +13,7 @@ import type { GltfAsset } from "./assets.js";
 import { WEAPON_FORMAT_VERSION } from "@3d/shared/sim/weaponDef.js";
 import type { ClipRole, WeaponClipInfo, WeaponDef, WeaponTimes } from "@3d/shared/sim/weaponDef.js";
 import type { AttachmentEntry } from "@3d/shared/sim/weaponRegistry.js";
+import { getOpticAdsClip } from "./opticAdsData.js";
 export { WEAPON_FORMAT_VERSION };
 export type { ClipRole, WeaponClipInfo, WeaponDef, WeaponTimes };
 
@@ -97,7 +98,7 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
   // only check that this file is a weapon GLB at all, and the fallback for a
   // client whose catalogue never arrived.
   const own = readWeaponDef(weapon.scene.userData);
-  const def = options.def ?? own;
+  let def = options.def ?? own;
   const root = SkeletonUtils.clone(weapon.scene);
   const joints = new Map<string, THREE.Object3D>();
 
@@ -160,6 +161,21 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
     }
 
     clips.set(clip.name, clip);
+  }
+
+  // Override ADS clips for fitted optics with authentic MW3 optic animations
+  for (const attachment of options.attachments ?? []) {
+    const opticClip = getOpticAdsClip(def.weapon, attachment.entry.id);
+    if (opticClip) {
+      clips.set(opticClip.name, opticClip);
+      def = {
+        ...def,
+        roles: {
+          ...def.roles,
+          adsUp: opticClip.name,
+        },
+      };
+    }
   }
 
   for (const [role, name] of Object.entries(def.roles)) {
