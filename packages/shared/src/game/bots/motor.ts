@@ -184,7 +184,14 @@ export class Motor implements MotorView {
       out.tactical = goal.tactical;
     }
     if ("aimAt" in goal && goal.aimAt !== undefined) {
-      aimAtPoint(out, m, goal.aimAt);
+      aimAtPoint(
+        out,
+        m,
+        goal.aimAt,
+        dt,
+        "turnSpeed" in goal ? goal.turnSpeed : undefined,
+        "triggerDiscipline" in goal ? goal.triggerDiscipline : undefined,
+      );
     }
     if (out.ads || out.fire) {
       out.run = false;
@@ -465,7 +472,14 @@ function face(out: PlayerInput, m: Readonly<MovementState>, point: Readonly<Vec3
 }
 
 /** Turn to face and aim at a target point in 3D: sets yaw and pitch, preserving world movement direction as strafing. */
-function aimAtPoint(out: PlayerInput, m: Readonly<MovementState>, target: Readonly<Vec3>): void {
+function aimAtPoint(
+  out: PlayerInput,
+  m: Readonly<MovementState>,
+  target: Readonly<Vec3>,
+  dt?: number,
+  turnSpeed?: number,
+  triggerDiscipline?: number,
+): void {
   const up = eyeHeight(m);
   const eyeX = m.feet.x;
   const eyeY = m.feet.y + up;
@@ -474,23 +488,62 @@ function aimAtPoint(out: PlayerInput, m: Readonly<MovementState>, target: Readon
   const dy = target.y - eyeY;
   const dz = target.z - eyeZ;
   const horizontal = Math.hypot(dx, dz);
+  let targetYaw = out.yaw;
+  let targetPitch = out.pitch;
+
   if (horizontal > 0.01) {
-    const aimYaw = Math.atan2(-dx, -dz);
+    targetYaw = Math.atan2(-dx, -dz);
+  }
+  const dist = Math.hypot(dx, dy, dz);
+  if (dist > 0.01) {
+    targetPitch = clampPitch(Math.atan2(dy, horizontal));
+  }
+
+  let finalYaw = targetYaw;
+  let finalPitch = targetPitch;
+
+  if (turnSpeed !== undefined && turnSpeed > 0 && dt !== undefined && dt > 0) {
+    const maxStep = turnSpeed * dt;
+    let diffYaw = targetYaw - m.yaw;
+    while (diffYaw > Math.PI) {
+      diffYaw -= 2 * Math.PI;
+    }
+    while (diffYaw < -Math.PI) {
+      diffYaw += 2 * Math.PI;
+    }
+
+    if (Math.abs(diffYaw) > maxStep) {
+      finalYaw = m.yaw + Math.sign(diffYaw) * maxStep;
+    }
+
+    const diffPitch = targetPitch - m.pitch;
+    if (Math.abs(diffPitch) > maxStep) {
+      finalPitch = m.pitch + Math.sign(diffPitch) * maxStep;
+    }
+
+    // Authentic MW3 trigger discipline: don't fire if crosshairs are still swinging into view
+    const misalign = Math.hypot(diffYaw, diffPitch);
+    const threshold = triggerDiscipline !== undefined && triggerDiscipline > 0 ? triggerDiscipline : 0.14;
+    if (misalign > threshold) {
+      out.fire = false;
+    }
+  }
+
+  if (horizontal > 0.01) {
     // If the movement code already set forward/right movement, adjust it so
     // the bot moves along the planned world direction while aiming at aimYaw (strafing):
     if (out.forward !== 0 || out.right !== 0) {
       const moveYaw = out.yaw;
-      const angle = moveYaw - aimYaw;
+      const angle = moveYaw - finalYaw;
       const fwd = out.forward;
       const rgt = out.right;
       out.forward = Math.max(-1, Math.min(1, fwd * Math.cos(angle) + rgt * Math.sin(angle)));
       out.right = Math.max(-1, Math.min(1, -fwd * Math.sin(angle) + rgt * Math.cos(angle)));
     }
-    out.yaw = aimYaw;
+    out.yaw = finalYaw;
   }
-  const dist = Math.hypot(dx, dy, dz);
   if (dist > 0.01) {
-    out.pitch = clampPitch(Math.atan2(dy, horizontal));
+    out.pitch = finalPitch;
   }
 }
 

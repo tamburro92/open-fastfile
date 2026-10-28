@@ -102,7 +102,7 @@ export class WeaponViewmodel {
   update(dt: number, walking: boolean): void {
     this.followSwap();
     const vm = this.viewmodel;
-    vm.visible = this.shown && walking;
+    vm.visible = this.shown && walking && !this.player.dead;
     vm.paused = this.animator.paused; // a held pose holds the arms too
     vm.update(dt, { camera: this.viewer.camera, turn: this.firstPerson.turn, movement: this.player.movement });
     const zoom = walking ? vm.zoom : 1;

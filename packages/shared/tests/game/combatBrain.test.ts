@@ -668,4 +668,57 @@ describe("Motor Tactical Execution", () => {
     expect(out.lethal).toBe(true);
     expect(out.tactical).toBe(true);
   });
+
+  it("smoothly clamps turn speed when turnSpeed is specified on goal", () => {
+    const motor = new Motor();
+    const nav = new NavPlanner(testGraph(), new NavMatchState(testGraph()));
+    const m = createMovement(at([0, 0, 0]), 0, 0); // facing yaw = 0 (towards -Z)
+
+    // Goal asks to aim directly right (yaw = -PI/2, diff = 1.57 rad)
+    const turnSpeed = 3.0; // 3 rad/s
+    const dt = 1 / 30; // 0.0333s -> max step is 0.1 rad
+    const goal: Goal = {
+      kind: "look",
+      point: at([10, 1.4, 0]),
+      aimAt: at([10, 1.4, 0]),
+      turnSpeed,
+      fire: true,
+    };
+
+    motor.setGoal(goal, nav);
+    const out = idleInput(0, 0);
+    motor.step(m, dt, nav, out);
+
+    // After 1 tick at 3 rad/s, it should have rotated at most turnSpeed * dt rad (~0.1 rad), NOT snapped to -1.57 rad!
+    expect(Math.abs(out.yaw)).toBeCloseTo(turnSpeed * dt, 0.01);
+    expect(Math.abs(out.yaw)).toBeLessThan(0.5);
+
+    // Trigger discipline: while still swinging (> 0.35 rad misaligned), fire is withheld!
+    expect(out.fire).toBe(false);
+  });
+
+  it("enforces field of view so enemies sneaking from behind are not spotted", () => {
+    const self = {
+      id: "#b1",
+      index: 1,
+      team: "allies",
+      objective: { kind: "none" as const },
+      movement: createMovement(at([0, 0, 0]), 0, 0), // facing yaw = 0 (towards -Z)
+      motor: new Motor(),
+    };
+    const mem = combatBrain.init(self, () => 0.5, { difficulty: "regular" }) as CombatMemory;
+
+    // Enemy is 10m directly behind the bot (+Z direction)
+    const players: TestPlayer[] = [
+      { id: "#b1", team: "allies", feet: at([0, 0, 0]) },
+      { id: "sneakBehind", team: "axis", feet: at([0, 0, 10]) },
+    ];
+
+    const ctx = mockContext({ players, now: 1.0, hasLineOfSight: () => true });
+    const goal = combatBrain.think(ctx, self, mem);
+
+    // Sneaking enemy behind the bot is outside the 130-degree FOV and not heard (> 4.5m)
+    expect(mem.targetId).toBeNull();
+    expect(goal.kind).toBe("idle");
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
-import type { HitMarkerInfo } from "../../app/uiBridge.js";
+import type { HitMarkerInfo, HudPlayerInfo } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import styles from "./Reticle.module.css";
 
@@ -24,7 +24,7 @@ const CROSSHAIR_GONE_BY = 0.85;
 
 /**
  * The middle of the screen: where the player is aiming, whether the last round
- * counted, and — while they are down — that they are.
+ * counted, and — upon death — authentic Modern Warfare 3 death presentation.
  *
  * Nothing here is drawn while paused: the pause menu is over the world, and a
  * crosshair on top of a menu is aiming at nothing.
@@ -35,7 +35,7 @@ export function Reticle() {
   if (!player || state.paused.value) {
     return null;
   }
-  return player.dead ? <Downed respawnIn={player.respawnIn} /> : <Crosshair />;
+  return player.dead ? <Downed player={player} /> : <Crosshair />;
 }
 
 /**
@@ -111,15 +111,45 @@ function HitMarker() {
 }
 
 /**
- * Dead, and counting. The countdown is the server's `respawnIn`; this only prints
- * it. Null is a gametype that brings the dead back itself, when there is nothing
- * to count.
+ * Dead, and counting. Authentic Modern Warfare 3 multiplayer death overlay:
+ * blood vignette, KIA / killer banner, and respawn countdown.
  */
-function Downed({ respawnIn }: { respawnIn: number | null }) {
+function Downed({ player }: { player: HudPlayerInfo }) {
+  const respawnIn = player.respawnIn;
+  const killedBy = player.killedBy;
+
+  let countdownText: string;
+  if (respawnIn === null) {
+    countdownText = "waiting to be brought back";
+  } else if (respawnIn > 0) {
+    countdownText = `respawning in ${respawnIn.toFixed(1)}s`;
+  } else {
+    countdownText = "Press SPACE to Respawn";
+  }
+
   return (
-    <div class={styles.downed} role="status">
-      <span class={styles.downedTitle}>You are down</span>
-      <span class={styles.downedCount}>{respawnIn === null ? "waiting to be brought back" : `respawning in ${respawnIn.toFixed(1)}s`}</span>
+    <div class={styles.deathContainer} role="status">
+      <div class={styles.deathVignette} aria-hidden="true" />
+      <div class={styles.downed}>
+        <div class={styles.skullBadge} aria-hidden="true">
+          <span class={styles.skullLine} />
+          <div class={styles.skullIcon}>
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor">
+              <path d="M12 2C6.48 2 2 6.48 2 12c0 3.32 1.62 6.26 4.11 8.05.3.22.68.32 1.05.28l.84-.09v1.76c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1.76l.84.09c.37.04.75-.06 1.05-.28C20.38 18.26 22 15.32 22 12c0-5.52-4.48-10-10-10zm-3 12c-.83 0-1.5-.67-1.5-1.5S8.17 11 9 11s1.5.67 1.5 1.5S9.83 14 9 14zm6 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" />
+            </svg>
+          </div>
+          <span class={styles.skullLine} />
+        </div>
+        {killedBy ? (
+          <>
+            <span class={styles.killedByLabel}>KILLED BY</span>
+            <span class={styles.downedTitle}>{killedBy}</span>
+          </>
+        ) : (
+          <span class={styles.downedTitle}>KILLED IN ACTION</span>
+        )}
+        <span class={styles.downedCount}>{countdownText}</span>
+      </div>
     </div>
   );
 }

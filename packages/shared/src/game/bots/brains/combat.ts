@@ -30,32 +30,44 @@ export interface CombatConfig {
   crouchProbability: number;
   adsMinDistance: number;
   runInCombat: boolean;
+  aimTurnSpeed: number;
+  initialMissShots: number;
+  convergenceTime: number;
+  triggerDiscipline: number;
 }
 
 export const COMBAT_DIFFICULTIES: Record<BotDifficulty, CombatConfig> = {
   recruit: {
     reactionTime: 0.55,
-    aimErrorMin: 0.6,
-    aimErrorMax: 1.1,
-    burstMinDuration: 0.2,
-    burstMaxDuration: 0.35,
-    burstPauseMin: 0.45,
-    burstPauseMax: 0.65,
+    aimErrorMin: 0.65,
+    aimErrorMax: 1.25,
+    burstMinDuration: 0.18,
+    burstMaxDuration: 0.30,
+    burstPauseMin: 0.55,
+    burstPauseMax: 0.85,
     crouchProbability: 0.05,
     adsMinDistance: 12,
     runInCombat: false,
+    aimTurnSpeed: 2.5,
+    initialMissShots: 4,
+    convergenceTime: 1.8,
+    triggerDiscipline: 0.18,
   },
   regular: {
-    reactionTime: 0.30,
-    aimErrorMin: 0.25,
-    aimErrorMax: 0.45,
-    burstMinDuration: 0.3,
-    burstMaxDuration: 0.55,
-    burstPauseMin: 0.22,
-    burstPauseMax: 0.35,
-    crouchProbability: 0.25,
+    reactionTime: 0.35,
+    aimErrorMin: 0.35,
+    aimErrorMax: 0.58,
+    burstMinDuration: 0.25,
+    burstMaxDuration: 0.42,
+    burstPauseMin: 0.35,
+    burstPauseMax: 0.55,
+    crouchProbability: 0.20,
     adsMinDistance: 5,
     runInCombat: true,
+    aimTurnSpeed: 3.8,
+    initialMissShots: 2,
+    convergenceTime: 1.0,
+    triggerDiscipline: 0.14,
   },
   hardened: {
     reactionTime: 0.16,
@@ -68,6 +80,10 @@ export const COMBAT_DIFFICULTIES: Record<BotDifficulty, CombatConfig> = {
     crouchProbability: 0.50,
     adsMinDistance: 3,
     runInCombat: true,
+    aimTurnSpeed: 6.5,
+    initialMissShots: 1,
+    convergenceTime: 0.5,
+    triggerDiscipline: 0.10,
   },
   veteran: {
     reactionTime: 0.07,
@@ -80,6 +96,10 @@ export const COMBAT_DIFFICULTIES: Record<BotDifficulty, CombatConfig> = {
     crouchProbability: 0.70,
     adsMinDistance: 2,
     runInCombat: true,
+    aimTurnSpeed: 10.5,
+    initialMissShots: 0,
+    convergenceTime: 0.2,
+    triggerDiscipline: 0.06,
   },
 };
 
@@ -89,6 +109,8 @@ export interface CombatMemory {
   targetId: PlayerId | null;
   targetVisible: boolean;
   targetSpottedAt: number;
+  lastKnownPosition: Vec3 | null;
+  lastSeenAt: number;
   burstUntil: number;
   pauseUntil: number;
   aimOffset: Vec3;
@@ -112,6 +134,8 @@ export const combatBrain = defineBrain<CombatMemory>({
       targetId: null,
       targetVisible: false,
       targetSpottedAt: 0,
+      lastKnownPosition: null,
+      lastSeenAt: -20,
       burstUntil: 0,
       pauseUntil: 0,
       aimOffset: { x: 0, y: 0, z: 0 },
@@ -130,6 +154,9 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
 
   // 1. Gather all living opponents:
   const opponents: { id: PlayerId; feet: Vec3; distance: number; visible: boolean }[] = [];
+  const facingX = -Math.sin(self.movement.yaw);
+  const facingZ = -Math.cos(self.movement.yaw);
+
   for (const player of ctx.players) {
     if (player.id === self.id || isTeammate(self, player.team)) {
       continue;
@@ -145,7 +172,19 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
     const los = ctx.hasLineOfSight
       ? ctx.hasLineOfSight(selfEye, targetChest) || ctx.hasLineOfSight(selfEye, targetHead)
       : true;
-    opponents.push({ id: player.id, feet: state.feet, distance: dist, visible: los });
+
+    // Field of View (FOV) check: authentic Call of Duty bot vision cone (~130 degrees),
+    // unless target is heard (close proximity <= 3.5m).
+    let inVisionCone = true;
+    const dx = state.feet.x - selfFeet.x;
+    const dz = state.feet.z - selfFeet.z;
+    const hDist = Math.hypot(dx, dz);
+    if (hDist > 0.1 && dist > 3.5) {
+      const dot = (facingX * dx + facingZ * dz) / hDist;
+      inVisionCone = dot >= 0.42;
+    }
+
+    opponents.push({ id: player.id, feet: state.feet, distance: dist, visible: los && inVisionCone });
   }
 
   // 2. Select target: visible ones take priority over non-visible:
@@ -191,6 +230,8 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
       // Roll tactical crouch decision:
       memory.crouchActive = memory.rng() < memory.config.crouchProbability;
     }
+    memory.lastKnownPosition = { x: bestTarget.feet.x, y: bestTarget.feet.y, z: bestTarget.feet.z };
+    memory.lastSeenAt = ctx.now;
   } else {
     memory.targetId = null;
     memory.burstUntil = 0;
@@ -202,7 +243,7 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
   // 3. Combat engagement (Line of Sight established):
   if (isVisible) {
     const timeSpotted = ctx.now - memory.targetSpottedAt;
-    const canFireAfterReaction = timeSpotted >= memory.config.reactionTime;
+    const canFireAfterReaction = timeSpotted >= memory.config.reactionTime - 0.005;
 
     let fire = false;
     let reload = false;
@@ -236,16 +277,47 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
 
     const ads = bestTarget.distance >= memory.config.adsMinDistance;
     const bestTargetEyeHeight = ctx.state(bestTarget.id)?.eyeHeight ?? STAND_EYE_HEIGHT;
+
+    // Camera-plane orthogonal basis relative to line of sight:
+    const toTargetX = bestTarget.feet.x - selfEye.x;
+    const toTargetZ = bestTarget.feet.z - selfEye.z;
+    const hDist = Math.hypot(toTargetX, toTargetZ);
+    let rightX = 1;
+    let rightZ = 0;
+    if (hDist > 0.01) {
+      rightX = toTargetZ / hDist;
+      rightZ = -toTargetX / hDist;
+    }
+
+    // Authentic MW3 Aim Convergence and Initial Misses:
+    // Initial shots intentionally miss or have wider spread, then converge as the bot zeroes in.
+    let missFactor = 1.0;
+    if (timeSpotted < memory.config.convergenceTime) {
+      const convT = timeSpotted / memory.config.convergenceTime;
+      const initialMissScale = memory.config.initialMissShots > 0
+        ? (memory.difficulty === "recruit" ? 1.6 : memory.difficulty === "regular" ? 0.9 : 0.3)
+        : 0;
+      missFactor += (1 - convT) * initialMissScale;
+    }
+
+    // Dynamic recoil sway while firing
+    const swayAmp = memory.config.aimErrorMin * 0.25;
+    const swayLateral = Math.sin(timeSpotted * 8) * swayAmp;
+    const swayVertical = Math.abs(Math.cos(timeSpotted * 11)) * swayAmp * 0.5;
+
+    const latOffset = memory.aimOffset.x * missFactor + swayLateral;
+    const vertOffset = memory.aimOffset.y * missFactor + swayVertical;
+
     const targetChest: Vec3 = {
-      x: bestTarget.feet.x + memory.aimOffset.x,
-      y: bestTarget.feet.y + bestTargetEyeHeight * 0.75 + memory.aimOffset.y,
-      z: bestTarget.feet.z + memory.aimOffset.z,
+      x: bestTarget.feet.x + rightX * latOffset,
+      y: bestTarget.feet.y + bestTargetEyeHeight * 0.75 + vertOffset,
+      z: bestTarget.feet.z + rightZ * latOffset,
     };
 
     const melee = bestTarget.distance <= 2.0;
     let lethal = false;
     let tactical = false;
-    if (!melee && bestTarget.distance >= 10 && bestTarget.distance <= 22 && ctx.now - memory.lastGrenadeAt > 15) {
+    if (canFireAfterReaction && !melee && bestTarget.distance >= 10 && bestTarget.distance <= 22 && ctx.now - memory.lastGrenadeAt > 15) {
       const throwProb = memory.difficulty === "veteran" ? 0.35 : memory.difficulty === "hardened" ? 0.25 : 0.15;
       if (memory.rng() < throwProb) {
         memory.lastGrenadeAt = ctx.now;
@@ -268,9 +340,11 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
         route: route ?? undefined,
         run: memory.config.runInCombat,
         aimAt: targetChest,
+        turnSpeed: memory.config.aimTurnSpeed,
+        triggerDiscipline: memory.config.triggerDiscipline,
         fire,
         ads,
-        crouch: memory.crouchActive,
+        crouch: canFireAfterReaction && memory.crouchActive,
         reload,
         melee,
         lethal,
@@ -283,9 +357,11 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
       kind: "look",
       point: targetChest,
       aimAt: targetChest,
+      turnSpeed: memory.config.aimTurnSpeed,
+      triggerDiscipline: memory.config.triggerDiscipline,
       fire,
       ads,
-      crouch: memory.crouchActive,
+      crouch: canFireAfterReaction && memory.crouchActive,
       reload,
       melee,
       lethal,
@@ -293,18 +369,19 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
     };
   }
 
-  // 4. Target hidden (No Line of Sight): pursue and reload if needed:
+  // 4. Target hidden (No Line of Sight): pursue last known position (no wallhack!)
   let reload = false;
   if (selfState?.weapon && selfState.weapon.ammo < selfState.weapon.clipSize * 0.7 && selfState.weapon.state !== "reloading") {
     reload = true;
   }
 
-  const route = ctx.nav.route(selfFeet, bestTarget.feet);
+  const pursuePoint = memory.lastKnownPosition ?? bestTarget.feet;
+  const route = ctx.nav.route(selfFeet, pursuePoint);
   if (route) {
     return {
       kind: "moveTo",
-      point: bestTarget.feet,
-      track: bestTarget.id,
+      point: pursuePoint,
+      // Note: Omit track: bestTarget.id so bot does not follow enemy movements through walls!
       route,
       run: true,
       reload,

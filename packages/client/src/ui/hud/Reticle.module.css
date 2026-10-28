@@ -113,30 +113,87 @@
   }
 }
 
+.deathContainer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 100;
+}
+
+.deathVignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 30%, rgba(180, 0, 0, 0.35) 70%, rgba(80, 0, 0, 0.75) 100%);
+  animation: deathPulse 2s ease-in-out infinite alternate;
+}
+
+@keyframes deathPulse {
+  0% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
 .downed {
   position: absolute;
-  top: 50%;
+  top: 48%;
   left: 50%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   transform: translate(-50%, -50%);
   white-space: nowrap;
   text-shadow: var(--hud-shadow);
+  z-index: 101;
+}
+
+.skullBadge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 2px;
+}
+
+.skullLine {
+  width: 48px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 50, 50, 0.8), transparent);
+}
+
+.skullIcon {
+  color: #ff3333;
+  filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.8));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.killedByLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: rgba(255, 200, 200, 0.85);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
 .downedTitle {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--hud-health-low);
+  color: #ff3333;
+  text-shadow: 0 0 12px rgba(255, 0, 0, 0.6), 0 2px 4px rgba(0, 0, 0, 0.9);
 }
 
 .downedCount {
-  font-size: 13px;
-  /* A tenth of a second at a time, so the line does not jump about as it counts. */
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   font-variant-numeric: tabular-nums;
-  color: var(--hud-ink-dim);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
 }

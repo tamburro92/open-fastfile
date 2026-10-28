@@ -27,6 +27,7 @@ export type Goal =
       readonly kind: "idle";
       readonly look?: Vec3;
       readonly aimAt?: Vec3;
+      readonly turnSpeed?: number;
       readonly fire?: boolean;
       readonly ads?: boolean;
       readonly crouch?: boolean;
@@ -37,6 +38,8 @@ export type Goal =
       readonly kind: "look";
       readonly point: Vec3;
       readonly aimAt?: Vec3;
+      readonly turnSpeed?: number;
+      readonly triggerDiscipline?: number;
       readonly fire?: boolean;
       readonly ads?: boolean;
       readonly crouch?: boolean;
@@ -54,6 +57,8 @@ export type Goal =
       readonly kind: "attack";
       readonly target: PlayerId;
       readonly aimAt?: Vec3;
+      readonly turnSpeed?: number;
+      readonly triggerDiscipline?: number;
       readonly fire?: boolean;
       readonly ads?: boolean;
       readonly crouch?: boolean;
@@ -83,6 +88,10 @@ export interface MoveTo {
   readonly route?: Route;
   /** Aim point in world coordinates: motor turns the bot's yaw and pitch toward this point. */
   readonly aimAt?: Vec3;
+  /** Max angular aim rotation speed in rad/s. Smooths bot turning instead of instant snap. */
+  readonly turnSpeed?: number;
+  /** Angular threshold (radians) within which the crosshairs must be aligned before firing. */
+  readonly triggerDiscipline?: number;
   /** Whether to hold fire this tick. */
   readonly fire?: boolean;
   /** Whether to hold Aim Down Sights (ADS) this tick. */

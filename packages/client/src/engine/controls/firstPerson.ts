@@ -164,6 +164,8 @@ export class FirstPersonControls {
   private readonly smoothing: Vec3 = { x: 0, y: 0, z: 0 };
   /** Where the camera actually points: the view plus the gun's kick, refilled each frame. */
   private readonly aim: Aim = { yaw: 0, pitch: 0 };
+  /** Time spent in dead state, for animating death camera collapse to the ground. */
+  private deathElapsed = -1;
 
   constructor(
     private readonly camera: THREE.PerspectiveCamera,
@@ -307,6 +309,15 @@ export class FirstPersonControls {
 
   update(dt: number): void {
     this.turn.yaw = this.turn.pitch = 0;
+    if (this.player.dead) {
+      if (this.deathElapsed < 0) {
+        this.deathElapsed = 0;
+      } else {
+        this.deathElapsed += dt;
+      }
+    } else {
+      this.deathElapsed = -1;
+    }
     if (!this.active) {
       return;
     }
@@ -359,6 +370,12 @@ export class FirstPersonControls {
    * frame that runs no tick; held keys are levels and are read at tick time.
    */
   private poll(): void {
+    if (this.player.dead) {
+      this.pending.yaw = 0;
+      this.pending.pitch = 0;
+      this.pressed.clear();
+      return;
+    }
     const look = this.input.takeLook();
     const before = this.viewPitch();
     const scale = this.radiansPerCount * this.zoom;
@@ -527,7 +544,16 @@ export class FirstPersonControls {
     // as the feet are. Plus whatever is left of the last correction, which is the
     // only place it is ever applied: the simulation is already exactly what the
     // server said.
-    const eye = this.previousEye + (eyeHeight(this.player.movement) - this.previousEye) * t;
+    let eye = this.previousEye + (eyeHeight(this.player.movement) - this.previousEye) * t;
+    let deathTilt = 0;
+    let deathPitchOffset = 0;
+    if (this.deathElapsed >= 0) {
+      const progress = Math.min(1, this.deathElapsed / 0.70);
+      const dropFraction = progress * progress * (3 - 2 * progress);
+      eye = eye * (1 - dropFraction) + 0.22 * dropFraction;
+      deathTilt = 0.26 * dropFraction;
+      deathPitchOffset = 0.10 * dropFraction;
+    }
     this.camera.position.set(
       previous.x + (feet.x - previous.x) * t + this.smoothing.x,
       previous.y + (feet.y - previous.y) * t + eye + this.smoothing.y,
@@ -545,6 +571,6 @@ export class FirstPersonControls {
     this.drawnKick.pitch = this.previousKick.pitch + ((kick?.pitch ?? 0) - this.previousKick.pitch) * t;
     this.drawnKick.yaw = this.previousKick.yaw + ((kick?.yaw ?? 0) - this.previousKick.yaw) * t;
     const aim = aimAngles({ yaw: this.viewYaw(), pitch: this.viewPitch() }, kick ? this.drawnKick : null, this.aim);
-    this.camera.rotation.set(aim.pitch, aim.yaw, 0);
+    this.camera.rotation.set(aim.pitch + deathPitchOffset, aim.yaw, deathTilt);
   }
 }

@@ -55,6 +55,7 @@ export class Hud {
   private flashedUntil = 0;
   private flashDuration = 0;
   private wasDead = false;
+  private lastKiller: string | null = null;
   private streakEarnedExpiresAt = 0;
 
   constructor(
@@ -364,6 +365,7 @@ export class Hud {
     }
     if (this.wasDead && !state.dead) {
       this.resetEquipment();
+      this.lastKiller = null;
     }
     if (!this.wasDead && state.dead) {
       const curStreaks = this.ui.hud.streaks.value;
@@ -390,6 +392,7 @@ export class Hud {
       // A tenth of a second: the countdown is drawn to one decimal, so this is
       // what makes the comparison above true on the other fifty-odd ticks.
       respawnIn: this.noCountdown ? null : Math.round(state.respawnIn * 10) / 10,
+      killedBy: state.dead ? this.lastKiller : null,
       weapon:
         state.weapon === null || entry === undefined
           ? null
@@ -399,13 +402,17 @@ export class Hud {
 
   private addKill(event: DeathEvent, now: number): void {
     const suicide = isSuicide(event.victim, event.killer);
+    const killerName = suicide || event.killer === null ? null : this.nameOf(event.killer);
     const line: KillFeedEntry = {
       id: event.id,
-      killer: suicide || event.killer === null ? null : this.nameOf(event.killer),
+      killer: killerName,
       victim: this.nameOf(event.victim),
       how: suicide ? (event.killer === null ? BY_THE_WORLD : BY_THEMSELVES)[event.cause] : null,
       mine: this.me !== undefined && (event.killer === this.me || event.victim === this.me),
     };
+    if (this.me !== undefined && event.victim === this.me) {
+      this.lastKiller = killerName;
+    }
     this.lines.unshift({ line, at: now });
     this.lines.length = Math.min(this.lines.length, FEED_LINES);
     this.ui.hud.feed.value = this.lines.map((held) => held.line);
@@ -512,6 +519,7 @@ function same(a: HudPlayerInfo | null, b: HudPlayerInfo): boolean {
     a.maxHealth === b.maxHealth &&
     a.dead === b.dead &&
     a.respawnIn === b.respawnIn &&
+    a.killedBy === b.killedBy &&
     a.weapon?.name === b.weapon?.name &&
     a.weapon?.ammo === b.weapon?.ammo &&
     a.weapon?.reloading === b.weapon?.reloading

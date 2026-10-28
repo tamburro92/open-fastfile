@@ -254,6 +254,8 @@ export interface HudPlayerInfo {
   respawnIn: number | null;
   /** What they are holding. null: empty-handed. */
   weapon: { name: string; ammo: number; reloading: boolean } | null;
+  /** Name of the player or world cause that killed the local player. */
+  killedBy?: string | null;
 }
 
 /** One of the gametype's counters, as the HUD shows it: its declared name and the server's value. */
