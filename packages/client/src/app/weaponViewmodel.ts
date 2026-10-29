@@ -18,6 +18,7 @@ import { attachmentModelUrl, equipmentModelUrl, overlayImageUrl, weaponModelUrl 
 import type { OffhandKind } from "../engine/offhand.js";
 import type { AssetStore, GltfAsset } from "../scene/assets.js";
 import { buildViewmodelRig, type FittedAttachment, type ViewmodelRig } from "../scene/viewmodel.js";
+import { REFLEX_SIGHT } from "../scene/importedMaterials.js";
 import { worldWeaponUrl } from "../scene/assetUrl.js";
 
 /** The knife's model in the catalogue's `worldweapons` (packed by the `catalog` step's equipment). */
@@ -248,7 +249,7 @@ export class WeaponViewmodel {
         def: weapon.def,
         attachments: parts.attachments,
         // The game's own blend for a reticle, derived once in this world's store and freed with it.
-        reticleMaterial: (source) => assets.blendFor(source, "premultiplied"),
+        reticleMaterial: (source) => assets.blendFor(source, REFLEX_SIGHT),
       });
       // The scope picture is read from the *resolved* definition, not the GLB's:
       // it is what a fitted optic changes, and an ACOG on a sniper rifle removes.

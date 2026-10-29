@@ -65,6 +65,22 @@ export function applySortKey(mesh: THREE.Mesh, key: number): void {
   }
 }
 
+/** The technique an optic's reticle is drawn with: glTF `extras.technique`, and `blendedMaterialFor`'s mode for it. */
+export const REFLEX_SIGHT = "reflexsight";
+
+/**
+ * The red a reticle is lit in, linear. Not in any material: MW3's reticle masks
+ * are white and the reflex-sight shader colours them, so this is the one value
+ * here chosen by eye against the game rather than read from its files.
+ */
+const RETICLE_COLOUR = [1.0, 0.08, 0.04] as const;
+
+/** The technique a material asks to be drawn with (`extras.technique`), if any. */
+export function techniqueOf(material: THREE.Material): string | undefined {
+  const technique = (material.userData as { technique?: unknown }).technique;
+  return typeof technique === "string" ? technique : undefined;
+}
+
 /**
  * A replacement material that draws the game's blend equation, or null to keep
  * the original. glTF can only say "alpha blend"; most decals multiply or add.
@@ -89,13 +105,28 @@ export function blendedMaterialFor(source: THREE.Material, mode: string): THREE.
   mat.name = src.name;
   mat.userData = { ...src.userData }; // a copy: the picker writes tags per material
 
-  if (mode === "premultiplied") {
-    // ONE/INVSRCALPHA, CoD's premultiplied blend: the texture is already
-    // multiplied by its alpha, so it is not faded again. An optic's reticle.
+  if (mode === REFLEX_SIGHT) {
+    // `mc_reflexsight`, an optic's reticle. Its colour map is a white mask on
+    // black with no alpha at all (DXT1), so the mask is the coverage and the
+    // shader supplies the colour: black keys out, the mark is the reticle's red.
+    // Then ONE/INVSRCALPHA, the material's own blend, over a premultiplied result.
+    mat.color = new THREE.Color(1, 1, 1);
     mat.blending = THREE.CustomBlending;
     mat.blendEquation = THREE.AddEquation;
     mat.blendSrc = THREE.OneFactor;
     mat.blendDst = THREE.OneMinusSrcAlphaFactor;
+    addPatch(mat, {
+      name: "reflex-sight",
+      key: "reflex-sight",
+      apply: (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace(
+          "#include <opaque_fragment>",
+          `#include <opaque_fragment>
+       float mask = max( max( diffuseColor.r, diffuseColor.g ), diffuseColor.b );
+       gl_FragColor = vec4( vec3( ${RETICLE_COLOUR.map((c) => c.toFixed(3)).join(", ")} ) * mask, mask );`,
+        );
+      },
+    });
     keepAlpha(mat);
     return mat;
   }

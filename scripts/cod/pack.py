@@ -179,6 +179,18 @@ def neutralize_vertex_colours(gltf, buf, also_rgb=False):
     return fixed
 
 
+# Technique sets whose shader the engine draws by name, because glTF's material
+# model cannot say what it does. `reflexsight` is an optic's reticle: its colour
+# map is a white mask on black with no alpha (DXT1), and the shader both tints
+# it and keys out the black. Matched as a token, as `is_flag_technique` is.
+DRAWN_TECHNIQUES = ("reflexsight",)
+
+
+def drawn_technique(techset):
+    """The name the engine draws `techset` by, or None for an ordinary material."""
+    return next((name for name in DRAWN_TECHNIQUES if name in (techset or "")), None)
+
+
 def apply_state(mat, state):
     """Set one glTF material up from the game's own render state (the same mapping the shell uses)."""
     mat["doubleSided"] = state["doubleSided"]
@@ -198,6 +210,9 @@ def apply_state(mat, state):
     if state["blend"] and state["blend"] != "alpha":
         extras["blend"] = state["blend"]
     extras["castsShadow"] = state["castsShadow"]
+    technique = drawn_technique(state.get("techniqueSet"))
+    if technique:
+        extras["technique"] = technique
     if state.get("flag"):
         speed, offset = state["flag"]
         extras["flag"] = {"speed": speed, "offset": offset}
