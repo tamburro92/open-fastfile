@@ -37,6 +37,8 @@ from scripts.cod.attachments import (
     spec_of,
     split_variants,
 )
+from scripts.cod.files import read_text
+from scripts.cod.viewmodel import ballistics, parse_infostring
 
 MW2_DUMP = ".cache/cod/catalog-mw2"
 # Wherever MW3's attachment assets were last dumped: the `catalog --dump mw3`
@@ -339,3 +341,25 @@ def test_iw5_optic_aiming_clips_come_from_the_weapon_files_anim_overrides():
     assert iw5_roles(info, "reflex") == {"adsUp": "viewmodel_acr_reflex_ADS_up"}
     assert iw5_roles(info, "m320") == {}
     assert iw5_roles(info, "acog") == {}
+
+
+@pytest.mark.skipif(mw3_dump() is None, reason="needs MW3's attachment assets dumped (catalog --dump mw3)")
+def test_iw5_silencer_and_grip_scale_the_guns_own_damage_and_recoil():
+    # MW3's silencers take a quarter off both ends of the falloff, and its grips
+    # cut how far a shot throws the aim and speed its recentring. Neither is an
+    # absolute block, so neither shows up unless the scale is read.
+    work = mw3_dump()
+    info = parse_infostring(read_text(os.path.join(work, "weapons", "weapons", "iw5_m4_mp")))
+    base = spec_of(info)
+    defs = read_defs(work)
+    shot = ballistics(info)["damage"]
+
+    silenced = iw5_entry("silencer", defs["silencer"], base, info=info)["overrides"]
+    assert silenced["damage"] == {"max": pytest.approx(shot["max"] * 0.75), "min": pytest.approx(shot["min"] * 0.75)}
+
+    gripped = iw5_entry("grip", defs["grip"], base, info=info)["overrides"]["motion"]
+    assert gripped["hipViewKickPitchMax"] == pytest.approx(base["motion"]["hipViewKickPitchMax"] * 0.9, rel=1e-6)
+    assert gripped["adsViewKickCenterSpeed"] == pytest.approx(base["motion"]["adsViewKickCenterSpeed"] * 1.25, rel=1e-6)
+
+    # And an attachment that scales neither changes neither.
+    assert "damage" not in iw5_entry("xmags", defs["xmags"], base, info=info)["overrides"]

@@ -130,6 +130,11 @@ TIMER_SCALES = {
     ),
 }
 
+# What IW5's grip scales: how far a shot throws the aim (`viewKickScale`), and how
+# fast it is pulled back (`viewCenterScale`) -- at the hip and down the sights alike.
+VIEW_KICK = tuple(f"{mode}ViewKick{axis}{end}" for mode in ("hip", "ads") for axis in ("Pitch", "Yaw") for end in ("Min", "Max"))
+VIEW_CENTER = ("hipViewKickCenterSpeed", "adsViewKickCenterSpeed")
+
 # The raised iron sight, hidden by an optic that says so. The folded one
 # (`tag_sight_off`) is in the bare weapon's own hideBones already.
 IRON_SIGHT = "tag_sight_on"
@@ -211,6 +216,21 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
                 times.update({role: base["times"][role] * factor for role in roles if role in base["times"]})
         if (factor := scale(attach, "ammunitionScale")) is not None and base["clipSize"]:
             overrides["clipSize"] = round(base["clipSize"] * factor)
+        # A silencer's 0.75 on both ends of the falloff: the same distances, a quarter less at each.
+        if info is not None:
+            shot = ballistics(info)["damage"]
+            damage = {
+                **_scaled(shot, ("max",), scale(attach, "damageScale") or 1.0),
+                **_scaled(shot, ("min",), scale(attach, "damageScaleMin") or 1.0),
+            }
+            if damage := {k: v for k, v in damage.items() if v != shot[k]}:
+                overrides["damage"] = damage
+        motion = {
+            **_scaled(base["motion"], VIEW_KICK, scale(attach, "viewKickScale") or 1.0),
+            **_scaled(base["motion"], VIEW_CENTER, scale(attach, "viewCenterScale") or 1.0),
+        }
+        if motion := {k: v for k, v in motion.items() if v != base["motion"][k]}:
+            overrides["motion"] = motion
         # Ghosts sells the fire selector as an attachment, and this is the only
         # thing that says the rifle it is on now fires one round a press. MW3's
         # four `ammoGeneral` blocks are all an underbarrel weapon's, which the
