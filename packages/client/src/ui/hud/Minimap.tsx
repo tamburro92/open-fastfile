@@ -1,6 +1,6 @@
 import { useComputed, useSignalEffect } from "@preact/signals";
 import { useRef } from "preact/hooks";
-import type { MinimapInfo, MinimapPing } from "../../app/uiBridge.js";
+import type { MinimapAlly, MinimapInfo, MinimapPing } from "../../app/uiBridge.js";
 import { useUi } from "../context.js";
 import styles from "./Minimap.module.css";
 
@@ -32,7 +32,7 @@ export function Minimap() {
  * straight to the image and the radar pings overlay layer.
  */
 function MapImage({ map }: { map: MinimapInfo }) {
-  const { pose, pings } = useUi().state.minimap;
+  const { pose, pings, allies } = useUi().state.minimap;
   const image = useRef<HTMLImageElement>(null);
   const pingsLayer = useRef<HTMLDivElement>(null);
   useSignalEffect(() => {
@@ -62,8 +62,29 @@ function MapImage({ map }: { map: MinimapInfo }) {
         class={styles.pingsLayer}
         style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}
       >
+        <AllyArrows allies={allies.value} />
         <PingMarkers pings={pings.value} />
       </div>
+    </>
+  );
+}
+
+/** Each teammate as MW3's `compassping_green_mp`: a white arrow in a green glow, turned to where they face. */
+function AllyArrows({ allies }: { allies: readonly MinimapAlly[] }) {
+  return (
+    <>
+      {allies.map((a) => (
+        <svg
+          key={a.id}
+          class={styles.ally}
+          viewBox="-10 -10 20 20"
+          style={{ left: `${a.u * 100}%`, top: `${a.v * 100}%`, transform: `translate(-50%, -50%) rotate(${a.rotation}rad)` }}
+          aria-hidden="true"
+          data-testid="minimap-ally"
+        >
+          <path d="M0 -8 L6.5 7 L0 3.5 L-6.5 7 Z" />
+        </svg>
+      ))}
     </>
   );
 }

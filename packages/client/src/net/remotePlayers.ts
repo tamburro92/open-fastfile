@@ -275,6 +275,11 @@ export class RemotePlayers {
     return this.drawnAt;
   }
 
+  /** Where the last frame drew this player, or undefined for one not drawn: unknown, or a body on the floor. */
+  drawnState(id: string): Readonly<MovementState> | undefined {
+    return this.handedOver.has(id) ? undefined : this.players.get(id)?.drawn;
+  }
+
   /**
    * Everyone wearing a body right now, as the last `update` posed them.
    *

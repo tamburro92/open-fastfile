@@ -1,0 +1,22 @@
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/*
+ * MW3's friendly name: `friendlyNameFontColor` 0.9 1 0.9 0.7 over a
+ * `friendlyNameFontGlowColor` 0 0.3 0 1 glow (iw5sp.exe's defaults).
+ */
+.name {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(230, 255, 230, 0.7);
+  text-shadow:
+    0 0 3px rgb(0, 77, 0),
+    0 0 1px rgb(0, 77, 0);
+}

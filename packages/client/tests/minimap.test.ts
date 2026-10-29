@@ -1,7 +1,7 @@
 // The HUD map: the `minimap` node, and placing the player on its image.
 
 import { describe, expect, it } from "vitest";
-import { minimapInfo, minimapPoint, minimapPose } from "../src/app/minimap.js";
+import { minimapAlly, minimapInfo, minimapPoint, minimapPose } from "../src/app/minimap.js";
 import { parseWorldFile } from "@3d/shared/dsl/parser.js";
 import { resolveWorld } from "@3d/shared/dsl/resolve.js";
 import type { ResolvedMinimap } from "@3d/shared/dsl/resolved.js";
@@ -97,5 +97,27 @@ describe("placing the player on the minimap", () => {
     const center = minimapPoint(DOME, DOME.center.x, DOME.center.z);
     expect(center.u).toBeCloseTo(0.5, 4);
     expect(center.v).toBeCloseTo(0.5, 4);
+  });
+});
+
+describe("a teammate on the minimap", () => {
+  it("stands where a ping at their feet would", () => {
+    const ally = minimapAlly(DOME, "#b2", 12, -30, 0.4);
+    expect({ u: ally.u, v: ally.v }).toEqual(minimapPoint(DOME, 12, -30));
+  });
+
+  it("points up on screen when facing the way the player faces, whatever the way", () => {
+    for (const yaw of [0, 1, -2.5]) {
+      const player = minimapPose(DOME, 0, 0, yaw);
+      const ally = minimapAlly(DOME, "#b2", 20, -10, yaw);
+      // The arrow sits on the image, which the player's pose turns: the two add.
+      expect(player.rotation + ally.rotation).toBeCloseTo(0);
+    }
+  });
+
+  it("turns with its own heading: a quarter turn of yaw is a quarter turn of the arrow", () => {
+    const a = minimapAlly(DOME, "#b2", 0, 0, 0);
+    const b = minimapAlly(DOME, "#b2", 0, 0, Math.PI / 2);
+    expect(Math.abs(a.rotation - b.rotation)).toBeCloseTo(Math.PI / 2);
   });
 });

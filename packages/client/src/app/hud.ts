@@ -459,7 +459,7 @@ export class Hud {
    * they are what a snapshot is keyed by — and the lobby the player came from is
    * the only place a browser has ever been told a name.
    */
-  private nameOf(id: PlayerId): string {
+  nameOf(id: PlayerId): string {
     if (id === this.me && this.ui.user.value?.username) {
       return this.ui.user.value.username;
     }

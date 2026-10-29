@@ -219,6 +219,24 @@ export interface MinimapPose {
   rotation: number;
 }
 
+/** A teammate on the minimap: MW3's `compassping_green_mp`, an arrow along where they face. */
+export interface MinimapAlly {
+  id: string;
+  /** 0..1 across and down the image, as `MinimapPing`. */
+  u: number;
+  v: number;
+  /** Radians clockwise to turn the arrow by, on the image (which turns with the player). */
+  rotation: number;
+}
+
+/** A teammate's name over their head, where the camera shows it: 0..1 across and down the viewport. */
+export interface NameTag {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+}
+
 /** A sound/gunfire ping on the minimap (Call of Duty MW3 style radar blip). */
 export interface MinimapPing {
   id: string;
@@ -405,6 +423,8 @@ export interface UiState {
     pose: Signal<MinimapPose | null>;
     /** Active gunfire sound pings on the minimap. */
     pings: Signal<readonly MinimapPing[]>;
+    /** The local player's living teammates, always shown, as MW3's compass shows friendlies. */
+    allies: Signal<readonly MinimapAlly[]>;
     /**
      * A heartbeat sensor's screen: null without one in hand, else what its last
      * sweep found, each blip as a fraction of its range — `x` right, `y` ahead.
@@ -414,6 +434,8 @@ export interface UiState {
   hud: {
     /** null: not walking, so there is nobody to draw a crosshair for. */
     player: Signal<HudPlayerInfo | null>;
+    /** Teammates' names over their heads, in MW3's friendly green. */
+    nameTags: Signal<readonly NameTag[]>;
     /**
      * How wide the crosshair should stand open: the radius of the cone this
      * player's next round may leave in, **as a fraction of half the viewport's
@@ -593,10 +615,12 @@ export function createUiState(): UiState {
       map: signal(null),
       pose: signal(null),
       pings: signal<readonly MinimapPing[]>([]),
+      allies: signal<readonly MinimapAlly[]>([]),
       heartbeat: signal<readonly { x: number; y: number }[] | null>(null),
     },
     hud: {
       player: signal(null),
+      nameTags: signal<readonly NameTag[]>([]),
       cone: signal(0),
       ads: signal(0),
       hit: signal(null),

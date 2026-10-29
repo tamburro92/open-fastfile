@@ -79,6 +79,8 @@ export class MatchController {
   private revealedNow: readonly { id: string; feet: { x: number; z: number } }[] = [];
   /** The enemies this player's heartbeat sensor shows, as of the last snapshot. */
   private sensedNow: readonly { id: string; feet: { x: number; z: number } }[] = [];
+  /** This player's living teammates as of the last snapshot: none outside a team game. */
+  private alliesNow: readonly string[] = [];
   /**
    * The server's tick rate, from `joined`, and what turns a snapshot's tick into
    * the clock a script reads. Zero until a match says otherwise.
@@ -354,6 +356,7 @@ export class MatchController {
     this.systems.sentries.clear();
     this.revealedNow = [];
     this.sensedNow = [];
+    this.alliesNow = [];
     this.parts.hud.clear();
     this.roster = EMPTY_ROSTER;
   }
@@ -394,6 +397,8 @@ export class MatchController {
     this.systems.sentries.apply(sentries, performance.now());
     this.revealedNow = others.filter((p) => revealed.includes(p.id)).map((p) => ({ id: p.id, feet: p.state.movement.feet }));
     this.sensedNow = others.filter((p) => sensed.includes(p.id)).map((p) => ({ id: p.id, feet: p.state.movement.feet }));
+    const side = self?.team ?? null;
+    this.alliesNow = side === null ? [] : others.filter((p) => p.state.team === side && !p.state.dead).map((p) => p.id);
     for (const event of events) {
       if (event.kind === "detonate") {
         projectiles.detonate(event);
@@ -499,6 +504,11 @@ export class MatchController {
   /** The enemies this player's heartbeat sensor shows them now. */
   get sensed(): readonly { id: string; feet: { x: number; z: number } }[] {
     return this.sensedNow;
+  }
+
+  /** This player's living teammates, for the minimap's arrows and the names over their heads. */
+  get allies(): readonly string[] {
+    return this.alliesNow;
   }
 
   /** The enemies this player's UAV shows them now, for the minimap. */

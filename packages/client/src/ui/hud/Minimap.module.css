@@ -27,6 +27,19 @@
   pointer-events: none;
 }
 
+/* A teammate: MW3's compassping_green_mp, a near-white arrow in a green glow, the player arrow's size. */
+.ally {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  fill: #efffef;
+  stroke: #1fd12f;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 2px #20ff30);
+  pointer-events: none;
+}
+
 /* Call of Duty MW3 style enemy gunfire radar ping dot. */
 .enemyPing {
   position: absolute;

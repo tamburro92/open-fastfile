@@ -5,6 +5,7 @@ import styles from "./HudLayer.module.css";
 import { KillFeed } from "./KillFeed.js";
 import { MatchEnd } from "./MatchEnd.js";
 import { Minimap } from "./Minimap.js";
+import { NameTags } from "./NameTags.js";
 import { Reticle } from "./Reticle.js";
 import { Scoreboard } from "./Scoreboard.js";
 import { UsePrompt } from "./UsePrompt.js";
@@ -29,6 +30,7 @@ import { FlashOverlay } from "./FlashOverlay.js";
 export function HudLayer() {
   return (
     <div class={styles.layer}>
+      <NameTags />
       <FlashOverlay />
       <div class={styles.topLeft} data-region="top-left">
         <Minimap />

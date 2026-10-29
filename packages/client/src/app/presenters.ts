@@ -2,6 +2,7 @@
 // numbers, the minimap's marker, the crosshair's spread and the use prompt.
 // One entry in the frame's update list ("presenters").
 
+import * as THREE from "three";
 import { HEARTBEAT } from "@3d/shared/game/equipment.js";
 import { shotSpread } from "@3d/shared/sim/recoil.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
@@ -10,21 +11,24 @@ import type { FiredShotNotice } from "../engine/audio/weapons.js";
 import type { CurrentWorld } from "./currentWorld.js";
 import type { Hud } from "./hud.js";
 import type { MatchController } from "./match.js";
-import { minimapPose } from "./minimap.js";
+import { minimapAlly, minimapPose } from "./minimap.js";
 import type { PauseController } from "./pause.js";
 import { Radar } from "./radar.js";
 import type { ScreenRouter } from "./screens.js";
 import type { Systems } from "./systems.js";
-import type { UiState } from "./uiBridge.js";
+import type { MinimapAlly, NameTag, UiState } from "./uiBridge.js";
 import type { UseFocus } from "./useFocus.js";
 
 /** Degrees to radians, for the two the crosshair's own width needs. */
 const DEG = Math.PI / 180;
+/** How far over a teammate's eyes their name is drawn, m: clear of the head. */
+const NAME_ABOVE_EYES = 0.35;
 
 export class Presenters {
   readonly radar: Radar;
   /** When the heartbeat sensor last swept, ms. */
   private lastSweep = -Infinity;
+  private readonly projected = new THREE.Vector3();
 
   constructor(
     private readonly systems: Systems,
@@ -48,10 +52,52 @@ export class Presenters {
       this.radar.sweep(this.match.revealed, map);
     }
     this.radar.update();
+    this.updateAllies(walking);
     this.updateHeartbeat();
     this.updateHud(walking);
     this.updateCone();
     this.updateUseFocus(walking);
+  }
+
+  /**
+   * Who is on this player's side: a green arrow each on the minimap, along where
+   * they face, and their name over their head wherever the camera shows them —
+   * through walls, as MW3 draws a friendly's. Both from where the last frame drew
+   * them, so the arrow and the name sit on the body rather than on the snapshot.
+   */
+  private updateAllies(walking: boolean): void {
+    const arrows = this.ui.minimap.allies;
+    const tags = this.ui.hud.nameTags;
+    const ids = walking ? this.match.allies : [];
+    if (ids.length === 0) {
+      if (arrows.value.length > 0) {
+        arrows.value = [];
+      }
+      if (tags.value.length > 0) {
+        tags.value = [];
+      }
+      return;
+    }
+    const map = this.current.world?.minimap;
+    const camera = this.systems.viewer.camera;
+    const nextArrows: MinimapAlly[] = [];
+    const nextTags: NameTag[] = [];
+    for (const id of ids) {
+      const drawn = this.systems.remotes.drawnState(id);
+      if (!drawn) {
+        continue;
+      }
+      const { feet, yaw } = drawn;
+      if (map) {
+        nextArrows.push(minimapAlly(map, id, feet.x, feet.z, yaw));
+      }
+      const p = this.projected.set(feet.x, feet.y + eyeHeight(drawn) + NAME_ABOVE_EYES, feet.z).project(camera);
+      if (p.z < 1 && Math.abs(p.x) <= 1 && Math.abs(p.y) <= 1) {
+        nextTags.push({ id, name: this.hud.nameOf(id), x: (p.x + 1) / 2, y: (1 - p.y) / 2 });
+      }
+    }
+    arrows.value = nextArrows;
+    tags.value = nextTags;
   }
 
   /**
