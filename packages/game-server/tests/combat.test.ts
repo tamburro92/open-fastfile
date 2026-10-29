@@ -50,7 +50,9 @@ const ARMED = "iw5/test_mp";
  * and this file wants to ask for a distance in metres.
  */
 const SHOT_RANGE = 8192 / 39.37;
-const UNITS_PER_M = 39.37;
+// Exactly the game's inch, not 39.37: damage is truncated, so a window a hair
+// off puts a halfway shot on 29.999 and makes it 29.
+const UNITS_PER_M = 1 / 0.0254;
 
 /** Full damage to 10 m, minimum past 30 m — the shape of every rifle in the games. */
 const NEAR = 10;
@@ -274,11 +276,11 @@ describe("what a round costs", () => {
     expect(middle.health("b")).toBe(100 - 12);
   });
 
-  it("costs nothing where the weapon file gave the location a zero", () => {
-    // A round stopped by somebody's rifle. Still a hit, and still traced.
-    const gun = combat({ location: "gun" });
+  it("costs 1 where the weapon file gave the location a zero, as MW3's player damage clamps it", () => {
+    // A round stopped by somebody's rifle. Still a hit, still traced, and never free.
+    const gun = combat({ location: "gun", rules: { damageScale: 1 } });
     expect(gun.fire()[0]!.result).toMatchObject({ kind: "player", id: "b" });
-    expect(gun.health("b")).toBe(100);
+    expect(gun.health("b")).toBe(99);
   });
 });
 

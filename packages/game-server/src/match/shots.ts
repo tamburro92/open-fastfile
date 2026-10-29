@@ -14,9 +14,10 @@ import type { HitLocation } from "@3d/shared/sim/hitLocations.js";
 import { createMovement, type MovementState } from "@3d/shared/sim/movement.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection, coneSample, shotSpread, shotStream, spreadDirection, type Aim, type ReadKick } from "@3d/shared/sim/recoil.js";
-import { DEFAULT_SURFACE } from "@3d/shared/sim/surfaces.js";
+import { DEFAULT_SURFACE, type SurfaceType } from "@3d/shared/sim/surfaces.js";
+import { afterPenetration, MAX_PENETRATIONS, PENETRATION_STEP, penetrationDepth } from "@3d/shared/game/penetration.js";
 import type { WeaponController } from "@3d/shared/sim/weapon.js";
-import { BULLET_RANGE, type LauncherProjectile } from "@3d/shared/sim/weaponDef.js";
+import { BULLET_RANGE, type LauncherProjectile, type WeaponDef } from "@3d/shared/sim/weaponDef.js";
 import type { Actors } from "../actors.js";
 import { poseBody } from "../bodies.js";
 import type { MatchClock } from "./clock.js";
@@ -53,6 +54,8 @@ export interface WorldShot {
   normal: Vec3;
   /** Which clipmap tree answered, as `RayHit.kind` means it. */
   surface: "map" | "prop";
+  /** What the triangle is made of: what a round can go through (game/penetration.ts). */
+  material: SurfaceType;
 }
 
 /** A shot that landed on somebody. Damage is the caller's: this says what was hit, not what it cost. */
@@ -84,6 +87,12 @@ export interface Heat {
   ads: number;
 }
 
+/** Closer than this to the entry, a face met on the way back is the entry face. */
+const ENTRY_FACE = 1e-5;
+
+/** How far past where a round entered a body the reverse trace that finds its exit starts. */
+const BODY_REACH = 2;
+
 const IDENTITY: readonly number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 
 export class Shots {
@@ -103,6 +112,11 @@ export class Shots {
   private readonly shotEnd: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly boxMin: Vec3 = { x: 0, y: 0, z: 0 };
   private readonly boxMax: Vec3 = { x: 0, y: 0, z: 0 };
+  /** A penetrating round's scratch: where its next trace starts, its far probe, and the map's far face. */
+  private readonly exitFrom: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly exitFar: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly backward: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly exitHit: RayHit = { distance: 0, normal: { x: 0, y: 0, z: 0 }, kind: "map", surface: DEFAULT_SURFACE };
   /** Where a shot leaves along, refilled per round: the shooter's intent plus the kick. */
   private readonly shotAim: Aim = { yaw: 0, pitch: 0 };
   private readonly shotDirection: Vec3 = { x: 0, y: 0, z: 0 };
@@ -196,35 +210,13 @@ export class Shots {
           this.launcher?.(shooter, { ...eye }, { ...aim }, held.def.projectile, held.def.damage?.max ?? 0);
           continue;
         }
-        const result = this.trace(shooter, eye, aim, BULLET_RANGE, message);
+        // Once a round: every trace it takes through walls is judged at the same moment.
+        const target = this.targetFor(shooter, message);
+        const result = this.trace(shooter, eye, aim, BULLET_RANGE, message, undefined, target);
         this.fired.push({ shooter, ordinal, from: { ...eye }, direction: { ...aim }, result });
-        if (result?.kind === "player") {
-          // `held.def` rather than the entry's: it is the definition with this
-          // player's attachments already merged into it (`resolveWeapon`), so a
-          // silencer's damage penalty is in the number without being looked up
-          // twice.
-          const amount = shotDamage(held.def, result.location, result.distance, this.rules());
-          const victim = this.roster.get(result.id);
-          const was = victim?.player.health ?? 0;
-          this.damage.hurt({ id: result.id, amount, by: shooter, cause: "bullet", location: result.location, along: { ...aim } });
-          // **After** the damage, and only if it cost them something. A marker is
-          // this server's answer about its own trace, so a round a teammate absorbs
-          // with friendly fire off, or one a script ignored, or one that met a
-          // location the weapon file scores at zero, draws nothing.
-          if (victim && victim.player.health < was) {
-            marked = true;
-            lethal ||= victim.player.dead;
-          }
-        } else if (result?.kind === "actor") {
-          const amount = shotDamage(held.def, result.location, result.distance, this.rules());
-          const was = this.actors.health(result.id);
-          this.damage.hurt({ kind: "actor", actor: result.id, amount, by: shooter, cause: "bullet", location: result.location });
-          // A marker only for a round that cost it something, as for a player.
-          if (this.actors.health(result.id) < was) {
-            marked = true;
-            lethal ||= !this.actors.alive(result.id);
-          }
-        }
+        const struck = this.penetrate(shooter, held.def, eye, aim, result, message, target);
+        marked ||= struck.marked;
+        lethal ||= struck.lethal;
       }
       if (marked) {
         this.outbox.push({ kind: "hit", lethal }, shooter, 0);
@@ -249,7 +241,15 @@ export class Shots {
    *
    * Applies no damage and records nothing. What was hit is the whole answer.
    */
-  trace(shooter: PlayerId, from: Vec3, direction: Vec3, range: number, message: InputMessage): ShotResult | null {
+  trace(
+    shooter: PlayerId,
+    from: Vec3,
+    direction: Vec3,
+    range: number,
+    message: InputMessage,
+    through?: ReadonlySet<PlayerId>,
+    target?: RewindTarget,
+  ): ShotResult | null {
     if (!(range > 0)) {
       return null;
     }
@@ -257,20 +257,21 @@ export class Shots {
     to.x = from.x + direction.x * range;
     to.y = from.y + direction.y * range;
     to.z = from.z + direction.z * range;
-    const at = this.targetFor(shooter, message);
+    const at = target ?? this.targetFor(shooter, message);
 
     // The map first, so a body behind a wall is rejected by a fraction rather than
     // by a second trace per player.
     const map = this.collision.traceRay(from, direction, range, "shots", this.mapHit);
     let nearest = map === null ? 1 : map.distance / range;
-    let best: ShotResult | null = map === null ? null : { kind: "world", distance: map.distance, normal: { ...map.normal }, surface: map.kind };
+    let best: ShotResult | null =
+      map === null ? null : { kind: "world", distance: map.distance, normal: { ...map.normal }, surface: map.kind, material: map.surface };
 
     for (const member of this.roster.values()) {
       // Nobody shoots themselves: the origin is inside the shooter's own body, so
       // every one of their shots would stop on their own chest. A body waiting to
       // respawn is not there to be shot either — it would stop a round meant for
       // whoever is behind it.
-      if (member.id === shooter || member.player.dead) {
+      if (member.id === shooter || member.player.dead || through?.has(member.id)) {
         continue;
       }
       const rewound = this.rewinder.sample(member.history, at, this.rewound);
@@ -320,6 +321,167 @@ export class Shots {
       }
     }
     return best;
+  }
+
+  /**
+   * Everything one round does from the first thing it met: MW3's
+   * `Bullet_FireExtended` (game/penetration.ts says where each rule is read
+   * from). Every body it reaches is hurt with what the round still carries, and
+   * the map and bodies alike are gone through where their surface and the
+   * weapon's `penetrateType` allow, up to `MAX_PENETRATIONS` of them.
+   *
+   * The damage falloff is measured from the eye to each hit, walls included, as
+   * the game measures it from where the round was fired.
+   */
+  private penetrate(
+    shooter: PlayerId,
+    def: WeaponDef,
+    eye: Vec3,
+    aim: Vec3,
+    first: ShotResult | null,
+    message: InputMessage,
+    target: RewindTarget,
+  ): { marked: boolean; lethal: boolean } {
+    let marked = false;
+    let lethal = false;
+    // `bp.damageMultiplier`, a float in the game: what the round keeps of itself.
+    let carried = 1;
+    // `specialty_bulletpenetration` is MW3's Impact proficiency, which no class here carries.
+    const perk = false;
+    const through = new Set<PlayerId>();
+    let result = first;
+    // Metres from the eye to where `result`'s trace began.
+    let travelled = 0;
+    for (let pass = 0; result !== null; pass++) {
+      const at = travelled + result.distance;
+      if (result.kind === "player") {
+        // `held.def` rather than the entry's: it is the definition with this
+        // player's attachments already merged into it (`resolveWeapon`), so a
+        // silencer's damage penalty is in the number without being looked up twice.
+        const amount = shotDamage(def, result.location, at, this.rules(), carried);
+        const victim = this.roster.get(result.id);
+        const was = victim?.player.health ?? 0;
+        if (amount > 0) {
+          this.damage.hurt({ id: result.id, amount, by: shooter, cause: "bullet", location: result.location, along: { ...aim } });
+        }
+        // **After** the damage, and only if it cost them something: a round a
+        // teammate absorbs with friendly fire off, or one a script ignored, draws nothing.
+        if (victim && victim.player.health < was) {
+          marked = true;
+          lethal ||= victim.player.dead;
+        }
+        through.add(result.id);
+      } else if (result.kind === "actor") {
+        const amount = shotDamage(def, result.location, at, this.rules(), carried);
+        const was = this.actors.health(result.id);
+        if (amount > 0) {
+          this.damage.hurt({ kind: "actor", actor: result.id, amount, by: shooter, cause: "bullet", location: result.location });
+        }
+        if (this.actors.health(result.id) < was) {
+          marked = true;
+          lethal ||= !this.actors.alive(result.id);
+        }
+        break; // a creature is not gone through: nothing in MW3 to be faithful to
+      }
+      if (pass === MAX_PENETRATIONS) {
+        break;
+      }
+
+      // What it entered, and how much of that its type goes through.
+      const entryDepth = penetrationDepth(def.penetrateType, result.kind === "world" ? result.material : "flesh", perk);
+      if (!(entryDepth > 0)) {
+        break;
+      }
+      // Where it leaves, as the game finds it: a trace on from a step past the
+      // entry to whatever is next, then one back from there to the surface it
+      // came out of. The collision soup answers either winding, so where nothing
+      // lies between the entry and the next map face, that face *is* the far side
+      // of the wall it is in: a clipmap brush is closed.
+      const step = at + PENETRATION_STEP;
+      let next = this.trace(shooter, this.pointOn(eye, aim, step, this.exitFrom), aim, BULLET_RANGE - step, message, through, target);
+      let nextAt = next === null ? BULLET_RANGE : step + next.distance;
+      let thickness: number;
+      let exitDepth = entryDepth;
+      if (result.kind === "world") {
+        const back = this.backTo(eye, aim, nextAt, at);
+        if (back !== null) {
+          thickness = back.distance;
+          exitDepth = penetrationDepth(def.penetrateType, back.surface, perk);
+        } else if (next?.kind === "world") {
+          thickness = nextAt - at;
+          exitDepth = penetrationDepth(def.penetrateType, next.material, perk);
+          const beyond = nextAt + PENETRATION_STEP;
+          next = this.trace(shooter, this.pointOn(eye, aim, beyond, this.exitFrom), aim, BULLET_RANGE - beyond, message, through, target);
+          nextAt = next === null ? BULLET_RANGE : beyond + next.distance;
+        } else {
+          thickness = 0; // a sheet: measured as the one unit the game never goes under
+        }
+      } else {
+        const out = this.exitThrough(result.id, this.pointOn(eye, aim, at, this.exitFrom), aim, target);
+        if (out === null) {
+          break;
+        }
+        thickness = out;
+      }
+      carried = Math.fround(afterPenetration(carried, thickness, entryDepth, exitDepth));
+      if (!(carried > 0) || next === null) {
+        break;
+      }
+      // `next.distance` is from where its trace began; the loop's `at` is from the eye.
+      travelled = nextAt - next.distance;
+      result = next;
+    }
+    return { marked, lethal };
+  }
+
+  /**
+   * The reverse trace: from `from` metres down the shot back toward `to`, the
+   * first map face met — the far side of what the round entered at `to` — as its
+   * distance from `to` and what it is made of. Null where the first face back is
+   * the entry itself, or there is none: nothing lies between the two.
+   */
+  private backTo(eye: Vec3, aim: Vec3, from: number, to: number): { distance: number; surface: SurfaceType } | null {
+    const length = from - to;
+    if (!(length > PENETRATION_STEP)) {
+      return null;
+    }
+    this.backward.x = -aim.x;
+    this.backward.y = -aim.y;
+    this.backward.z = -aim.z;
+    const hit = this.collision.traceRay(this.pointOn(eye, aim, from, this.exitFar), this.backward, length, "shots", this.exitHit);
+    if (hit === null) {
+      return null;
+    }
+    // A face this close to the entry is the entry face itself, met from behind.
+    const distance = length - hit.distance;
+    return distance > ENTRY_FACE ? { distance, surface: hit.surface } : null;
+  }
+
+  /**
+   * How far a round that entered `id`'s body at `entry` goes before it leaves:
+   * the game's reverse trace, from `BODY_REACH` on back to the entry, against the
+   * same rewound pose the round hit. Null for a body that is not there to trace.
+   */
+  private exitThrough(id: PlayerId, entry: Vec3, direction: Vec3, target: RewindTarget): number | null {
+    const member = this.roster.get(id);
+    if (member?.body === undefined) {
+      return null;
+    }
+    const rewound = this.rewinder.sample(member.history, target, this.rewound);
+    if (rewound === null) {
+      return null;
+    }
+    poseBody(member.body, rewound, member.player.weapon?.data ?? null);
+    const far = this.pointOn(entry, direction, BODY_REACH, this.exitFar);
+    const hit = member.body.boxes.trace(far, entry);
+    return hit === null ? null : BODY_REACH * (1 - hit.fraction);
+  }
+
+  private pointOn(from: Vec3, direction: Vec3, distance: number, out: Vec3): Vec3 {
+    out.x = from.x + direction.x * distance;
+    out.y = from.y + direction.y * distance;
+    out.z = from.z + direction.z * distance;
+    return out;
   }
 
   /** The moment `shooter` was drawing when they sent `message`: counted once, whoever it is judged against. */

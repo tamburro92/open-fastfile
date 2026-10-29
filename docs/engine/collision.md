@@ -289,6 +289,27 @@ Two smaller traps live here for the same reason:
   one test that would have caught all of this skipped silently instead of failing. A
   guard that degrades into a skip is worse than no test.
 
+## A round goes through what MW3 lets it
+
+A bullet does not stop at the first thing it meets. `game-server/src/match/shots.ts`
+walks it on the way MW3's server does, read from `iw5mp_server.exe`
+(`Bullet_FireExtended`, never run): after the first hit, up to five more
+surfaces, each gone through if the weapon's `penetrateType` and the surface's
+material allow it by `info/bullet_penetration_mp`'s depth, and each costing
+`thickness / depth` of what the round carries on. A body is a surface of flesh. A
+triangle with no material (`default`) stops every round, so a map whose clipmap
+carries no surfaces is as bulletproof as it was. The table and where each rule
+was read are in `@3d/shared/game/penetration.ts`.
+
+The far side of a wall is found by the game's reverse trace: on to the next
+thing, then back to the face the round came out of. The soup answers either
+winding, so where nothing lies between the entry and the next map face, that
+face is taken as the wall's far side, which is true of every closed brush.
+
+What a hit then costs is truncated to an integer three times, as the game's is —
+the range's, the penetration's, the location's — and is never under 1 on a body
+(`@3d/shared/game/rules.ts`, `shotDamage`).
+
 ## A bullet and a player collide with different things
 
 What stops a player is not what stops a bullet, and the difference is most of a

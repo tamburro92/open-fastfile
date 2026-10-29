@@ -10,8 +10,8 @@
 // below, exactly as `Spawns.place` and `castFor` degrade to theirs.
 
 import type { HitLocation } from "../sim/hitLocations.js";
-import { unitsToMetres } from "../sim/units.js";
 import { DEFAULT_HEALTH } from "../sim/player.js";
+import { UNIT } from "../sim/units.js";
 import type { WeaponDef } from "../sim/weaponDef.js";
 
 /** The numbers a gametype plays by. Asked of the scripts once, at match start. */
@@ -74,32 +74,58 @@ export const DEFAULT_COMBAT_RULES: CombatRules = {
 export const UNSPECIFIED_DAMAGE = 30;
 
 /**
- * What one round on `location` from `distance` metres away costs.
+ * What a round's range alone leaves it, as a whole number: MW3's
+ * `Bullet_CalcDamage` (iw5mp_server.exe 0x472230), in its own order.
  *
- * The falloff is the weapon's own: `damage.max` out to `maxRange`, `damage.min`
- * past `minRange`, and a straight interpolation between the two. **`max` is
- * spelled `damage`** in a weapon file and there is no `maxDamage`, so a reader
- * looking for that name finds nothing and disarms the gun. The two ranges are in
- * CoD units — an M4's 800 to 1400 is 20.3 m to 35.6 m, not 800 m to 1400 m.
- *
- * Then the location multiplier (1.4 on an M4's head, 0 on `gun`, and 1 where the
- * game did not say), and then the gametype's scale. Never negative.
+ * `damage` out to `maxDamageRange`, `minDamage` from `minDamageRange` on, and
+ * between the two a straight interpolation **truncated** to an integer. The
+ * distance is from where the round was fired to where it landed — through every
+ * wall it went through on the way. Worked in CoD units and single-precision
+ * floats where the game stores one, because truncation makes the last bit count:
+ * a round that lands on 26.99999 is 26.
  */
-export function shotDamage(def: WeaponDef | undefined, location: HitLocation, distance: number, rules: CombatRules): number {
+export function rangeDamage(def: WeaponDef | undefined, distance: number): number {
   const damage = def?.damage;
-  const max = damage?.max ?? UNSPECIFIED_DAMAGE;
-  const min = damage?.min ?? max;
-  const near = unitsToMetres(damage?.maxRange ?? 0);
-  const far = unitsToMetres(damage?.minRange ?? 0);
-
-  // A weapon that declared no window, or an inverted one, has no falloff to
-  // apply rather than a division by zero to propagate.
-  let base = max;
-  if (far > near) {
-    const t = Math.min(1, Math.max(0, (distance - near) / (far - near)));
-    base = max + (min - max) * t;
+  const max = Math.trunc(damage?.max ?? UNSPECIFIED_DAMAGE);
+  const min = Math.trunc(damage?.min ?? max);
+  if (max === min) {
+    return max;
   }
+  const near = Math.fround(damage?.maxRange ?? 0);
+  const far = Math.fround(damage?.minRange ?? 0);
+  const units = Math.fround(distance / UNIT);
+  if (units < near) {
+    return max;
+  }
+  if (far <= units) {
+    return min;
+  }
+  const t = Math.fround((units - near) / Math.fround(far - near));
+  return Math.trunc(Math.fround((1 - t) * max + t * min));
+}
 
-  const multiplier = def?.locationDamage?.[location] ?? 1;
-  return Math.max(0, base * multiplier * rules.damageScale);
+/**
+ * What one round on `location` from `distance` metres away costs, having kept
+ * `carried` of itself through whatever it penetrated on the way (1 for none).
+ *
+ * MW3's three truncations, read from its server: the range's
+ * (`rangeDamage`), the penetration's (`Bullet_CalcDamage` again: the integer
+ * times `damageMultiplier`, truncated), and the location's — the weapon's
+ * `loc*` times `info/mp_lochit_dmgtable`, which is 1 everywhere, applied by the
+ * player damage path (0x480d50) and truncated once more. A round whose
+ * penetration left it nothing does nothing; one that reaches a body always costs
+ * at least 1, even on a location the weapon scores at 0, because that path says
+ * so. An ACR's head is `trunc(1.4f × 45)`, 62 and not 63: 1.4 is a float
+ * there, and 1.4f × 45 is 62.99999.
+ *
+ * Then the gametype's scale, which is this engine's and not MW3's: 1 unless a
+ * script says otherwise.
+ */
+export function shotDamage(def: WeaponDef | undefined, location: HitLocation, distance: number, rules: CombatRules, carried = 1): number {
+  const reached = Math.trunc(Math.fround(carried) * rangeDamage(def, distance));
+  if (reached <= 0) {
+    return 0;
+  }
+  const multiplier = Math.fround(def?.locationDamage?.[location] ?? 1);
+  return Math.max(1, Math.trunc(multiplier * reached)) * rules.damageScale;
 }
