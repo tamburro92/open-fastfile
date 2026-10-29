@@ -89,6 +89,17 @@ export function blendedMaterialFor(source: THREE.Material, mode: string): THREE.
   mat.name = src.name;
   mat.userData = { ...src.userData }; // a copy: the picker writes tags per material
 
+  if (mode === "premultiplied") {
+    // ONE/INVSRCALPHA, CoD's premultiplied blend: the texture is already
+    // multiplied by its alpha, so it is not faded again. An optic's reticle.
+    mat.blending = THREE.CustomBlending;
+    mat.blendEquation = THREE.AddEquation;
+    mat.blendSrc = THREE.OneFactor;
+    mat.blendDst = THREE.OneMinusSrcAlphaFactor;
+    keepAlpha(mat);
+    return mat;
+  }
+
   // A new material, so it carries none of the source's patches (layers, wind).
   const toward = mode === "multiply" ? "vec3( 1.0 )" : "vec3( 0.0 )";
   addPatch(mat, {

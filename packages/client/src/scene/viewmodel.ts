@@ -13,7 +13,6 @@ import type { GltfAsset } from "./assets.js";
 import { WEAPON_FORMAT_VERSION } from "@3d/shared/sim/weaponDef.js";
 import type { ClipRole, WeaponClipInfo, WeaponDef, WeaponTimes } from "@3d/shared/sim/weaponDef.js";
 import type { AttachmentEntry } from "@3d/shared/sim/weaponRegistry.js";
-import { getOpticAdsClip } from "./opticAdsData.js";
 export { WEAPON_FORMAT_VERSION };
 export type { ClipRole, WeaponClipInfo, WeaponDef, WeaponTimes };
 
@@ -22,6 +21,8 @@ export interface FittedAttachment {
   entry: AttachmentEntry;
   /** The catalogue's model for it. Absent where the mesh is part of the gun already (IW4) — nothing to mount. */
   asset: GltfAsset | undefined;
+  /** An optic's reticle model (`entry.reticle`), hung on the optic's `tag_reticle_attach`. */
+  reticle?: GltfAsset;
 }
 
 export interface ViewmodelOptions {
@@ -33,6 +34,12 @@ export interface ViewmodelOptions {
   def?: WeaponDef;
   /** What is fitted. Only the ones with a model of their own are mounted; the rest change the numbers and what is hidden. */
   attachments?: readonly FittedAttachment[];
+  /**
+   * What a reticle's material is drawn as: the game's own premultiplied,
+   * emissive blend, derived once in the world's AssetStore (`blendReplacement`),
+   * which owns it. Without one the reticle keeps its imported material.
+   */
+  reticleMaterial?: (source: THREE.Material) => THREE.Material | null;
 }
 
 /** The joint the camera sits at: the eye, which no clip moves. */
@@ -98,7 +105,7 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
   // only check that this file is a weapon GLB at all, and the fallback for a
   // client whose catalogue never arrived.
   const own = readWeaponDef(weapon.scene.userData);
-  let def = options.def ?? own;
+  const def = options.def ?? own;
   const root = SkeletonUtils.clone(weapon.scene);
   const joints = new Map<string, THREE.Object3D>();
 
@@ -135,7 +142,7 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
     root.add(mesh);
   }
 
-  mountAttachments(root, joints, options.attachments ?? [], def.weapon);
+  mountAttachments(root, joints, options.attachments ?? [], def.weapon, options.reticleMaterial);
 
   // After the attachments: `def.hideBones` is the resolved set, so an optic that
   // hides the iron sights hides them on the mesh it just brought with it too.
@@ -161,21 +168,6 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
     }
 
     clips.set(clip.name, clip);
-  }
-
-  // Override ADS clips for fitted optics with authentic MW3 optic animations
-  for (const attachment of options.attachments ?? []) {
-    const opticClip = getOpticAdsClip(def.weapon, attachment.entry.id);
-    if (opticClip) {
-      clips.set(opticClip.name, opticClip);
-      def = {
-        ...def,
-        roles: {
-          ...def.roles,
-          adsUp: opticClip.name,
-        },
-      };
-    }
   }
 
   for (const [role, name] of Object.entries(def.roles)) {
@@ -240,12 +232,15 @@ function subtreesOf(root: THREE.Object3D, bones: readonly string[]): Set<string>
 }
 
 /** Hang each fitted attachment's model on the gun. `joints` is the rig's bones by name. */
-export function mountAttachments(root: THREE.Object3D, joints: Map<string, THREE.Object3D>, fitted: readonly FittedAttachment[], weapon: string): void {
+export function mountAttachments(
+  root: THREE.Object3D,
+  joints: Map<string, THREE.Object3D>,
+  fitted: readonly FittedAttachment[],
+  weapon: string,
+  reticleMaterial?: ViewmodelOptions["reticleMaterial"],
+): void {
   for (const attachment of fitted) {
-    mountAttachment(root, joints, attachment, weapon);
-    if (!attachment.asset) {
-      mountOpticReticle(root, attachment.entry.id);
-    }
+    mountAttachment(root, joints, attachment, weapon, reticleMaterial);
   }
 }
 
@@ -264,7 +259,13 @@ export function mountAttachments(root: THREE.Object3D, joints: Map<string, THREE
  * would give a fitted one another's. They are moved onto `root` for the same
  * reason the hands' are — see above.
  */
-function mountAttachment(root: THREE.Object3D, joints: Map<string, THREE.Object3D>, fitted: FittedAttachment, weapon: string): void {
+function mountAttachment(
+  root: THREE.Object3D,
+  joints: Map<string, THREE.Object3D>,
+  fitted: FittedAttachment,
+  weapon: string,
+  reticleMaterial?: ViewmodelOptions["reticleMaterial"],
+): void {
   const tag = fitted.entry.tag;
   if (!fitted.asset || tag === undefined) {
     return; // nothing of its own to draw: it changes the numbers, or the gun already carries its mesh
@@ -298,7 +299,7 @@ function mountAttachment(root: THREE.Object3D, joints: Map<string, THREE.Object3
     for (const mesh of skinned) {
       root.add(mesh);
     }
-    mountOpticReticle(mount, fitted.entry.id);
+    mountReticle(mount, fitted, reticleMaterial);
     return;
   }
 
@@ -330,105 +331,37 @@ function uprightRigid(meshes: readonly THREE.Mesh[]): THREE.Object3D {
   return holder;
 }
 
-const reticleTextures = new Map<string, THREE.Texture>();
-let reticleTextureLoader: THREE.TextureLoader | undefined;
-
-function getReticleTexture(url: string): THREE.Texture {
-  let tex = reticleTextures.get(url);
-  if (!tex) {
-    reticleTextureLoader ??= new THREE.TextureLoader();
-    tex = reticleTextureLoader.load(url);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    reticleTextures.set(url, tex);
-  }
-  return tex;
-}
-
-/** Determine the authentic reticle texture URL for a given attachment ID. */
-export function opticReticleUrl(attachmentId: string): string | null {
-  const id = attachmentId.toLowerCase();
-  if (id.includes("reflex")) {
-    return "/assets/reticles/reflex.png";
-  }
-  if (id.includes("eotech")) {
-    return "/assets/reticles/eotech.png";
-  }
-  if (id.includes("acog")) {
-    return "/assets/reticles/acog.png";
-  }
-  if (id.includes("hybrid") || id.includes("hamr")) {
-    return "/assets/reticles/hybrid.png";
-  }
-  return null;
-}
+/** The joint every IW5 optic hangs its reticle model on. */
+export const RETICLE_JOINT = "tag_reticle_attach";
 
 /**
- * Mount the illuminated 3D reticle onto `tag_reticle_attach` for optical sights.
- * Authentic MW3 sights (Reflex red dot, Holographic EOTech circle, ACOG chevron, Hybrid)
- * have their reticle mounted on `tag_reticle_attach` as an unlit emissive quad.
+ * Hang an optic's reticle where the game does: its own model
+ * (`viewmodel_reticle_eotech`, ...), under the optic's `tag_reticle_attach`.
+ *
+ * The model is rigid, so it carries OAT's Z-up to Y-up change in its vertices
+ * and is stood up as a rigid scope is (`uprightRigid`): the top of its image
+ * then points up the sight. Its texture fills the middle of the quad only — the
+ * UVs run past [0, 1] onto a clamped edge — which is the size the game draws it.
  */
-export function mountOpticReticle(parent: THREE.Object3D, attachmentId: string): THREE.Mesh | null {
-  const reticleJoint = parent.getObjectByName("tag_reticle_attach");
-  if (!reticleJoint) {
-    return null;
+function mountReticle(mount: THREE.Object3D, fitted: FittedAttachment, reticleMaterial?: ViewmodelOptions["reticleMaterial"]): void {
+  const joint = mount.getObjectByName(RETICLE_JOINT);
+  if (!joint || !fitted.reticle) {
+    return;
   }
-  const old = reticleJoint.getObjectByName("optic_reticle_mesh");
-  if (old) {
-    reticleJoint.remove(old);
-  }
-
-  const textureUrl = opticReticleUrl(attachmentId);
-  if (!textureUrl) {
-    return null;
-  }
-
-  const texture = getReticleTexture(textureUrl);
-
-  // In IW5 inches, the reticle plane is ~1.37 inches wide and tall (0.685 half-size).
-  // Normal points along -X (towards the player eye at tag_view).
-  // Left (+Y) is U=0, Right (-Y) is U=1.
-  // Top (+Z) is V=1, Bottom (-Z) is V=0.
-  const half = 0.685;
-  const positions = new Float32Array([
-    0,  half,  half, // 0: top-left
-    0, -half,  half, // 1: top-right
-    0,  half, -half, // 2: bottom-left
-    0, -half, -half, // 3: bottom-right
-  ]);
-  const uvs = new Float32Array([
-    0, 1,
-    1, 1,
-    0, 0,
-    1, 0,
-  ]);
-  const indices = new Uint16Array([
-    0, 2, 1,
-    2, 3, 1,
-  ]);
-
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-  geometry.computeVertexNormals();
-
-  const material = new THREE.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    depthWrite: false,
-    depthTest: true,
-    side: THREE.DoubleSide,
+  const meshes: THREE.Mesh[] = [];
+  fitted.reticle.scene.clone().traverse((item) => {
+    if (item instanceof THREE.Mesh) {
+      meshes.push(item);
+    }
   });
-
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.name = "optic_reticle_mesh";
-  mesh.renderOrder = 10;
-  mesh.frustumCulled = false;
-  mesh.castShadow = false;
-  mesh.receiveShadow = false;
-
-  reticleJoint.add(mesh);
-  return mesh;
+  for (const mesh of meshes) {
+    mesh.material = (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).map((m) => reticleMaterial?.(m) ?? m)[0]!;
+    // Last of the rig, over the optic's own glass.
+    mesh.renderOrder = 1;
+  }
+  const holder = uprightRigid(meshes);
+  holder.name = "reticle";
+  joint.add(holder);
 }
 
 /**

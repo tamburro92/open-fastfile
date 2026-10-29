@@ -126,6 +126,9 @@ export class AssetStore {
   /** Time for every flag-wind material this store loads (scene/flag.ts); engine/animator.ts advances it. */
   readonly shaderClock: ShaderClock = { value: 0 };
 
+  /** `blendFor`'s, by the glTF material each replaces. */
+  private readonly rigBlends = new Map<THREE.Material, THREE.Material | null>();
+
   constructor(loaders?: Partial<AssetLoaders>) {
     this.loaders = { ...defaultLoaders(), ...loaders };
   }
@@ -157,6 +160,20 @@ export class AssetStore {
     if (replacement === undefined) {
       replacement = blendedMaterialFor(source, mode);
       blends.set(source, replacement);
+    }
+    return replacement;
+  }
+
+  /**
+   * The material that draws `source` with the game's blend equation, for a
+   * material that came with a glTF rather than a model placement (an optic's
+   * reticle on a viewmodel rig). Keyed by the source, freed with the store.
+   */
+  blendFor(source: THREE.Material, mode: string): THREE.Material | null {
+    let replacement = this.rigBlends.get(source);
+    if (replacement === undefined) {
+      replacement = blendedMaterialFor(source, mode);
+      this.rigBlends.set(source, replacement);
     }
     return replacement;
   }
@@ -360,6 +377,10 @@ export class AssetStore {
 
   /** Free everything. The store must not be used afterwards. */
   dispose(): void {
+    for (const material of this.rigBlends.values()) {
+      material?.dispose();
+    }
+    this.rigBlends.clear();
     for (const url of [
       ...this.models.keys(),
       ...this.raw.keys(),

@@ -27,6 +27,7 @@ from scripts.cod.attachments import (
     iw4_entries,
     iw4_entry,
     iw5_entry,
+    iw5_roles,
     read_defs,
     resolve_clips,
     resolve_mounts,
@@ -318,3 +319,23 @@ def test_every_two_attachment_weapon_file_mw2_ships_is_what_composing_its_attach
 
     assert checked == 806, f"MW2 ships 806 two-attachment weapon files, not {checked}"
     assert sorted(wrong) == MW2_UNCOMPOSED
+
+
+def test_iw5_optic_aiming_clips_come_from_the_weapon_files_anim_overrides():
+    # MW3's ACR: each optic names its own aiming clips on this gun, and a row
+    # naming a second attachment (the launcher's ACOG) is a combination, not this.
+    info = {
+        "animOverrides": "\n".join(
+            [
+                "eotech none ads_up viewmodel_acr_eotech_ads_up none 0 0",
+                "eotech none ads_down viewmodel_acr_eotech_ads_down none 0 0",
+                "reflex none ads_up viewmodel_acr_reflex_ADS_up none 0 0",
+                "m320 acog ads_up viewmodel_acr_gl_acog_ads_up none 0 0",
+                "m320 none idle viewmodel_masada_gl_idle viewmodel_masada_gl_grenade_idle 0 0",
+            ]
+        )
+    }
+    assert iw5_roles(info, "eotech") == {"adsUp": "viewmodel_acr_eotech_ads_up", "adsDown": "viewmodel_acr_eotech_ads_down"}
+    assert iw5_roles(info, "reflex") == {"adsUp": "viewmodel_acr_reflex_ADS_up"}
+    assert iw5_roles(info, "m320") == {}
+    assert iw5_roles(info, "acog") == {}

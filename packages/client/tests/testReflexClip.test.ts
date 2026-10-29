@@ -1,111 +1,121 @@
 // @vitest-environment happy-dom
+// An optic's reticle is where the eye is when the player aims through it.
+//
+// This is the result that is *plausibly* wrong in every way it can be: a reticle
+// a few millimetres off its sight line still draws, just beside the target, and
+// nothing throws. So it is measured, over the real catalogue, for every MW3 gun
+// and every optic it takes that has a reticle of its own: the gun built as the
+// game builds it — the optic's model on its tag, its reticle model on the
+// optic's `tag_reticle_attach`, and the aiming clips the weapon file's
+// `animOverrides` gives that optic on that gun — posed at full aim, and the
+// reticle's centre projected through the viewmodel camera. It must land on the
+// middle of the screen.
+//
+// Skips without a catalogue built (`python3 -m scripts.cod catalog --dump mw3`).
+
 import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { buildViewmodelRig } from "../src/scene/viewmodel.js";
-import { Viewmodel, type ViewFrame } from "../src/engine/viewmodel.js";
-import { WeaponController } from "@3d/shared/sim/weapon.js";
 import { createMovement } from "@3d/shared/sim/movementState.js";
+import { WeaponController } from "@3d/shared/sim/weapon.js";
+import { resolveWeapon, type WeaponEntry } from "@3d/shared/sim/weaponRegistry.js";
+import { Viewmodel, type ViewFrame } from "../src/engine/viewmodel.js";
+import type { GltfAsset } from "../src/scene/assets.js";
+import { buildViewmodelRig } from "../src/scene/viewmodel.js";
 
 const CATALOG = path.resolve(import.meta.dirname, "../../../worlds/catalog");
+const WEAPONS = path.join(CATALOG, "weapons/iw5");
+const HANDS = path.join(CATALOG, "viewhands/iw5");
 
-async function load(file: string) {
+async function load(file: string): Promise<GltfAsset> {
   const bytes = fs.readFileSync(file);
   const gltf = await new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "");
-  return { scene: gltf.scene, clips: gltf.animations };
+  return { scene: gltf.scene, clips: gltf.animations } as GltfAsset;
 }
 
-describe("Authentic Reflex Clip test", () => {
-  it("automatically loads authentic reflex ads clip when reflex is fitted", async () => {
-    const m4Path = path.join(CATALOG, "weapons/iw5/iw5_m4_mp/iw5_m4_mp.glb");
-    const reflexPath = path.join(CATALOG, "attachments/iw5/viewmodel_reflex_iw5/viewmodel_reflex_iw5.glb");
-    const [m4Asset, reflexAsset] = await Promise.all([load(m4Path), load(reflexPath)]);
+const attachmentGlb = (model: string) => path.join(CATALOG, "attachments/iw5", model, `${model}.glb`);
 
-    const handsScene = new THREE.Group();
-    const origin = new THREE.Bone();
-    origin.name = "tag_origin";
-    const view = new THREE.Bone();
-    view.name = "tag_view";
-    origin.add(view);
-    const geom = new THREE.BufferGeometry();
-    geom.setAttribute("position", new THREE.Float32BufferAttribute([0, 0, 0, 1, 0, 0, 0, 1, 0], 3));
-    geom.setAttribute("skinIndex", new THREE.Uint16BufferAttribute([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 4));
-    geom.setAttribute("skinWeight", new THREE.Float32BufferAttribute([1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0], 4));
-    geom.setIndex([0, 1, 2]);
-    const mesh = new THREE.SkinnedMesh(geom, new THREE.MeshBasicMaterial());
-    mesh.bind(new THREE.Skeleton([view]));
-    handsScene.add(origin, mesh);
-    const handsAsset = { scene: handsScene, clips: [] };
-
-    // Build rig with reflex
-    const rig = buildViewmodelRig(m4Asset, handsAsset, {
-      attachments: [{ entry: { id: "reflex", tag: "tag_red_dot" }, asset: reflexAsset }],
-    });
-
-    // Check that adsUp role is viewmodel_m4_reflex_ads_up
-    expect(rig.def.roles.adsUp).toBe("viewmodel_m4_reflex_ads_up");
-    expect(rig.clips.has("viewmodel_m4_reflex_ads_up")).toBe(true);
-
-    const vm = new Viewmodel();
-    const ctrl = new WeaponController(rig.def);
-    ctrl.ready();
-    (ctrl.data as { ads: number }).ads = 1.0;
-    vm.attach(rig, [], ctrl);
-
-    const cam = new THREE.PerspectiveCamera(65, 16 / 9, 0.01, 100);
-    cam.position.set(0, 1.5, 0);
-    cam.lookAt(0, 1.5, -1);
-
-    const frame: ViewFrame = {
-      camera: cam,
-      turn: { yaw: 0, pitch: 0 },
-      movement: createMovement({ x: 0, y: 0, z: 0 }, 0, 0),
-    };
-
-    vm.update(0.016, frame);
-    vm.scene.updateMatrixWorld(true);
-    vm.camera.updateMatrixWorld(true);
-
-    const reticle = rig.root.getObjectByName("optic_reticle_mesh")!;
-    const retWorld = reticle.getWorldPosition(new THREE.Vector3());
-    const retCam = retWorld.clone().applyMatrix4(vm.camera.matrixWorldInverse);
-    const retNdc = retWorld.clone().project(vm.camera);
-
-    console.log(`Reticle with authentic MW3 reflex clip: Cam Y=${retCam.y.toFixed(4)}, Z=${retCam.z.toFixed(4)} -> NDC Y=${retNdc.y.toFixed(4)}, X=${retNdc.x.toFixed(4)}`);
-    expect(Math.abs(retNdc.x)).toBeLessThan(0.01);
-    expect(Math.abs(retNdc.y)).toBeLessThan(0.05);
-
-    // Test EOTech and ACOG
-    const eotechPath = path.join(CATALOG, "attachments/iw5/viewmodel_eotech/viewmodel_eotech.glb");
-    const acogPath = path.join(CATALOG, "attachments/iw5/viewmodel_acog/viewmodel_acog.glb");
-    const [eotechAsset, acogAsset] = await Promise.all([load(eotechPath), load(acogPath)]);
-
-    for (const [name, attach] of [
-      ["EOTech", { entry: { id: "eotech", tag: "tag_eotech" }, asset: eotechAsset }],
-      ["ACOG", { entry: { id: "acog", tag: "tag_acog_2" }, asset: acogAsset }],
-    ] as const) {
-      const opticRig = buildViewmodelRig(m4Asset, handsAsset, {
-        attachments: [attach],
-      });
-      const opticVm = new Viewmodel();
-      const opticCtrl = new WeaponController(opticRig.def);
-      opticCtrl.ready();
-      (opticCtrl.data as { ads: number }).ads = 1.0;
-      opticVm.attach(opticRig, [], opticCtrl);
-      opticVm.update(0.016, frame);
-      opticVm.scene.updateMatrixWorld(true);
-      opticVm.camera.updateMatrixWorld(true);
-
-      const rMesh = opticRig.root.getObjectByName("optic_reticle_mesh")!;
-      const rWorld = rMesh.getWorldPosition(new THREE.Vector3());
-      const rCam = rWorld.clone().applyMatrix4(opticVm.camera.matrixWorldInverse);
-      const rNdc = rWorld.clone().project(opticVm.camera);
-
-      console.log(`Reticle with authentic MW3 ${name} clip: Cam Y=${rCam.y.toFixed(4)}, Z=${rCam.z.toFixed(4)} -> NDC Y=${rNdc.y.toFixed(4)}, X=${rNdc.x.toFixed(4)}`);
-      expect(Math.abs(rNdc.x)).toBeLessThan(0.01);
-      expect(Math.abs(rNdc.y)).toBeLessThan(0.05);
+/** Every MW3 gun that takes an optic with a reticle of its own, and which optics. */
+function cases(): { entry: WeaponEntry; slots: number[] }[] {
+  if (!fs.existsSync(WEAPONS)) {
+    return [];
+  }
+  const out: { entry: WeaponEntry; slots: number[] }[] = [];
+  for (const id of fs.readdirSync(WEAPONS)) {
+    const file = path.join(WEAPONS, id, `${id}.json`);
+    if (!fs.existsSync(file)) {
+      continue;
     }
-  });
+    const entry = JSON.parse(fs.readFileSync(file, "utf8")) as WeaponEntry;
+    const slots = entry.attachments.flatMap((a, slot) => (a.reticle && a.model && fs.existsSync(attachmentGlb(a.reticle)) ? [slot] : []));
+    if (slots.length > 0) {
+      out.push({ entry, slots });
+    }
+  }
+  return out;
+}
+
+/**
+ * Off by the game's own data, and kept that way: MW3's `iw5_mk12spr_mp` — a gun
+ * left in the files and never in the multiplayer menu — gives its ACOG the
+ * Dragunov's aiming clips (`viewmodel_dragunov_acog_ADS_up`), which put that
+ * optic's sight line somewhere else on this gun.
+ */
+const AS_SHIPPED = new Set(["iw5_mk12spr_mp + acog"]);
+
+const all = cases();
+const handsDir = fs.existsSync(HANDS) ? fs.readdirSync(HANDS)[0] : undefined;
+
+describe("an optic's reticle at full aim", () => {
+  it.skipIf(all.length === 0 || !handsDir)(
+    `is on the middle of the screen, for every MW3 gun and optic (${all.length} guns)`,
+    async () => {
+      const hands = await load(path.join(HANDS, handsDir!, `${handsDir}.glb`));
+      const camera = new THREE.PerspectiveCamera(65, 16 / 9, 0.01, 100);
+      camera.position.set(0, 1.5, 0);
+      camera.lookAt(0, 1.5, -1);
+      camera.updateMatrixWorld(true);
+      const frame: ViewFrame = { camera, turn: { yaw: 0, pitch: 0 }, movement: createMovement({ x: 0, y: 0, z: 0 }, 0, 0) };
+      const off: string[] = [];
+      let measured = 0;
+
+      for (const { entry, slots } of all) {
+        const gun = await load(path.join(WEAPONS, entry.id, `${entry.id}.glb`));
+        for (const slot of slots) {
+          const optic = entry.attachments[slot]!;
+          const [model, reticle] = await Promise.all([load(attachmentGlb(optic.model!)), load(attachmentGlb(optic.reticle!))]);
+          const def = resolveWeapon(entry, [slot]);
+          const rig = buildViewmodelRig(gun, hands, { def, attachments: [{ entry: optic, asset: model, reticle }] });
+          const mounted = rig.root.getObjectByName("reticle");
+          if (!mounted) {
+            off.push(`${entry.id} + ${optic.id}: no reticle mounted`);
+            continue;
+          }
+
+          const viewmodel = new Viewmodel();
+          const weapon = new WeaponController(def);
+          weapon.ready();
+          (weapon.data as { ads: number }).ads = 1;
+          viewmodel.attach(rig, [], weapon);
+          viewmodel.update(0.016, frame);
+          viewmodel.scene.updateMatrixWorld(true);
+          viewmodel.camera.updateMatrixWorld(true);
+
+          const centre = mounted.getWorldPosition(new THREE.Vector3()).project(viewmodel.camera);
+          measured++;
+          // A twentieth of the half-screen: a dot on a 1080-line screen inside 27 pixels of the middle.
+          if ((Math.abs(centre.x) > 0.05 || Math.abs(centre.y) > 0.05) && !AS_SHIPPED.has(`${entry.id} + ${optic.id}`)) {
+            off.push(`${entry.id} + ${optic.id}: ${centre.x.toFixed(3)}, ${centre.y.toFixed(3)}`);
+          }
+          viewmodel.clear();
+        }
+      }
+
+      expect(measured).toBeGreaterThan(0);
+      expect(off).toEqual([]);
+    },
+    120_000,
+  );
 });

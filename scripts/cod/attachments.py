@@ -162,12 +162,35 @@ def scale(attach, key):
     return None if value in (None, 0.0, 1.0) else value
 
 
-def iw5_entry(name, attach, base, model=None, tag=None):
+# IW5's `animOverrides` names a role as the game's code does, not as the weapon
+# file's keys do: `eotech none ads_up viewmodel_acr_eotech_ads_up none 0 0`.
+# Only the aiming clips are read, which are what put an optic's own sight line
+# on the eye; the rest of the table (a launcher's idle, a hybrid's flip) is not
+# built yet.
+IW5_OVERRIDE_ROLES = {"ads_up": "adsUp", "ads_down": "adsDown", "ads_fire": "adsFire", "ads_lastshot": "adsLastShot"}
+
+
+def iw5_roles(info, name):
+    """{role: clip} this attachment alone plays on this weapon, from the weapon file's `animOverrides`.
+
+    A row naming a second attachment (`m320 acog ads_up ...`) is a combination,
+    which the catalogue composes from single attachments instead, so it is skipped.
+    """
+    roles = {}
+    for line in (info.get("animOverrides") or "").split("\n"):
+        parts = line.split()
+        if len(parts) == 7 and parts[:2] == [name, "none"] and parts[2] in IW5_OVERRIDE_ROLES and parts[3] != "none":
+            roles[IW5_OVERRIDE_ROLES[parts[2]]] = parts[3]
+    return roles
+
+
+def iw5_entry(name, attach, base, model=None, tag=None, info=None):
     """One IW5 attachment against one weapon, in that weapon's own absolute numbers.
 
     `base` is `spec_of(the weapon file)`, which is what the scales multiply:
     `ammunitionScale` 1.5 on an M4's 30 rounds is 45 here, and the engine never
-    sees that a scale was involved.
+    sees that a scale was involved. `info` is the weapon file itself, whose
+    `animOverrides` gives an optic the aiming clips authored for it on this gun.
     """
     overrides, times = {}, {}
 
@@ -203,6 +226,8 @@ def iw5_entry(name, attach, base, model=None, tag=None):
 
     if times:
         overrides["times"] = times
+    if info is not None and (roles := {r: c for r, c in iw5_roles(info, name).items() if base["roles"].get(r) != c}):
+        overrides["roles"] = roles
 
     entry = _entry(name, attach.get("type"), attach.get("displayName"))
     if model:

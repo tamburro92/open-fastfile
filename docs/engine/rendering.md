@@ -283,6 +283,22 @@ world into the same framebuffer with only the depth cleared (the `viewmodel`
   the receiver filling a 15° field of view on the way — and it waits for the
   picture to load rather than aiming at a blank screen. Where the overlay comes
   from: [the importer's reference](../cod/reference.md#viewmodels).
+- **A sight is looked through, and its reticle is the game's own model.** A
+  red dot, holographic or ACOG has no overlay: the gun stays on screen, and its
+  aiming clips — the ones the weapon file's `animOverrides` gives *that* optic
+  on *that* gun (`viewmodel_acr_eotech_ads_up`), not the gun's bare
+  `ads_up` — put the optic's sight line on the eye. The reticle is IW5's
+  `reticleViewModels[0]` (`viewmodel_reticle_eotech`), a 1.37-inch quad hung on
+  the optic's `tag_reticle_attach` and stood up as a rigid scope is, drawn with
+  its material's own state: unlit, `one`/`invsrcalpha`, no depth write
+  (`blendFor(…, "premultiplied")`, owned by the world's store). Its image fills
+  the middle of the quad only, because its UVs run past the clamped edge.
+  `client/tests/testReflexClip.test.ts` projects every MW3 gun's every optic at
+  full aim and holds the reticle to the middle of the screen. What is not
+  built: the reflex technique's correction for an eye off the sight line (the
+  reticle is a flat quad, so it moves with the glass under sway), the seven
+  custom reticles a player could unlock, and the hybrid sight, which carries no
+  reticle model of its own.
 - Two render calls a frame reset `renderer.info` twice, so the viewer turns
   `autoReset` off and resets once per frame; the draw counts cover both passes.
 

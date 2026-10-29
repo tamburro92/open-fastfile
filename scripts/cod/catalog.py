@@ -502,6 +502,32 @@ def _attachment_models(work, worlds_root, game_key, defs, iwi, states):
     return found
 
 
+def _reticle_models(work, worlds_root, game_key, defs, iwi, states):
+    """Pack each optic's reticle; return {attachment name: reticle model}.
+
+    IW5 draws an optic's reticle as a model of its own, `reticleViewModels[0]`
+    (`viewmodel_reticle_eotech`; the other seven are the unlockable custom
+    reticles), a 1.37-inch quad hung on the optic's `tag_reticle_attach` with an
+    emissive, premultiplied material. Packed beside the optic models, once a model.
+    """
+    models = os.path.join(work, "models")
+    found, packed = {}, {}
+    for name, attach in defs.items():
+        model = next((m for m in attach.get("reticleViewModels") or [] if m), None)
+        if model is None:
+            continue
+        if model not in packed:
+            raw = _model_glb(models, model)
+            packed[model] = raw is not None
+            if raw is not None:
+                out = entry_dir(worlds_root, "attachments", game_key, model)
+                os.makedirs(out, exist_ok=True)
+                pack_one(raw, os.path.join(out, f"{model}.glb"), iwi, VIEW_TEXTURE_SIZE, states, False)
+        if packed[model]:
+            found[name] = model
+    return found
+
+
 def _fitted(game_key, weapon, info, guns, defs, models):
     """What may be fitted to one weapon, in slot order, in that weapon's own numbers.
 
@@ -521,7 +547,7 @@ def _fitted(game_key, weapon, info, guns, defs, models):
     elif defs:
         base = attachments.spec_of(info)
         entries = [
-            attachments.iw5_entry(name, defs[name], base, *models.get(name, (None, None)))
+            attachments.iw5_entry(name, defs[name], base, *models.get(name, (None, None)), info=info)
             for name in attachments.accepted(info)
             if name in defs
         ]
@@ -718,6 +744,7 @@ def build_from_zone(work, worlds_root, game_key, states, hands=None):
     defs = attachments.t6_read(work) if game_key == "t6" else attachments.read_defs(work)
     # T6's attachment models are not packed: nothing mounts them yet (attachments.t6_entry).
     models = _attachment_models(work, worlds_root, game_key, defs, iwi, states) if defs and game_key != "t6" else {}
+    reticles = _reticle_models(work, worlds_root, game_key, defs, iwi, states) if defs and game_key == "iw5" else {}
     if game_key == "t6":
         print(f"  {len(defs['attachment'])} attachment(s), {len(defs['unique'])} attachment unique(s)")
     elif defs:
@@ -733,6 +760,9 @@ def build_from_zone(work, worlds_root, game_key, states, hands=None):
         if game_key == "t6":
             info = t6_catalog.normalize(info)
         fitted = _fitted(game_key, name, info, guns, defs, models)
+        for entry in fitted:
+            if entry["id"] in reticles and "model" in entry:
+                entry["reticle"] = reticles[entry["id"]]
         unproven += attachments.check_variants(name, info, guns, fitted)
         built, problems = build_one(work, worlds_root, game_key, name, info, hands_raw, iwi, states, scratch, fitted, absolute)
         if built is None:

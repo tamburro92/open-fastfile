@@ -173,13 +173,18 @@ export class WeaponViewmodel {
       return;
     }
     const wanted = entry.attachments.filter((_, slot) => fitted.includes(slot));
-    const [weapon, ...models] = await Promise.all([
+    const optional = (model: string | undefined) => (model ? assets.gltf(attachmentModelUrl(entry.game, model)) : Promise.resolve(undefined));
+    const [weapon, models, reticles] = await Promise.all([
       assets.gltf(url),
-      ...wanted.map((a) => (a.model ? assets.gltf(attachmentModelUrl(entry.game, a.model)) : Promise.resolve(undefined))),
+      Promise.all(wanted.map((a) => optional(a.model))),
+      Promise.all(wanted.map((a) => optional(a.reticle))),
     ]);
     // A world left while this was on its way: its store has freed these.
     if (weapon && this.assets === assets) {
-      this.carried.set(rigKey(id, fitted), { weapon, attachments: wanted.map((entryFor, i) => ({ entry: entryFor, asset: models[i] })) });
+      this.carried.set(rigKey(id, fitted), {
+        weapon,
+        attachments: wanted.map((entryFor, i) => ({ entry: entryFor, asset: models[i], reticle: reticles[i] })),
+      });
     }
   }
 
@@ -226,7 +231,13 @@ export class WeaponViewmodel {
       return false;
     }
     try {
-      const rig = buildViewmodelRig(parts.weapon, this.hands, { def: weapon.def, attachments: parts.attachments });
+      const assets = this.assets;
+      const rig = buildViewmodelRig(parts.weapon, this.hands, {
+        def: weapon.def,
+        attachments: parts.attachments,
+        // The game's own blend for a reticle, derived once in this world's store and freed with it.
+        reticleMaterial: (source) => assets.blendFor(source, "premultiplied"),
+      });
       // The scope picture is read from the *resolved* definition, not the GLB's:
       // it is what a fitted optic changes, and an ACOG on a sniper rifle removes.
       const overlay = weapon.def.adsOverlay;

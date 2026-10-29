@@ -120,14 +120,45 @@ describe.skipIf(!built)("mounting an attachment on a real weapon", () => {
     ).toBe(true);
   });
 
-  it("mounts the optic reticle onto tag_reticle_attach when an optic attachment is fitted", async () => {
-    const [gun, acog] = await Promise.all([load(SKINNED.gun), load(SKINNED.model)]);
+  it("hangs an optic's own reticle model on its tag_reticle_attach, upright and at the game's size", async () => {
+    const reticlePath = path.join(CATALOG, "attachments/iw5/viewmodel_reticle_acog/viewmodel_reticle_acog.glb");
+    if (!fs.existsSync(reticlePath)) {
+      return; // a catalogue built before reticles were
+    }
+    const [gun, acog, reticle] = await Promise.all([load(SKINNED.gun), load(SKINNED.model), load(reticlePath)]);
     const root = gun.scene;
-    const joints = jointsOf(root);
-    mountAttachments(root, joints, [{ entry: { id: "acog", tag: "tag_acog_2", model: "model" }, asset: acog }], SKINNED.weapon);
+    mountAttachments(
+      root,
+      jointsOf(root),
+      [{ entry: { id: "acog", tag: "tag_acog_2", model: "viewmodel_acog", reticle: "viewmodel_reticle_acog" }, asset: acog, reticle }],
+      SKINNED.weapon,
+    );
 
-    const reticle = root.getObjectByName("optic_reticle_mesh");
-    expect(reticle).toBeTruthy();
-    expect(reticle?.parent?.name).toBe("tag_reticle_attach");
+    const mounted = root.getObjectByName("reticle")!;
+    expect(mounted.parent?.name).toBe("tag_reticle_attach");
+    // In the joint's own frame (CoD's: X forward, Y left, Z up), the quad faces
+    // down the sight and stands 1.37 inches square, as `viewmodel_reticle_acog` is.
+    const joint = mounted.parent!;
+    joint.updateMatrixWorld(true);
+    const local = new THREE.Box3().setFromObject(mounted).applyMatrix4(joint.matrixWorld.clone().invert());
+    const size = local.getSize(new THREE.Vector3());
+    expect(size.x).toBeLessThan(0.01);
+    expect(size.y).toBeCloseTo(1.37, 1);
+    expect(size.z).toBeCloseTo(1.37, 1);
+
+    // Upright: the vertex highest up the sight (CoD's +Z) is the top of its image
+    // (glTF's v runs down from 0), so an ACOG's chevron points up, not sideways.
+    const quad = mounted.children[0] as THREE.Mesh;
+    const toJoint = joint.matrixWorld.clone().invert().multiply(quad.matrixWorld);
+    const positions = quad.geometry.getAttribute("position");
+    const uvs = quad.geometry.getAttribute("uv");
+    let top = 0;
+    for (let i = 1; i < positions.count; i++) {
+      const z = (i: number) => new THREE.Vector3().fromBufferAttribute(positions, i).applyMatrix4(toJoint).z;
+      if (z(i) > z(top)) {
+        top = i;
+      }
+    }
+    expect(uvs.getY(top)).toBeLessThan(0.5);
   });
 });

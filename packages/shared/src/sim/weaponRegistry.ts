@@ -116,6 +116,12 @@ export interface AttachmentEntry {
    * and only hidden (IW4), which is what `showBones` is for.
    */
   model?: string;
+  /**
+   * An optic's reticle, a catalogue model of its own (`viewmodel_reticle_eotech`):
+   * the quad IW5 hangs on the optic's `tag_reticle_attach`, drawn emissive and
+   * premultiplied over whatever is behind the glass.
+   */
+  reticle?: string;
   /** Joints whose surfaces this hides, on top of the weapon's own `hideBones`: the iron sights under a scope. */
   hideBones?: string[];
   /** Joints the bare weapon hides and this reveals: the gun's own attachment meshes, in a game that carries them. */
