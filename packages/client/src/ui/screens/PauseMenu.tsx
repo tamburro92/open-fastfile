@@ -19,7 +19,7 @@ export function PauseMenu() {
     // Only in a match that lets players choose, once they are in it.
     ...(state.canChooseClass.value ? [{ label: "Choose Class", onSelect: () => commands.openClassChoice() }] : []),
     ...(state.teams.value.length > 0
-      ? [{ label: "Change Team", description: "Switch between Allies and Axis factions.", onSelect: () => commands.openTeamChoice() }]
+      ? [{ label: "Change Team", description: `Switch between ${state.teamNames.value.allies} and ${state.teamNames.value.axis}.`, onSelect: () => commands.openTeamChoice() }]
       : []),
     { label: "Options", onSelect: toggle("options"), open: panel === "options" },
     { label: "Audio", onSelect: toggle("audio"), open: panel === "audio" },

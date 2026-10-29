@@ -43,9 +43,10 @@ export function TdmHud() {
   const myKills = state.hud.points.value ?? selfEntry?.score ?? 0;
 
   const isAllies = myTeam === "allies";
-  const friendlyName = isAllies ? "Allies" : "Axis";
+  const names = state.teamNames.value;
+  const friendlyName = isAllies ? names.allies : names.axis;
   const friendlyScore = isAllies ? alliesScore : axisScore;
-  const enemyName = isAllies ? "Axis" : "Allies";
+  const enemyName = isAllies ? names.axis : names.allies;
   const enemyScore = isAllies ? axisScore : alliesScore;
 
   const timerText = timeLeft === 0 && lobby?.timeLimit === 0 ? "UNLIMITED" : formatTimer(timeLeft);

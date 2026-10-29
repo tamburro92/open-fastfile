@@ -3,7 +3,8 @@
 // no three.js objects cross this line. This is the one module src/ui/ may
 // import from the rest of the codebase (enforced in eslint.config.js).
 
-import { signal, type Signal } from "@preact/signals-core";
+import { computed, signal, type ReadonlySignal, type Signal } from "@preact/signals-core";
+import { teamName } from "@3d/shared/game/factions.js";
 import { QUALITY_LEVELS, type QualityLevel } from "../engine/qualityLevel.js";
 import { DEFAULT_SENSITIVITY, SENSITIVITY_RANGE } from "../input/sensitivity.js";
 import { AUDIO_CHANNELS, defaultAudioSettings, type AudioSettings, type Channel } from "../engine/audio/mixer.js";
@@ -402,6 +403,14 @@ export interface UiState {
   searching: Signal<boolean>;
   /** The display name of the world that is up, if any. */
   worldName: Signal<string | null>;
+  /** The world being played, by slug: what the team names are read from once in it. */
+  worldSlug: Signal<string | null>;
+  /**
+   * What the two sides are called: the map's MW3 factions ("Delta Force",
+   * "Spetsnaz"), from the world being played or else the lobby's map, and their
+   * own ids capitalised on a map with none.
+   */
+  teamNames: ReadonlySignal<{ readonly allies: string; readonly axis: string }>;
   loading: Signal<LoadingInfo | null>;
   /** null: nothing to click; the pause menu shows if paused. */
   prompt: Signal<Prompt | null>;
@@ -582,6 +591,8 @@ export interface UiCommands {
 }
 
 export function createUiState(): UiState {
+  const lobby = signal<LobbyInfo | null>(null);
+  const worldSlug = signal<string | null>(null);
   return {
     screen: signal<Screen>("menu"),
     worlds: signal<WorldEntry[]>([]),
@@ -598,10 +609,15 @@ export function createUiState(): UiState {
     playingClass: signal(null),
     pendingClass: signal(null),
     canChooseClass: signal(false),
-    lobby: signal(null),
+    lobby,
     lobbyError: signal(null),
     searching: signal(false),
     worldName: signal(null),
+    worldSlug,
+    teamNames: computed(() => {
+      const map = worldSlug.value ?? lobby.value?.map ?? undefined;
+      return { allies: teamName(map, "allies"), axis: teamName(map, "axis") };
+    }),
     loading: signal(null),
     prompt: signal(null),
     error: signal(null),

@@ -10,6 +10,7 @@ export function ChooseTeam() {
   const { state, commands } = useUi();
   const choice = state.teamChoice.value;
   const currentTeam = state.currentTeam.value;
+  const names = state.teamNames.value;
 
   useEscape(choice === "change" ? () => commands.closeTeamChoice() : undefined);
 
@@ -22,15 +23,15 @@ export function ChooseTeam() {
     },
     {
       key: "team-allies",
-      label: `Allies${currentTeam === "allies" ? " (Current)" : ""}`,
-      description: "Fight for the Allies faction.",
+      label: `${names.allies}${currentTeam === "allies" ? " (Current)" : ""}`,
+      description: `Fight for ${names.allies}.`,
       current: currentTeam === "allies",
       onSelect: () => commands.chooseTeam("allies"),
     },
     {
       key: "team-axis",
-      label: `Axis${currentTeam === "axis" ? " (Current)" : ""}`,
-      description: "Fight for the Axis faction.",
+      label: `${names.axis}${currentTeam === "axis" ? " (Current)" : ""}`,
+      description: `Fight for ${names.axis}.`,
       current: currentTeam === "axis",
       onSelect: () => commands.chooseTeam("axis"),
     },

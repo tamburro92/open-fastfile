@@ -234,7 +234,7 @@ export function BotSetup(props: { onBack: () => void }) {
         <MenuColumn title="Friendly Bots" items={items} />
         <MenuPanel title="Friendly Bots">
           <div class={styles.body}>
-            <p class={styles.desc}>The number of AI bots assigned to your team (Allies).</p>
+            <p class={styles.desc}>The number of AI bots assigned to your team ({state.teamNames.value.allies}).</p>
             <p class={styles.label}>Current: {friendlyBots} Bots</p>
             <p class={styles.hint}>
               Select<span class={menuStyles.key}>Enter</span>
@@ -274,7 +274,7 @@ export function BotSetup(props: { onBack: () => void }) {
         <MenuColumn title="Enemy Bots" items={items} />
         <MenuPanel title="Enemy Bots">
           <div class={styles.body}>
-            <p class={styles.desc}>The number of AI bots assigned to the enemy team (Axis).</p>
+            <p class={styles.desc}>The number of AI bots assigned to the enemy team ({state.teamNames.value.axis}).</p>
             <p class={styles.label}>Current: {enemyBots} Bots</p>
             <p class={styles.hint}>
               Select<span class={menuStyles.key}>Enter</span>
@@ -300,12 +300,12 @@ export function BotSetup(props: { onBack: () => void }) {
       ? [
           {
             label: "Friendly Bots",
-            description: `Current: ${friendlyBots} Bots. Allies team bots.`,
+            description: `Current: ${friendlyBots} Bots. ${state.teamNames.value.allies} bots.`,
             onSelect: () => setActiveTab("friendly"),
           },
           {
             label: "Enemy Bots",
-            description: `Current: ${enemyBots} Bots. Axis team bots.`,
+            description: `Current: ${enemyBots} Bots. ${state.teamNames.value.axis} bots.`,
             onSelect: () => setActiveTab("enemy"),
           },
         ]

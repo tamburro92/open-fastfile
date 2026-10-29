@@ -32,7 +32,9 @@ export function MatchEnd() {
     } else {
       title = "DEFEAT";
       titleClass = styles.defeat;
-      subtitle = `${reason} • ${winner ? winner.toUpperCase() : "Enemy"} Victory`;
+      const names = state.teamNames.value;
+      const winners = winner === "allies" ? names.allies : winner === "axis" ? names.axis : winner;
+      subtitle = `${reason} • ${winners ? winners.toUpperCase() : "Enemy"} Victory`;
     }
   } else {
     // In Call of Duty FFA, 1st place (and top 3) counts as victory; 1st place is the undisputed winner:

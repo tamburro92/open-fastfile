@@ -97,14 +97,14 @@ export function Scoreboard() {
         <div>
           <div class={styles.teamSection}>
             <div class={`${styles.teamHeader} ${styles.alliesHeader}`}>
-              <span>ALLIES</span>
+              <span>{state.teamNames.value.allies.toUpperCase()}</span>
               <span class={styles.teamScore}>{alliesScore}</span>
             </div>
             {renderTable(entries.filter((e) => e.team === "allies"), false)}
           </div>
           <div class={styles.teamSection}>
             <div class={`${styles.teamHeader} ${styles.axisHeader}`}>
-              <span>AXIS</span>
+              <span>{state.teamNames.value.axis.toUpperCase()}</span>
               <span class={styles.teamScore}>{axisScore}</span>
             </div>
             {renderTable(entries.filter((e) => e.team === "axis"), false)}

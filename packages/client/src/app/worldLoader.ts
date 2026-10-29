@@ -68,6 +68,7 @@ export class WorldLoader {
     this.current.session = undefined;
     this.pendingPose = undefined;
     this.ui.worldName.value = null;
+    this.ui.worldSlug.value = null;
     this.ui.minimap.map.value = null;
     this.ui.minimap.pose.value = null;
     this.ui.minimap.pings.value = [];
@@ -207,6 +208,7 @@ export class WorldLoader {
     }
 
     this.ui.worldName.value = result.world.name;
+    this.ui.worldSlug.value = slug;
     const minimap = result.world.minimap;
     this.ui.minimap.map.value = minimap ? minimapInfo(minimap, worldBaseUrl(slug)) : null;
     this.ui.error.value = null;
