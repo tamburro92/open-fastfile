@@ -9,8 +9,11 @@
 
 import type { Vec3 } from "./capsule.js";
 
-/** The order is the format: a kind travels as its index. A predator's missile is one too, drawn as it falls. */
-export const PROJECTILE_KINDS = ["frag", "semtex", "flashbang", "missile"] as const;
+/**
+ * The order is the format: a kind travels as its index. A predator's missile is
+ * one too, drawn as it falls, and so is an underbarrel launcher's 40 mm round.
+ */
+export const PROJECTILE_KINDS = ["frag", "semtex", "flashbang", "missile", "launcher"] as const;
 export type ProjectileKind = (typeof PROJECTILE_KINDS)[number];
 
 /** What can go off: every projectile. */

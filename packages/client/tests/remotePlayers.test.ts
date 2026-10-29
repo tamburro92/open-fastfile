@@ -32,6 +32,7 @@ function at(id: string, x: number, z: number, yaw = 0): PlayerSnapshot {
       dead: false,
       respawnIn: 0,
       points: 0,
+      alt: null,
     },
   };
 }
@@ -223,6 +224,7 @@ describe("remote players", () => {
             dead: false,
             respawnIn: 0,
             points: 0,
+            alt: null,
           },
         },
       ],
@@ -249,6 +251,7 @@ describe("remote players", () => {
             dead: false,
             respawnIn: 0,
             points: 0,
+            alt: null,
           },
         },
       ],

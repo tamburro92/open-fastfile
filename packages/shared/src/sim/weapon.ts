@@ -219,6 +219,15 @@ export class WeaponController {
   private d: WeaponData;
   private readonly listeners = new Set<WeaponListener>();
   private readonly perPress: number;
+  /**
+   * Rounds carried beyond the magazine, or null for as many as it takes. Every
+   * weapon here reloads for ever except an underbarrel one: MW3 hands an M203 two
+   * grenades in all, and a launcher that refills itself is a different game.
+   * Kept out of `WeaponData` and carried by the `Player` that owns it.
+   */
+  stock: number | null = null;
+  /** The other half of a sight that flips: one magazine between the two (`resolveAlt`). */
+  sharesAmmo = false;
 
   constructor(readonly def: WeaponDef) {
     this.perPress = shotsPerPress(def.fireType);
@@ -302,7 +311,7 @@ export class WeaponController {
   /** Start a reload, or queue it until the weapon can; returns whether it started now. */
   reload(): boolean {
     const d = this.d;
-    d.reloadQueued = d.ammo < this.def.clipSize && !RELOAD_STATES.includes(d.state);
+    d.reloadQueued = d.ammo < this.def.clipSize && !RELOAD_STATES.includes(d.state) && this.stock !== 0;
     if (!d.reloadQueued || !RELOAD_FROM.includes(d.state) || !this.interruptible()) {
       return false;
     }
@@ -328,6 +337,36 @@ export class WeaponController {
     const time = this.stateTime(role);
     this.enter("raising", time);
     this.play(role, { time });
+  }
+
+  /**
+   * Come up as the other half of the same gun: an underbarrel weapon and its host
+   * trade places with one clip, `altRaise` (MW3's `bullet_2_grenade` and back),
+   * rather than a putaway and a draw. Falls back to a quick raise where the
+   * weapon has no such clip.
+   */
+  switchIn(): void {
+    this.d.reloadQueued = false;
+    if (!this.def.roles.altRaise) {
+      this.enter("lowered", 0);
+      this.raise({ quick: true });
+      return;
+    }
+    const time = this.stateTime("altRaise");
+    this.enter("raising", time);
+    this.play("altRaise", { time });
+  }
+
+  /** Take over another half's magazine: a flipped sight is the same gun. */
+  takeAmmo(from: WeaponController): void {
+    this.d.ammo = Math.min(from.data.ammo, this.def.clipSize);
+  }
+
+  /** Gone at once, with no clip: the half of a gun just switched away from. */
+  stow(): void {
+    this.d.reloadQueued = false;
+    this.d.refillAt = null;
+    this.enter("lowered", 0);
   }
 
   /** Put the weapon away; it ends `lowered`, holding the clip's last frame. */
@@ -411,7 +450,12 @@ export class WeaponController {
         d.timer -= dt;
         if (d.refillAt !== null && d.timer <= d.refillAt) {
           d.refillAt = null;
-          d.ammo = this.def.roundsPerLoad > 0 ? Math.min(this.def.clipSize, d.ammo + this.def.roundsPerLoad) : this.def.clipSize;
+          const room = this.def.roundsPerLoad > 0 ? Math.min(this.def.clipSize - d.ammo, this.def.roundsPerLoad) : this.def.clipSize - d.ammo;
+          const loaded = this.stock === null ? room : Math.min(room, this.stock);
+          d.ammo += loaded;
+          if (this.stock !== null) {
+            this.stock -= loaded;
+          }
           this.emit({ type: "reloaded", ammo: d.ammo });
         }
         if (d.timer <= 0) {
@@ -587,7 +631,7 @@ export class WeaponController {
    * press does, in `setInput`.
    */
   private nextLoad(): void {
-    if (this.d.ammo < this.def.clipSize && !this.wantsFire()) {
+    if (this.d.ammo < this.def.clipSize && !this.wantsFire() && this.stock !== 0) {
       this.startSegment("reload", "reloadAdd");
       return;
     }

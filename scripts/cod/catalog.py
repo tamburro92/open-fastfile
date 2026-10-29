@@ -57,7 +57,7 @@ INDEX_FILE = "index.json"
 # one costs no version. Both readers refuse the whole catalogue on a mismatch
 # (every player unarmed), which is far too blunt for "there is a kind you have
 # not heard of".
-CATALOG_VERSION = 4
+CATALOG_VERSION = 5
 
 # The kinds `index.json` enumerates, which is the same as the kinds something has
 # to be able to *list*: every weapon, for Create-a-Class; every body and pair of
@@ -646,6 +646,12 @@ def build_equipment(work, worlds_root, game_key, states, hands=None):
     infos = equipment_weapons(work, game_key)
     names = [info.get("projectileModel") for info in infos.values()]
     names += list(EQUIPMENT_SCRIPT_MODELS.get(game_key, ()))
+    # What an underbarrel launcher fires (`projectile_m203grenade`), named by the weapons already built.
+    names += sorted(
+        attachments.alt_models(
+            a for e in scan_kind(worlds_root, "weapons") if e.get("game") == game_key for a in e.get("attachments", [])
+        )
+    )
     written = []
     for model in dict.fromkeys(n for n in names if n):
         raw = _model_glb(models, model)

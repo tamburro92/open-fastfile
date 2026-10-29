@@ -48,7 +48,8 @@ type PlayerAction =
   | "melee"
   | "lethal"
   | "tactical"
-  | "killstreak";
+  | "killstreak"
+  | "alt";
 
 const PLAYER_ACTIONS: readonly PlayerAction[] = [
   "forward",
@@ -68,6 +69,7 @@ const PLAYER_ACTIONS: readonly PlayerAction[] = [
   "lethal",
   "tactical",
   "killstreak",
+  "alt",
 ];
 
 /** The devices this reads. Satisfied by input/InputManager. */
@@ -517,7 +519,7 @@ export class FirstPersonControls {
     c.prone = this.stance === "prone";
     if (!this.enabled) {
       c.forward = c.right = 0;
-      c.run = c.jump = c.fire = c.ads = c.reload = c.swap = c.use = c.melee = c.lethal = c.tactical = c.killstreak = false;
+      c.run = c.jump = c.fire = c.ads = c.reload = c.swap = c.use = c.melee = c.lethal = c.tactical = c.killstreak = c.alt = false;
       return c;
     }
     c.forward = this.axis("forward", "back");
@@ -533,6 +535,7 @@ export class FirstPersonControls {
     c.lethal = this.pressed.has("lethal");
     c.tactical = this.pressed.has("tactical");
     c.killstreak = this.pressed.has("killstreak");
+    c.alt = this.pressed.has("alt"); // an edge, like swap: one press, one change
     return c;
   }
 

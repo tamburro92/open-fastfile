@@ -98,7 +98,7 @@ export class WeaponViewmodel {
       });
       return;
     }
-    if (this.drawn !== null && rigKey(player.weaponId, player.fitted) !== this.drawn) {
+    if (this.drawn !== null && drawnKey(player) !== this.drawn) {
       this.showHeld();
     }
   }
@@ -244,7 +244,7 @@ export class WeaponViewmodel {
       this.viewmodel.attach(rig, this.lights, weapon, overlay ? this.assets.picture(overlayImageUrl(weapon.def.game, overlay)) : undefined);
       // Joined the pass's scene after the quality level was applied to it.
       this.viewer.applyQualityTo(rig.root);
-      this.drawn = rigKey(player.weaponId, player.fitted);
+      this.drawn = drawnKey(player);
       if (options.ready) {
         weapon.ready();
       }
@@ -257,6 +257,15 @@ export class WeaponViewmodel {
       return false;
     }
   }
+}
+
+/**
+ * What is drawn: the rig, and which half of it is in hand. The underbarrel half
+ * is the same model on a controller of its own, with its own clips — switching
+ * re-attaches the rig to it, or the launcher would play the rifle's idle.
+ */
+function drawnKey(player: { weaponId: WeaponId | null; fitted: readonly number[]; altHeld: boolean }): string {
+  return `${rigKey(player.weaponId, player.fitted)}|${player.altHeld ? "alt" : ""}`;
 }
 
 /** A rig is per weapon *and* per fitted set: the same gun with an ACOG is a different thing to draw. */

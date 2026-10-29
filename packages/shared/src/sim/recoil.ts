@@ -193,8 +193,7 @@ export function restingViewKick(): ViewKick {
  * The stream one shot draws from: the shooter's own seed, mixed with which shot
  * it is. `fired + 1` so the first shot is not the bare seed, and `pellet` is
  * there because a shotgun casts eight rounds that must differ from each other and
- * agree across the two ends — nothing casts pellets yet, but the stream they will
- * want is not a shape to change later.
+ * agree across the two ends (game-server/src/match/shots.ts casts them).
  */
 export function shotStream(seed: number, fired: number, pellet = 0): number {
   return (seed ^ Math.imul(fired + 1, SHOT_STREAM) ^ Math.imul(pellet + 1, PELLET_STREAM)) | 0;

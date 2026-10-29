@@ -18,6 +18,7 @@ export type Action =
   | "lethal"
   | "tactical"
   | "killstreak"
+  | "alt"
   | "toggleView"
   | "menu"
   | "quality"
@@ -76,6 +77,8 @@ export const DEFAULT_BINDINGS: Bindings = {
   lethal: { keys: ["KeyG"], scope: "walk", label: "Throw Lethal Equipment" },
   tactical: { keys: ["Digit4"], scope: "walk", label: "Throw Tactical Equipment" },
   killstreak: { keys: ["Digit5"], scope: "walk", label: "Use Killstreak" },
+  // Beside the two weapon keys: the gun's other half, a launcher or a shotgun under its barrel.
+  alt: { keys: ["Digit3"], scope: "walk", label: "Underbarrel attachment" },
   toggleView: { keys: ["Tab"], scope: "world", label: "Dollhouse view" },
   menu: { keys: ["Escape"], scope: "always", label: "Pause" },
   quality: { keys: ["KeyQ"], scope: "always", label: "Cycle quality" },

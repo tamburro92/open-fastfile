@@ -32,20 +32,21 @@ export function Health() {
 /**
  * The magazine, bottom right.
  *
- * The rounds in the weapon and nothing else: the simulation has no reserve
- * ammunition, and a second number there would be one this HUD made up. The count
- * is the server's, which is also the one thing that makes a reload honest — the
- * magazine refills when the server says it has.
+ * The rounds in the weapon, and a reserve only where one exists: the simulation
+ * reloads every gun for ever, and only an underbarrel launcher's stock runs out
+ * (`HudPlayerInfo.weapon.reserve`). The count is the server's, which is also the
+ * one thing that makes a reload honest — the magazine refills when it says so.
  */
 export function Ammo() {
   const player = useUi().state.hud.player.value;
   if (!player?.weapon || player.dead) {
     return null;
   }
-  const { name, ammo, reloading } = player.weapon;
+  const { name, ammo, reloading, reserve } = player.weapon;
   return (
     <div class={styles.ammo} data-testid="hud-ammo">
       <span class={ammo === 0 ? styles.roundsEmpty : styles.rounds}>{ammo}</span>
+      {reserve !== null && <span class={styles.weapon}> | {reserve}</span>}
       <span class={styles.weapon}>{reloading ? "Reloading" : name}</span>
     </div>
   );

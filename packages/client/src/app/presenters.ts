@@ -2,6 +2,7 @@
 // numbers, the minimap's marker, the crosshair's spread and the use prompt.
 // One entry in the frame's update list ("presenters").
 
+import { HEARTBEAT } from "@3d/shared/game/equipment.js";
 import { shotSpread } from "@3d/shared/sim/recoil.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { isSilenced } from "@3d/shared/sim/weaponRegistry.js";
@@ -22,6 +23,8 @@ const DEG = Math.PI / 180;
 
 export class Presenters {
   readonly radar: Radar;
+  /** When the heartbeat sensor last swept, ms. */
+  private lastSweep = -Infinity;
 
   constructor(
     private readonly systems: Systems,
@@ -45,9 +48,38 @@ export class Presenters {
       this.radar.sweep(this.match.revealed, map);
     }
     this.radar.update();
+    this.updateHeartbeat();
     this.updateHud(walking);
     this.updateCone();
     this.updateUseFocus(walking);
+  }
+
+  /**
+   * A heartbeat sensor's screen, refreshed once a sweep: between sweeps the blips
+   * stay where they were found, as the game's do, rather than tracking anyone.
+   */
+  private updateHeartbeat(): void {
+    const player = this.systems.firstPerson.player;
+    const signal = this.ui.minimap.heartbeat;
+    if (player.weapon?.def.heartbeat !== true || player.dead) {
+      signal.value = null;
+      this.lastSweep = -Infinity;
+      return;
+    }
+    const now = performance.now();
+    if (signal.value !== null && now - this.lastSweep < HEARTBEAT.sweep * 1000) {
+      return;
+    }
+    this.lastSweep = now;
+    const { feet, yaw } = player.movement;
+    // Ahead is -z at yaw 0, and right is +x: turned into the player's own frame.
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+    signal.value = this.match.sensed.map(({ feet: at }) => {
+      const dx = at.x - feet.x;
+      const dz = at.z - feet.z;
+      return { x: (dx * cos - dz * sin) / HEARTBEAT.range, y: (-dx * sin - dz * cos) / HEARTBEAT.range };
+    });
   }
 
   private onShotFired(shot: FiredShotNotice): void {

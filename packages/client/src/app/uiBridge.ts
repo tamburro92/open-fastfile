@@ -254,7 +254,7 @@ export interface HudPlayerInfo {
    */
   respawnIn: number | null;
   /** What they are holding. null: empty-handed. */
-  weapon: { name: string; ammo: number; reloading: boolean } | null;
+  weapon: { name: string; ammo: number; reloading: boolean; reserve: number | null } | null;
   /** Name of the player or world cause that killed the local player. */
   killedBy?: string | null;
 }
@@ -405,6 +405,11 @@ export interface UiState {
     pose: Signal<MinimapPose | null>;
     /** Active gunfire sound pings on the minimap. */
     pings: Signal<readonly MinimapPing[]>;
+    /**
+     * A heartbeat sensor's screen: null without one in hand, else what its last
+     * sweep found, each blip as a fraction of its range — `x` right, `y` ahead.
+     */
+    heartbeat: Signal<readonly { x: number; y: number }[] | null>;
   };
   hud: {
     /** null: not walking, so there is nobody to draw a crosshair for. */
@@ -588,6 +593,7 @@ export function createUiState(): UiState {
       map: signal(null),
       pose: signal(null),
       pings: signal<readonly MinimapPing[]>([]),
+      heartbeat: signal<readonly { x: number; y: number }[] | null>(null),
     },
     hud: {
       player: signal(null),

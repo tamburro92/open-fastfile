@@ -24,6 +24,8 @@ import {
   THROW_TIMES,
 } from "@3d/shared/game/equipment.js";
 import { PROJECTILE_ID_MASK, type ProjectileKind, type ProjectileState } from "@3d/shared/sim/projectile.js";
+import type { LauncherProjectile } from "@3d/shared/sim/weaponDef.js";
+import { UNIT } from "@3d/shared/sim/units.js";
 import { MAX_SNAPSHOT_PROJECTILES } from "@3d/shared/net/messages/projectiles.js";
 import type { MatchClock } from "./clock.js";
 import type { Damage } from "./damage.js";
@@ -61,7 +63,12 @@ export interface ActiveProjectile {
   stuckToPlayer?: PlayerId;
   stuckOffset?: Vec3;
   settled: boolean;
+  /** An underbarrel launcher's round: what it does, and how far it has come toward arming. */
+  launcher?: { def: LauncherProjectile; impact: number; travelled: number };
 }
+
+/** A player is struck by a launcher's round inside this of their chest: the 40 mm meets a body, not a capsule's edge. */
+const LAUNCHER_HIT_RADIUS = 0.45;
 
 export class Projectiles {
   private readonly active: ActiveProjectile[] = [];
@@ -146,6 +153,80 @@ export class Projectiles {
     }
   }
 
+  /**
+   * An underbarrel launcher's round leaving the muzzle (`Shots.fire` hands it
+   * over in place of a trace): `projectileSpeed` along the aim and
+   * `projectileSpeedUp` on top, in CoD units, from the eye the aim is taken from.
+   * `impact` is what it does to whoever it strikes before it has armed.
+   */
+  launch(shooter: PlayerId, eye: Vec3, aim: Vec3, def: LauncherProjectile, impact: number): void {
+    const speed = def.speed * UNIT;
+    this.active.push({
+      id: this.allocateId(),
+      kind: "launcher",
+      thrower: shooter,
+      position: { ...eye },
+      velocity: { x: aim.x * speed, y: aim.y * speed + def.speedUp * UNIT, z: aim.z * speed },
+      fuseRemaining: def.lifetime > 0 ? def.lifetime : 30,
+      settled: false,
+      launcher: { def, impact, travelled: 0 },
+    });
+  }
+
+  /**
+   * One tick of a launcher's flight: gravity, then whichever comes first along the
+   * segment — a body or the map. Past `activateDistance` either one sets it off;
+   * short of it, a body is struck for `impact` and the round is spent, and the map
+   * takes it as a dud. Returns whether it is done.
+   */
+  private stepLauncher(p: ActiveProjectile, dt: number): boolean {
+    const shot = p.launcher!;
+    p.velocity.y += GRENADE_GRAVITY * dt;
+    const step = { x: p.velocity.x * dt, y: p.velocity.y * dt, z: p.velocity.z * dt };
+    const length = Math.hypot(step.x, step.y, step.z);
+    if (length < 1e-6) {
+      return false;
+    }
+    const dir = { x: step.x / length, y: step.y / length, z: step.z / length };
+    const wall = this.collision.traceRay(p.position, dir, length, "shots");
+    let reach = wall ? wall.distance : length;
+    let struck: Member | undefined;
+    for (const member of this.roster.values()) {
+      if (member.player.dead || (member.id === p.thrower && shot.travelled < 1)) {
+        continue;
+      }
+      const feet = member.player.movement.feet;
+      const chest = { x: feet.x - p.position.x, y: feet.y + eyeHeight(member.player.movement) * 0.7 - p.position.y, z: feet.z - p.position.z };
+      const along = chest.x * dir.x + chest.y * dir.y + chest.z * dir.z;
+      if (along < 0 || along > reach) {
+        continue;
+      }
+      const off = Math.hypot(chest.x - dir.x * along, chest.y - dir.y * along, chest.z - dir.z * along);
+      if (off <= LAUNCHER_HIT_RADIUS) {
+        reach = along;
+        struck = member;
+      }
+    }
+    p.position.x += dir.x * reach;
+    p.position.y += dir.y * reach;
+    p.position.z += dir.z * reach;
+    shot.travelled += reach;
+    if (!struck && !wall) {
+      return false;
+    }
+    if (shot.travelled * (1 / UNIT) >= shot.def.activateDistance && shot.def.impactExplode) {
+      this.detonate(p);
+    } else if (struck && this.damage.mayHurt(struck.id, p.thrower)) {
+      // A dud: armed too close to go off, and it still hurts whoever it hits.
+      const was = struck.player.health;
+      this.damage.hurt({ id: struck.id, amount: shot.impact, by: p.thrower, cause: "bullet", location: "torsoUpper", along: dir });
+      if (struck.player.health < was) {
+        this.outbox.push({ kind: "hit", lethal: struck.player.dead }, p.thrower, 0);
+      }
+    }
+    return true;
+  }
+
   private spawnProjectile(member: Member, kind: ProjectileKind, fuseTime: number): void {
     const movement = member.player.movement;
     const up = eyeHeight(movement);
@@ -192,6 +273,14 @@ export class Projectiles {
     for (let i = this.active.length - 1; i >= 0; i--) {
       const p = this.active[i]!;
       p.fuseRemaining -= dt;
+
+      if (p.launcher) {
+        // Its `projectileLifetime` running out is not a fuse: it simply goes.
+        if (p.fuseRemaining <= 0 || this.stepLauncher(p, dt)) {
+          this.active.splice(i, 1);
+        }
+        continue;
+      }
 
       // Check detonation
       if (p.fuseRemaining <= 0) {
@@ -307,6 +396,9 @@ export class Projectiles {
 
   private detonateExplosive(p: ActiveProjectile): void {
     const center = p.position;
+    // A launcher's round goes off by its own attachment's numbers, a grenade by the grenades'.
+    const own = p.launcher?.def;
+    const blast = own ? { radius: own.explosionRadius * UNIT, inner: own.explosionInner, outer: own.explosionOuter } : GRENADE_BLAST;
 
     // Direct stuck damage:
     if (p.stuckToPlayer) {
@@ -340,7 +432,7 @@ export class Projectiles {
       const dz = targetCenter.z - center.z;
       const dist = Math.hypot(dx, dy, dz);
 
-      if (dist > GRENADE_BLAST.radius) {
+      if (dist > blast.radius) {
         continue;
       }
 
@@ -355,8 +447,8 @@ export class Projectiles {
       }
 
       // Linear damage falloff: 130 inner down to 55 outer
-      const fraction = dist / GRENADE_BLAST.radius;
-      const dmg = Math.round(GRENADE_BLAST.inner - (GRENADE_BLAST.inner - GRENADE_BLAST.outer) * fraction);
+      const fraction = dist / blast.radius;
+      const dmg = Math.round(blast.inner - (blast.inner - blast.outer) * fraction);
 
       const wasHealth = member.player.health;
       this.damage.hurt({

@@ -59,6 +59,7 @@ function at(id: string, dead = false): PlayerSnapshot {
       dead,
       respawnIn: dead ? 3 : 0,
       points: 0,
+      alt: null,
     },
   };
 }

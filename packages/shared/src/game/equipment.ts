@@ -117,3 +117,14 @@ export const PREDATOR = {
 
 /** Not in a weapon file: `_uav.gsc`'s. */
 export const UAV_DURATION = 30;
+
+/**
+ * A heartbeat sensor: whom it shows, and how often it sweeps. **Not MW3's own
+ * numbers.** The game keeps them as `motionTracker*` dvars in its executable,
+ * which this install does not carry; these are the commonly cited defaults and
+ * are to be replaced the day the executable is read.
+ */
+export const HEARTBEAT = {
+  range: 1600 * UNIT,
+  sweep: 3,
+} as const;

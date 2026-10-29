@@ -339,7 +339,9 @@ def test_iw5_optic_aiming_clips_come_from_the_weapon_files_anim_overrides():
     }
     assert iw5_roles(info, "eotech") == {"adsUp": "viewmodel_acr_eotech_ads_up", "adsDown": "viewmodel_acr_eotech_ads_down"}
     assert iw5_roles(info, "reflex") == {"adsUp": "viewmodel_acr_reflex_ADS_up"}
-    assert iw5_roles(info, "m320") == {}
+    # A launcher's own rows are the gun held with it fitted, and its own weapon's in the next column.
+    assert iw5_roles(info, "m320") == {"idle": "viewmodel_masada_gl_idle"}
+    assert iw5_roles(info, "m320", column=1) == {"idle": "viewmodel_masada_gl_grenade_idle"}
     assert iw5_roles(info, "acog") == {}
 
 
@@ -363,3 +365,51 @@ def test_iw5_silencer_and_grip_scale_the_guns_own_damage_and_recoil():
 
     # And an attachment that scales neither changes neither.
     assert "damage" not in iw5_entry("xmags", defs["xmags"], base, info=info)["overrides"]
+
+
+@pytest.mark.skipif(mw3_dump() is None, reason="needs MW3's attachment assets dumped (catalog --dump mw3)")
+def test_iw5_underbarrel_is_a_second_weapon_with_its_own_magazine_clips_sound_and_round():
+    # MW3's `gl` on an M4: an M203 the game switches to with `alt_raise`. Its
+    # numbers are the attachment's, its clips and fire sound the alt columns of the
+    # M4's own tables, and none of it is folded onto the rifle.
+    work = mw3_dump()
+    info = parse_infostring(read_text(os.path.join(work, "weapons", "weapons", "iw5_m4_mp")))
+    defs = read_defs(work)
+    entry = iw5_entry("gl", defs["gl"], spec_of(info), info=info)
+    alt = entry["alt"]
+    assert (alt["clipSize"], alt["stock"], alt["weaponType"], alt["fireType"]) == (1, 1, "projectile", "Single Shot")
+    assert alt["projectile"]["model"] == "projectile_m203grenade"
+    assert (alt["projectile"]["activateDistance"], alt["projectile"]["explosionRadius"]) == (300, 300)
+    assert alt["roles"]["altRaise"] == "viewmodel_M4m203_bullet_2_grenade"
+    assert alt["roles"]["fire"] == "viewmodel_M4m203_grenade_fire"
+    assert alt["sounds"]["firePlayer"] == "weap_m203_fire_plr"
+    # The rifle itself, held with a launcher under it, has its own clips too.
+    assert entry["overrides"]["roles"]["idle"] == "viewmodel_M4m203_idle"
+    assert entry["overrides"]["roles"]["altRaise"] == "viewmodel_M4m203_grenade_2_bullet"
+    assert "clipSize" not in entry.get("overrides", {})
+
+    shotgun = iw5_entry("shotgun", defs["shotgun"], spec_of(info), info=info)["alt"]
+    assert (shotgun["clipSize"], shotgun["stock"], shotgun["shotCount"], shotgun["roundsPerLoad"]) == (4, 8, 6, 1)
+    assert shotgun["weaponType"] == "bullet" and "projectile" not in shotgun
+
+
+@pytest.mark.skipif(mw3_dump() is None, reason="needs MW3's attachment assets dumped (catalog --dump mw3)")
+def test_iw5_hybrid_is_a_second_weapon_on_the_same_magazine_magnified_by_default():
+    # `shareAmmoWithAlt`: the gun comes magnified (`adsSettingsMain`, 30) and flips
+    # to the holographic (`adsSettings`, 55) with its own `alt_raise`.
+    work = mw3_dump()
+    info = parse_infostring(read_text(os.path.join(work, "weapons", "weapons", "iw5_m4_mp")))
+    entry = iw5_entry("hybrid", read_defs(work)["hybrid"], spec_of(info), info=info)
+    assert entry["overrides"]["adsZoomFov"] == 30
+    assert entry["alt"] == {
+        "shareAmmo": True,
+        "stock": 0,
+        "adsZoomFov": 55,
+        "roles": {
+            "altRaise": "viewmodel_m4_hybrid_scope_down",
+            "adsUp": "viewmodel_m4_hybrid_eotech_ads_up",
+            "adsDown": "viewmodel_m4_hybrid_eotech_ads_down",
+            "adsFire": "viewmodel_m4_hybrid_eotech_ads_fire",
+        },
+        "times": {"altRaise": 1.1, "adsIn": pytest.approx(0.35), "adsOut": pytest.approx(0.35)},
+    }

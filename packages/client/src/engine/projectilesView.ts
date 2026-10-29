@@ -46,6 +46,8 @@ const MODELS: Partial<Record<ProjectileKind, string>> = {
   semtex: "projectile_semtex_grenade",
   flashbang: "projectile_m84_flashbang_grenade",
   missile: PREDATOR.model,
+  // What MW3's three underbarrel launchers fire (the `gl`, `gp25` and `m320` assets' `projectileModel`).
+  launcher: "projectile_m203grenade",
 };
 
 interface Sample {
@@ -176,7 +178,7 @@ export class ProjectilesView {
     let best: Vec3 | null = null;
     let bestDistance = radius;
     for (const drawn of this.live.values()) {
-      if (drawn.kind === "flashbang" || drawn.kind === "missile") {
+      if (drawn.kind === "flashbang" || drawn.kind === "missile" || drawn.kind === "launcher") {
         continue; // MW3 marks a grenade at your feet, and nothing else
       }
       const p = drawn.to.position;
@@ -207,7 +209,7 @@ export class ProjectilesView {
         from.position.z + (to.position.z - from.position.z) * t,
       );
       const moved = Math.hypot(to.position.x - from.position.x, to.position.y - from.position.y, to.position.z - from.position.z);
-      if (drawn.kind === "missile") {
+      if (drawn.kind === "missile" || drawn.kind === "launcher") {
         // Nose along its flight rather than tumbling: the stand-in's long axis is y.
         if (moved > 0.01) {
           FLIGHT.set(to.position.x - from.position.x, to.position.y - from.position.y, to.position.z - from.position.z).normalize();
@@ -295,8 +297,10 @@ export class ProjectilesView {
             ? { geometry: new THREE.BoxGeometry(0.08, 0.14, 0.06), material: new THREE.MeshStandardMaterial({ color: 0x224422, roughness: 0.9 }) }
             : kind === "flashbang"
               ? { geometry: new THREE.CylinderGeometry(0.03, 0.03, 0.13, 12), material: new THREE.MeshStandardMaterial({ color: 0x778899, metalness: 0.7 }) }
-              : // A hellfire, nose down its flight and burning: unlit, so it reads against a dark sky.
-                { geometry: new THREE.CylinderGeometry(0.09, 0.09, 1.6, 10), material: new THREE.MeshBasicMaterial({ color: 0xffd28a }) };
+              : kind === "launcher"
+                ? { geometry: new THREE.CylinderGeometry(0.02, 0.02, 0.1, 10), material: new THREE.MeshStandardMaterial({ color: 0x8a7a3a, metalness: 0.5 }) }
+                : // A hellfire, nose down its flight and burning: unlit, so it reads against a dark sky.
+                  { geometry: new THREE.CylinderGeometry(0.09, 0.09, 1.6, 10), material: new THREE.MeshBasicMaterial({ color: 0xffd28a }) };
       this.fallbacks.set(kind, built);
     }
     return [built.geometry, built.material];

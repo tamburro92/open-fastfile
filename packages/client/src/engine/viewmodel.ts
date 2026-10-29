@@ -358,6 +358,11 @@ export class Viewmodel {
    * show the receiver filling a 15° field of view on the way. Not while the
    * picture is still loading, or the player would aim at a blank screen.
    */
+  /** Looking through a thermal optic, at full aim: what draws the frame as heat. */
+  get thermal(): boolean {
+    return this.scoped && this.weapon?.def.thermal === true;
+  }
+
   private get scoped(): boolean {
     return this.scope.ready && this.weapon !== undefined && this.weapon.data.ads >= 1;
   }

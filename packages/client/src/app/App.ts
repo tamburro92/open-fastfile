@@ -4,6 +4,7 @@
 // (frame.ts) and the pipeline, what a world is is WorldSession, and every rule
 // lives with the piece it is about.
 
+import { setHeat } from "../engine/heat.js";
 import { parsePose } from "../engine/pose.js";
 import { nextQualityLevel } from "../engine/qualityLevel.js";
 import { DEFAULT_BINDINGS, keyLabel, type Action } from "../input/bindings.js";
@@ -36,6 +37,8 @@ import { WorldSession } from "./WorldSession.js";
 
 export class App {
   private readonly ui: UiState = createUiState();
+  /** Whether the frame is being drawn as heat (`followThermal`). */
+  private thermal = false;
   private readonly systems: Systems;
   private readonly content: GameContent;
   private readonly current = new CurrentWorld();
@@ -180,6 +183,22 @@ export class App {
     });
   }
 
+  /**
+   * A thermal optic looked through: the frame drawn as heat and the living
+   * white-hot, set only as it changes. Bodies that arrive while it is on are lit
+   * on the next change, which a thermal optic's brief looks make rare enough.
+   */
+  private followThermal(): void {
+    const on = this.systems.viewmodel.thermal;
+    if (on === this.thermal) {
+      return;
+    }
+    this.thermal = on;
+    this.systems.viewer.setThermal(on);
+    setHeat(this.systems.remotes.root, on);
+    setHeat(this.systems.actors.root, on);
+  }
+
   /** Every per-frame step, in the slots frame.ts orders them by. */
   private fillUpdates(presenters: Presenters): void {
     const { animator, firstPerson, dollhouse, footsteps, weaponAudio, remotes, actors, fx, audio, shadowFit, viewer, projectiles, sentries } = this.systems;
@@ -197,7 +216,10 @@ export class App {
       remotes.update(performance.now());
       actors.update(performance.now());
     });
-    u.use("viewmodel", (dt) => this.weapon.update(dt, this.pause.mode === "walk"));
+    u.use("viewmodel", (dt) => {
+      this.weapon.update(dt, this.pause.mode === "walk");
+      this.followThermal();
+    });
     u.use("effects", (dt) => {
       fx.update(dt, viewer.camera);
       projectiles.update(dt, performance.now(), viewer.camera);

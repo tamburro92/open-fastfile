@@ -98,6 +98,7 @@ describe("packets", () => {
       lethal: false,
       tactical: false,
       killstreak: false,
+      alt: true,
     };
     const claim = { x: 1.5, y: 2.25, z: -3.75 };
     // A tick at the top of its range and a fraction that is not a round number:
@@ -188,6 +189,8 @@ describe("packets", () => {
             dead: false,
             respawnIn: 0,
             points: 1_048_575,
+            // A launcher in hand, its host's magazine down to a dozen and one grenade in reserve.
+            alt: { held: true, ammo: 12, stock: 1 },
           },
         },
       ],
@@ -196,6 +199,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       // A zombies match's round and a second counter, below zero.
       counters: [12, -3],
       // Both kinds at once: the two write different fields after a shared kind
@@ -253,6 +257,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -294,6 +299,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -326,6 +332,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -345,6 +352,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -387,6 +395,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -514,7 +523,7 @@ describe("packets", () => {
     expect(encodePacket(MessageType.input, input).length).toBeLessThanOrEqual(28);
     const repeated = { ...input, earlier: Array.from({ length: REDUNDANT_INPUTS }, () => input) };
     expect(encodePacket(MessageType.input, repeated).length).toBeLessThanOrEqual(53);
-    expect(encodePacket(MessageType.snapshot, snapshot).length).toBeLessThanOrEqual(94);
+    expect(encodePacket(MessageType.snapshot, snapshot).length).toBeLessThanOrEqual(95);
 
     // Still most of an order of magnitude, which is what justifies the machinery.
     // An input's margin is the narrower of the two: its claim is three f32s, and
@@ -573,6 +582,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };
@@ -611,7 +621,7 @@ describe("packets", () => {
     expect(size([{ kind: "detonate", id: 6, what: "frag", at: { x: 1, y: 2, z: 3 }, by: "abc12345" }])).toBe(size([]) + 24);
     // The expensive one, and the reason it is capped per tail.
     expect(size([spawn])).toBe(size([]) + 105);
-    expect(size(Array.from({ length: MAX_SNAPSHOT_EVENTS }, (_, i) => ({ ...death, id: i + 1 })))).toBeLessThanOrEqual(size([]) + 146);
+    expect(size(Array.from({ length: MAX_SNAPSHOT_EVENTS }, (_, i) => ({ ...death, id: i + 1 })))).toBeLessThanOrEqual(size([]) + 147);
     // The worst tail a match can produce, which is what the cap makes it.
     const busiest: GameEvent[] = [
       ...Array.from({ length: MAX_SPAWNS_PER_SNAPSHOT }, (_, i) => ({ ...spawn, id: i + 1 })),
@@ -638,6 +648,7 @@ describe("packets", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     });
@@ -694,6 +705,7 @@ describe("the simulation over the wire", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     });

@@ -659,7 +659,14 @@ describe("hud", () => {
     const ui = setup();
     act(() => {
       ui.state.screen.value = "world";
-      ui.state.hud.player.value = { health: 100, maxHealth: 100, dead: false, respawnIn: 0, weapon: { name: "M4A1", ammo: 30, reloading: false }, ...over };
+      ui.state.hud.player.value = {
+        health: 100,
+        maxHealth: 100,
+        dead: false,
+        respawnIn: 0,
+        weapon: { name: "M4A1", ammo: 30, reloading: false, reserve: null },
+        ...over,
+      };
     });
     return ui;
   }
@@ -765,7 +772,7 @@ describe("hud", () => {
     const { state } = playing();
     expect(screen.getByTestId("hud-ammo").textContent).toBe("30M4A1");
     act(() => {
-      state.hud.player.value = { ...state.hud.player.value!, weapon: { name: "M4A1", ammo: 0, reloading: true } };
+      state.hud.player.value = { ...state.hud.player.value!, weapon: { name: "M4A1", ammo: 0, reloading: true, reserve: null } };
     });
     expect(screen.getByTestId("hud-ammo").textContent).toBe("0Reloading");
   });

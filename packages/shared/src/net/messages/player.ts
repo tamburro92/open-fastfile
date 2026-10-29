@@ -207,4 +207,10 @@ export const playerStateSchema = struct({
   respawnIn: combatTimer,
   /** Twenty bits: `MAX_POINTS`, a little over a million. In every snapshot, so no wider. */
   points: uint(POINTS_BITS),
+  /**
+   * The weapon under the held gun's barrel, one bit when there is none. The other
+   * half's magazine in ten bits, as `ammo` is, and its stock in seven: MW3's
+   * deepest is the underbarrel shotgun's eight shells.
+   */
+  alt: nullable(struct({ held: bool, ammo: uint(10), stock: uint(7) })),
 }) satisfies Codec<PlayerState>;

@@ -117,6 +117,7 @@ const inputSchema = struct({
   lethal: bool,
   tactical: bool,
   killstreak: bool,
+  alt: bool,
 }) satisfies Codec<PlayerInput>;
 
 /**

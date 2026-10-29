@@ -114,6 +114,7 @@ describe("a tail with more to say than it holds", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events: [],
     };

@@ -45,6 +45,8 @@ export interface PlayerInput {
   tactical: boolean;
   /** Pressed this step: activate next ready Killstreak (MW3 Strike Package). */
   killstreak: boolean;
+  /** Pressed this step: change between the held gun and the weapon under its barrel. */
+  alt: boolean;
 }
 
 /** Nothing held, looking at `yaw`/`pitch`. */
@@ -67,5 +69,6 @@ export function idleInput(yaw: number, pitch: number): PlayerInput {
     lethal: false,
     tactical: false,
     killstreak: false,
+    alt: false,
   };
 }

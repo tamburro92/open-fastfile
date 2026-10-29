@@ -35,6 +35,7 @@ function state(over: Partial<PlayerState> = {}): PlayerState {
     dead: false,
     respawnIn: 0,
     points: 0,
+    alt: null,
     ...over,
   };
 }

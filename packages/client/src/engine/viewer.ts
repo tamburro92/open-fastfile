@@ -153,6 +153,11 @@ export class Viewer {
   }
 
   /** Narrow the view by `zoom` on tan(fov / 2), 1 for none: aiming down the sights. */
+  /** Draw the frame as a thermal optic sees it. */
+  setThermal(on: boolean): void {
+    this.output.setThermal(on);
+  }
+
   setZoom(zoom: number): void {
     const fov = scaleFov(FOV, zoom);
     if (this.camera.fov === fov) {

@@ -139,6 +139,25 @@ export interface AttachmentEntry {
    * joint each.
    */
   overrides?: Partial<WeaponDef>;
+  /**
+   * The weapon this attachment puts under the barrel, for one that carries its
+   * own magazine (`gl`, `gp25`, `m320`, `shotgun`). MW3 makes it a second weapon,
+   * switched to with `altRaise`; here it is that weapon's numbers, clips, times
+   * and fire sounds, absolute, laid over the host's own definition by
+   * `resolveAlt` so that whatever the asset leaves unsaid is the host's.
+   */
+  alt?: AltWeaponEntry;
+}
+
+/** An underbarrel weapon, as the exporter writes it (docs/cod/reference.md#attachments). */
+export interface AltWeaponEntry extends Partial<WeaponDef> {
+  /** Rounds carried beyond the magazine: MW3's `startAmmo` less one load. Never refilled. */
+  stock: number;
+  /**
+   * The same gun on the same magazine, aimed differently: a hybrid sight's other
+   * optic (`shareAmmoWithAlt`). Only its aiming clips, zoom and flip are its own.
+   */
+  shareAmmo?: boolean;
 }
 
 /** A weapon's catalogue address. The one place `<game>/<name>` is spelled. */
@@ -224,7 +243,7 @@ export interface WeaponCatalog {
  * two ends holding the same guns with different damage tables agree on it — this
  * has to move whenever a `WeaponDef` field a server judges a shot by does.
  */
-export const CATALOG_VERSION = 4;
+export const CATALOG_VERSION = 5;
 
 /**
  * Apply fitted attachments to a weapon's own definition.
@@ -332,6 +351,57 @@ export function resolveWeapon(entry: WeaponEntry, fitted: Fitted): WeaponDef {
   }
 
   return bonesMoved ? { ...def, hideBones: [...hidden].sort() } : def;
+}
+
+/**
+ * The underbarrel weapon a fitted set puts on a gun, or null for one with none.
+ *
+ * Laid over the host *as fitted* — a launcher under a silenced, gripped M4 keeps
+ * the grip's hit-location table and the gun's own impact sounds where it names
+ * none — and merged key by key as `resolveWeapon` is. The first underbarrel in
+ * slot order wins: the game allows one.
+ */
+export function resolveAlt(entry: WeaponEntry, fitted: Fitted): { def: WeaponDef; stock: number | null; shareAmmo: boolean } | null {
+  const slot = entry.attachments.findIndex((attachment, index) => attachment.alt && fitted.includes(index));
+  const alt = slot === -1 ? undefined : entry.attachments[slot]!.alt;
+  if (!alt) {
+    return null;
+  }
+  const host = resolveWeapon(entry, fitted);
+  const { stock, shareAmmo, ...rest } = alt;
+  // Only the clips the weapon's file holds. MW3 authors some of a launcher's aiming
+  // clips as one still frame, which the exporter writes as no clip at all, and a
+  // role naming one is a rig that cannot be built (the riot shield's rough edge).
+  const roles = Object.fromEntries(Object.entries(rest.roles ?? {}).filter(([, clip]) => clip !== undefined && clip in host.clips));
+  const own = { ...rest, roles };
+  if (shareAmmo) {
+    // The other optic of one sight: everything is the gun's but how it is aimed.
+    return {
+      stock: null,
+      shareAmmo: true,
+      def: { ...host, ...own, roles: { ...host.roles, ...own.roles }, times: { ...host.times, ...own.times }, hideBones: host.hideBones },
+    };
+  }
+  return {
+    stock,
+    shareAmmo: false,
+    def: {
+      ...host,
+      ...own,
+      // An underbarrel's clips are its own whole set: the host's must not show
+      // through where the launcher has no clip for a role.
+      roles: own.roles ?? {},
+      times: own.times ?? {},
+      motion: { ...host.motion, ...own.motion },
+      damage: { ...host.damage, ...own.damage },
+      spread: { ...host.spread, ...own.spread },
+      sounds: { ...host.sounds, ...own.sounds },
+      boltAction: false,
+      silenced: false,
+      adsOverlay: null,
+      hideBones: host.hideBones,
+    },
+  };
 }
 
 /** The slots a set of attachment ids occupies on one weapon, in slot order; an id it does not offer is ignored. */
@@ -457,6 +527,19 @@ export class WeaponRegistry {
   build(id: WeaponId | null, fitted: Fitted = NOTHING_FITTED): WeaponController | undefined {
     const entry = this.entry(id);
     return entry ? new WeaponController(resolveWeapon(entry, fitted)) : undefined;
+  }
+
+  /** The underbarrel weapon a fitted set puts on `id`, loaded and with its stock, or undefined for none. */
+  buildAlt(id: WeaponId | null, fitted: Fitted = NOTHING_FITTED): WeaponController | undefined {
+    const entry = this.entry(id);
+    const alt = entry ? resolveAlt(entry, fitted) : null;
+    if (!alt) {
+      return undefined;
+    }
+    const controller = new WeaponController(alt.def);
+    controller.stock = alt.stock;
+    controller.sharesAmmo = alt.shareAmmo;
+    return controller;
   }
 }
 

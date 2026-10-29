@@ -19,7 +19,7 @@ import type { PlayerState } from "@3d/shared/sim/player.js";
 import type { StreakState } from "@3d/shared/game/streaks.js";
 import { DEFAULT_COMBAT_RULES } from "@3d/shared/game/rules.js";
 import { getLoadout } from "@3d/shared/sim/loadout.js";
-import type { WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
+import type { WeaponEntry, WeaponRegistry } from "@3d/shared/sim/weaponRegistry.js";
 import type { GametypeDecl } from "@3d/shared/game/gametypes/declaration.js";
 import type { PlayerSnapshot } from "@3d/shared/net/messages/snapshot.js";
 import type { HudCounter, HudPlayerInfo, KillFeedEntry, UiState } from "./uiBridge.js";
@@ -372,7 +372,14 @@ export class Hud {
       weapon:
         state.weapon === null || entry === undefined
           ? null
-          : { name: entry.display ?? entry.id, ammo: state.weapon.ammo, reloading: state.weapon.state === "reloading" },
+          : {
+              // The underbarrel weapon by its own name while it is the half in hand, as MW3's HUD says "M203".
+              name: (state.alt?.held && underbarrelName(entry, state.attachments)) || (entry.display ?? entry.id),
+              ammo: state.weapon.ammo,
+              reloading: state.weapon.state === "reloading",
+              // Only a launcher's reserve is finite (`WeaponController.stock`); everything else reloads for ever.
+              reserve: state.alt?.held && underbarrelName(entry, state.attachments) ? state.alt.stock : null,
+            },
     };
   }
 
@@ -510,8 +517,21 @@ function same(a: HudPlayerInfo | null, b: HudPlayerInfo): boolean {
     a.killedBy === b.killedBy &&
     a.weapon?.name === b.weapon?.name &&
     a.weapon?.ammo === b.weapon?.ammo &&
-    a.weapon?.reloading === b.weapon?.reloading
+    a.weapon?.reloading === b.weapon?.reloading &&
+    a.weapon?.reserve === b.weapon?.reserve
   );
+}
+
+/** MW3's names for its four underbarrel weapons; the asset's own is a localisation key. */
+const UNDERBARREL_NAMES: Record<string, string> = { gl: "M203", gp25: "GP25", m320: "M320 GLM", shotgun: "Shotgun" };
+
+/** The underbarrel weapon fitted, by name; null for none, or for a hybrid's other optic, which is the same gun. */
+function underbarrelName(entry: WeaponEntry, fitted: readonly number[]): string | null {
+  const attachment = entry.attachments.find((one, slot) => one.alt && fitted.includes(slot));
+  if (!attachment || attachment.alt?.shareAmmo) {
+    return null;
+  }
+  return UNDERBARREL_NAMES[attachment.id] ?? attachment.id;
 }
 
 /**

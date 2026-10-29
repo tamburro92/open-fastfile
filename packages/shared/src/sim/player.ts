@@ -109,6 +109,23 @@ export interface PlayerState {
    * rather than an event so a HUD and a price agree on every snapshot.
    */
   points: number;
+  /**
+   * The weapon under the held gun's barrel, for one that has one; null otherwise.
+   *
+   * `held` says which half is in hand, and `weapon` above is that half's state.
+   * `ammo` is the *other* half's magazine, which nothing else carries: a launcher
+   * fired and switched away from must still be empty when it comes back, on a
+   * server replaying the switch and on a peer alike. `stock` is the launcher's
+   * reserve, which is finite (`WeaponController.stock`).
+   */
+  alt: AltState | null;
+}
+
+/** An underbarrel weapon's part of `PlayerState`. */
+export interface AltState {
+  held: boolean;
+  ammo: number;
+  stock: number;
 }
 
 /**
@@ -139,6 +156,13 @@ export const COMBAT_TIMER_MAX = 10;
 export const ARMED_WRAP = 8;
 
 /**
+ * The weapon states a gun cannot be switched to or from its underbarrel half in:
+ * while it is coming up, going down, or firing. A reload is not one — changing
+ * weapon cancels a reload in CoD, keeping whatever had already gone in.
+ */
+const NO_SWITCH: ReadonlySet<string> = new Set(["raising", "dropping", "lowered", "firing"]);
+
+/**
  * What passing the world's kill plane does.
  *
  * `respawn` puts them back on their spawn, which is all a world walked with no
@@ -159,10 +183,13 @@ interface Carried {
   /** Which slots are filled on it; part of the state, so a peer rebuilds the same weapon. */
   fitted: Fitted;
   weapon: WeaponController | undefined;
+  /** What is under its barrel (`resolveAlt`), and whether that is the half in hand. */
+  alt: WeaponController | undefined;
+  altHeld: boolean;
 }
 
 function carriedNothing(): Carried {
-  return { id: null, fitted: NOTHING_FITTED, weapon: undefined };
+  return { id: null, fitted: NOTHING_FITTED, weapon: undefined, alt: undefined, altHeld: false };
 }
 
 export class Player {
@@ -267,7 +294,8 @@ export class Player {
    * one — `equipById` is the ordinary way in, and passes it for you.
    */
   equip(weapon: WeaponController | undefined, id: WeaponId | null = null, attachments: Fitted = NOTHING_FITTED): void {
-    this.carry({ id: weapon ? id : null, fitted: weapon ? attachments : NOTHING_FITTED, weapon }, carriedNothing());
+    const alt = weapon ? this.weapons?.buildAlt(id, attachments) : undefined;
+    this.carry({ id: weapon ? id : null, fitted: weapon ? attachments : NOTHING_FITTED, weapon, alt, altHeld: false }, carriedNothing());
   }
 
   /** Hold the weapon this id names, from the registry this player was built with. */
@@ -310,7 +338,13 @@ export class Player {
       return carriedNothing();
     }
     const fitted = fittedSlots(entry, choice.attachments);
-    return { id: choice.weapon, fitted, weapon: this.weapons!.build(choice.weapon, fitted) };
+    return {
+      id: choice.weapon,
+      fitted,
+      weapon: this.weapons!.build(choice.weapon, fitted),
+      alt: this.weapons!.buildAlt(choice.weapon, fitted),
+      altHeld: false,
+    };
   }
 
   /** Hand over two weapons, the first one in hand if there is one, and count it (`PlayerState.armed`). */
@@ -365,7 +399,38 @@ export class Player {
   }
 
   private get held(): WeaponController | undefined {
-    return this.carried[this.slot]!.weapon;
+    const carried = this.carried[this.slot]!;
+    return carried.altHeld ? carried.alt : carried.weapon;
+  }
+
+  /** Whether the held gun has a weapon under its barrel to switch to. */
+  get hasAlt(): boolean {
+    return this.carried[this.slot]!.alt !== undefined;
+  }
+
+  /** The underbarrel half is the one in hand. */
+  get altHeld(): boolean {
+    return this.carried[this.slot]!.altHeld;
+  }
+
+  /**
+   * Change between a gun and the weapon under its barrel, as MW3's `alt_raise`
+   * does: the half in hand goes at once and the other comes up on its own
+   * `altRaise` clip. Not mid-shot, not while either half is still coming up, and
+   * not during a swap or a climb.
+   */
+  private switchAlt(): void {
+    const carried = this.carried[this.slot]!;
+    const from = this.held;
+    if (!carried.alt || !carried.weapon || this.swapping || this.stowed || !from || NO_SWITCH.has(from.data.state)) {
+      return;
+    }
+    from.stow();
+    carried.altHeld = !carried.altHeld;
+    if (carried.alt.sharesAmmo) {
+      this.held!.takeAmmo(from);
+    }
+    this.held!.switchIn();
   }
 
   private get other(): 0 | 1 {
@@ -423,6 +488,8 @@ export class Player {
     if (!climbing) {
       if (input.swap) {
         this.swap();
+      } else if (input.alt) {
+        this.switchAlt();
       }
       this.finishSwap();
       this.unstow();
@@ -514,7 +581,16 @@ export class Player {
       dead: this.down,
       respawnIn: this.waiting,
       points: this.purse,
+      alt: this.altState(),
     });
+  }
+
+  private altState(): AltState | null {
+    const { weapon, alt, altHeld } = this.carried[this.slot]!;
+    if (!alt || !weapon) {
+      return null;
+    }
+    return { held: altHeld, ammo: (altHeld ? weapon : alt).data.ammo, stock: alt.stock ?? 0 };
   }
 
   /**
@@ -561,6 +637,16 @@ export class Player {
     this.down = state.dead;
     this.waiting = state.respawnIn;
     this.purse = state.points;
+    const carried = this.carried[this.slot]!;
+    if (state.alt && carried.alt && carried.weapon) {
+      carried.altHeld = state.alt.held;
+      carried.alt.stock = state.alt.stock;
+      const other = state.alt.held ? carried.weapon : carried.alt;
+      // Only its magazine travels; it is lowered, so nothing else about it shows.
+      other.restore({ ...other.data, state: "lowered", ammo: state.alt.ammo } as WeaponData);
+    } else {
+      carried.altHeld = false;
+    }
     if (state.weapon && this.held) {
       this.held.restore(state.weapon);
     }
@@ -574,7 +660,13 @@ export class Player {
       return;
     }
     const rebuilt = this.weapons!.build(wanted, attachments);
-    this.carried[slot] = { id: rebuilt ? wanted : null, fitted: rebuilt ? attachments : NOTHING_FITTED, weapon: rebuilt };
+    this.carried[slot] = {
+      id: rebuilt ? wanted : null,
+      fitted: rebuilt ? attachments : NOTHING_FITTED,
+      weapon: rebuilt,
+      alt: rebuilt ? this.weapons!.buildAlt(wanted, attachments) : undefined,
+      altHeld: false,
+    };
   }
 
   /**

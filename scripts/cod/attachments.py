@@ -22,7 +22,7 @@ docs/cod/reference.md#attachments.
 import os
 
 from .files import read_json
-from .viewmodel import CLIP_ROLES, MOTION, TIMES, _number, ballistics, parse_infostring, sound_overrides, weapon_sounds
+from .viewmodel import CLIP_ROLES, MOTION, SPREAD, TIMES, _number, ballistics, parse_infostring, sound_overrides, weapon_sounds
 
 # Slot order, which IS the wire format and also how two attachments touching one
 # field are settled: `resolveWeapon` walks the list front to back and the later
@@ -109,6 +109,11 @@ ATTACH_DIR = "attach"  # under an export's scratch directory, as the `attachment
 # onto the rifle they make a plausible four-round M4, so nothing but the model
 # and the hide rule is taken from those four.
 ALT_WEAPON_KEY = "ammunition"
+# What MW3 calls its two thermal optics (`thermal`, `thermalsmg`).
+THERMAL_DISPLAY = "WEAPON_THERMAL_ATTACHMENT"
+HEARTBEAT_DISPLAY = "WEAPON_HEARTBEAT_ATTACHMENT"
+# A sight that flips between two optics is a second weapon on the same magazine.
+SHARE_AMMO_KEY = "shareAmmoWithAlt"
 # The block holding what a round is and how it leaves the barrel. Not the one above.
 AMMO_KEY = "ammoGeneral"
 
@@ -168,25 +173,93 @@ def scale(attach, key):
 
 
 # IW5's `animOverrides` names a role as the game's code does, not as the weapon
-# file's keys do: `eotech none ads_up viewmodel_acr_eotech_ads_up none 0 0`.
-# Only the aiming clips are read, which are what put an optic's own sight line
-# on the eye; the rest of the table (a launcher's idle, a hybrid's flip) is not
-# built yet.
-IW5_OVERRIDE_ROLES = {"ads_up": "adsUp", "ads_down": "adsDown", "ads_fire": "adsFire", "ads_lastshot": "adsLastShot"}
+# file's keys do: `gl none fire viewmodel_M4m203_fire viewmodel_M4m203_grenade_fire 76 300`.
+# Seven columns: the attachment, a second one for a combination, the role, the
+# clip the *host* plays with this fitted, the clip its *underbarrel weapon*
+# plays, and each one's time in milliseconds (0: the weapon file's own).
+IW5_OVERRIDE_ROLES = {
+    "idle": "idle",
+    "empty_idle": "emptyIdle",
+    "fire": "fire",
+    "lastshot": "lastShot",
+    "reload": "reload",
+    "reload_empty": "reloadEmpty",
+    "raise": "raise",
+    "first_raise": "firstRaise",
+    "drop": "drop",
+    "quick_raise": "quickRaise",
+    "quick_drop": "quickDrop",
+    "empty_raise": "emptyRaise",
+    "empty_drop": "emptyDrop",
+    # Switching to and from the underbarrel weapon: `bullet_2_grenade` and back.
+    "alt_raise": "altRaise",
+    "sprint_in": "sprintIn",
+    "sprint_loop": "sprintLoop",
+    "sprint_out": "sprintOut",
+    "ads_up": "adsUp",
+    "ads_down": "adsDown",
+    "ads_fire": "adsFire",
+    "ads_lastshot": "adsLastShot",
+    "rechamber": "rechamber",
+    "reload_start": "reloadStart",
+    "reload_end": "reloadEnd",
+}
+# The roles whose time column means something to `WeaponDef.times`. The others'
+# lengths are their clips'.
+IW5_OVERRIDE_TIMES = {
+    "fire": "fire",
+    "reload": "reload",
+    "reload_empty": "reloadEmpty",
+    "raise": "raise",
+    "first_raise": "firstRaise",
+    "drop": "drop",
+    "quick_raise": "quickRaise",
+    "quick_drop": "quickDrop",
+    "alt_raise": "altRaise",
+    "sprint_in": "sprintIn",
+    "sprint_loop": "sprintLoop",
+    "sprint_out": "sprintOut",
+    "rechamber": "rechamber",
+    "reload_start": "reloadStart",
+    "reload_end": "reloadEnd",
+}
+# The aiming clips, which are all an optic's rows carry and all the engine takes
+# from a non-underbarrel attachment: an optic puts its own sight line on the eye.
+SIGHT_ROLES = {"adsUp", "adsDown", "adsFire", "adsLastShot"}
 
 
-def iw5_roles(info, name):
-    """{role: clip} this attachment alone plays on this weapon, from the weapon file's `animOverrides`.
+def iw5_rows(info, name):
+    """This attachment's own rows of `animOverrides`: (role, host clip, alt clip, host ms, alt ms).
 
     A row naming a second attachment (`m320 acog ads_up ...`) is a combination,
     which the catalogue composes from single attachments instead, so it is skipped.
     """
-    roles = {}
+    rows = []
     for line in (info.get("animOverrides") or "").split("\n"):
         parts = line.split()
-        if len(parts) == 7 and parts[:2] == [name, "none"] and parts[2] in IW5_OVERRIDE_ROLES and parts[3] != "none":
-            roles[IW5_OVERRIDE_ROLES[parts[2]]] = parts[3]
+        if len(parts) == 7 and parts[:2] == [name, "none"] and parts[2] in IW5_OVERRIDE_ROLES:
+            role, host, alt, host_ms, alt_ms = parts[2], parts[3], parts[4], parts[5], parts[6]
+            rows.append((role, host, alt, float(host_ms), float(alt_ms)))
+    return rows
+
+
+def iw5_roles(info, name, column=0, only=None):
+    """{role: clip} this attachment plays on this weapon: the host's (`column` 0) or its underbarrel weapon's (1)."""
+    roles = {}
+    for role, *clips, _host_ms, _alt_ms in iw5_rows(info, name):
+        engine = IW5_OVERRIDE_ROLES[role]
+        if clips[column] != "none" and (only is None or engine in only):
+            roles[engine] = clips[column]
     return roles
+
+
+def iw5_times(info, name, column=0):
+    """{time: seconds} the same rows set, where their millisecond column is not 0."""
+    times = {}
+    for role, _host, _alt, *ms in iw5_rows(info, name):
+        if role in IW5_OVERRIDE_TIMES and ms[column] > 0:
+            times[IW5_OVERRIDE_TIMES[role]] = ms[column] / 1000
+    return times
 
 
 def iw5_entry(name, attach, base, model=None, tag=None, info=None):
@@ -198,9 +271,14 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
     `animOverrides` gives an optic the aiming clips authored for it on this gun.
     """
     overrides, times = {}, {}
+    # A hybrid sight is a second weapon too, one that shares the magazine: MW3 flips
+    # its magnifier with `alt_raise`. Its `adsSettingsMain` is the gun as it comes
+    # (magnified), and `adsSettings` the other half (the holographic) — as a
+    # launcher's `adsSettings` is the launcher's.
+    shared = bool(attach.get(SHARE_AMMO_KEY)) and ALT_WEAPON_KEY not in attach
 
     if ALT_WEAPON_KEY not in attach:
-        ads = attach.get("adsSettings") or {}
+        ads = attach.get("adsSettingsMain" if shared else "adsSettings") or {}
         if ads.get("adsZoomFov") is not None:
             overrides["adsZoomFov"] = ads["adsZoomFov"]
         for role, key in (("adsIn", "adsTransInTime"), ("adsOut", "adsTransOutTime")):
@@ -211,6 +289,12 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
         # gives a fitted sight the last word on it, as it does the aiming clips.
         if "adsOverlay" in attach:
             overrides["adsOverlay"] = (attach["adsOverlay"] or {}).get("shader") or None
+        # MW3's thermal optics: looked through, the world is cold and bodies are white-hot.
+        if attach.get("displayName") == THERMAL_DISPLAY:
+            overrides["thermal"] = True
+        # The screen on the gun that shows who is near (`heartbeat`, `heartbeat2`).
+        if attach.get("displayName") == HEARTBEAT_DISPLAY:
+            overrides["heartbeat"] = True
         for key, roles in TIMER_SCALES.items():
             if (factor := scale(attach, key)) is not None:
                 times.update({role: base["times"][role] * factor for role in roles if role in base["times"]})
@@ -244,12 +328,20 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
         if sounds := {k: v for k, v in base["soundOverrides"].get(name, {}).items() if base["sounds"].get(k) != v}:
             overrides["sounds"] = sounds
 
+    if info is not None:
+        # The weapon file's own table, host column: the gun as it is held with this
+        # fitted — an M4 with an M203 under it idles, fires and reloads differently.
+        times.update({k: v for k, v in iw5_times(info, name).items() if base["times"].get(k) != v})
     if times:
         overrides["times"] = times
     if info is not None and (roles := {r: c for r, c in iw5_roles(info, name).items() if base["roles"].get(r) != c}):
         overrides["roles"] = roles
 
     entry = _entry(name, attach.get("type"), attach.get("displayName"))
+    if ALT_WEAPON_KEY in attach and info is not None:
+        entry["alt"] = iw5_alt(name, attach, info)
+    elif shared and info is not None:
+        entry["alt"] = iw5_shared_alt(name, attach, info)
     if model:
         entry["model"] = model
         if tag:
@@ -258,6 +350,130 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
     # weapon's hideTags: not every gun carries a raised iron sight to hide.
     hide = {IRON_SIGHT} if attach.get("hideIronSightsWithThisAttachment") else set()
     return _with_overrides(entry, overrides, hide)
+
+
+# How IW5's attachment asset spells a fire type, and how a weapon file does.
+IW5_FIRE_TYPES = {
+    "fullauto": "Full Auto",
+    "singleshot": "Single Shot",
+    "burst2": "2-Round Burst",
+    "burst3": "3-Round Burst",
+    "burst4": "4-Round Burst",
+}
+# The alt column of `soundOverrides` (`gl none fire weap_m4carbine_fire_npc weap_m203_fire_npc`).
+ALT_SOUND_FIELDS = {"fire": "fire", "player_fire": "firePlayer"}
+
+
+def _block(attach, key):
+    return attach.get(key) or {}
+
+
+def iw5_alt(name, attach, info):
+    """The underbarrel weapon an attachment with its own `ammunition` puts on a gun.
+
+    MW3 makes it a second weapon (`alt_iw5_m4_mp_gl`) and switches to it with
+    `alt_raise`; this is that weapon's numbers out of the attachment asset, and its
+    clips, times and fire sounds out of the *alt* columns of the host weapon file's
+    `animOverrides` and `soundOverrides`. Everything is absolute and in the game's
+    units; the engine lays it over the host's own definition, so what the asset
+    leaves unsaid (hit-location multipliers, the impact sound) is the host's.
+    """
+    ammo, general, damage = _block(attach, "ammunition"), _block(attach, AMMO_KEY), _block(attach, "damage")
+    clip = int(ammo.get("clipSize") or 1)
+    alt = {
+        "clipSize": clip,
+        # What is carried beyond the round in the launcher: MW3's `startAmmo` is the whole of it.
+        "stock": max(0, int(ammo.get("startAmmo") or clip) - clip),
+        "shotCount": int(ammo.get("shotCount") or 1),
+        "fireType": IW5_FIRE_TYPES.get(general.get("fireType", ""), "Single Shot"),
+        "penetrateType": general.get("penetrateType") or "none",
+        "damage": {
+            k: float(damage[key])
+            for k, key in (
+                ("max", "damage"),
+                ("min", "minDamage"),
+                ("maxRange", "maxDamageRange"),
+                ("minRange", "minDamageRange"),
+                ("melee", "meleeDamage"),
+            )
+            if damage.get(key) is not None
+        },
+        "spread": {
+            role: float(v)
+            for role, key in SPREAD.items()
+            if (v := (_block(attach, "hipSpread").get(key) if key != "adsSpread" else _block(attach, "adsSettings").get(key)))
+            is not None
+        },
+        "motion": {
+            k: float(v) for block in ("viewKick", "idleSettings") for k, v in _block(attach, block).items() if k in MOTION
+        },
+        "roles": iw5_roles(info, name, column=1),
+        "times": iw5_times(info, name, column=1),
+    }
+    # A shell at a time where the table gives it a loop to load by, as a shotgun's own reload is.
+    alt["roundsPerLoad"] = 1 if "reloadStart" in alt["roles"] else 0
+    ads = _block(attach, "adsSettings")
+    if ads.get("adsZoomFov") is not None:
+        alt["adsZoomFov"] = float(ads["adsZoomFov"])
+    for role, key in (("adsIn", "adsTransInTime"), ("adsOut", "adsTransOutTime")):
+        if ads.get(key) is not None:
+            alt["times"][role] = float(ads[key])
+    sounds = {}
+    for line in (info.get("soundOverrides") or "").split("\n"):
+        parts = line.split()
+        if (
+            len(parts) == 5
+            and parts[:2] == [name, "none"]
+            and parts[2] in ALT_SOUND_FIELDS
+            and parts[4].lower() not in ("none", "")
+        ):
+            sounds[ALT_SOUND_FIELDS[parts[2]]] = parts[4]
+    if sounds:
+        alt["sounds"] = sounds
+    projectile = _block(attach, "projectile")
+    if projectile.get("projectileModel"):
+        # A launcher: a round that flies and goes off, not a trace. In CoD units.
+        alt["weaponType"] = "projectile"
+        alt["projectile"] = {
+            "model": projectile["projectileModel"],
+            "speed": float(projectile.get("projectileSpeed") or 0),
+            "speedUp": float(projectile.get("projectileSpeedUp") or 0),
+            # Short of this it is a dud: it hits, and does `damage.max`, and does not go off.
+            "activateDistance": float(projectile.get("projectileActivateDist") or 0),
+            "lifetime": float(projectile.get("projectileLifetime") or 0),
+            "explosionRadius": float(projectile.get("explosionRadius") or 0),
+            "explosionInner": float(projectile.get("explosionInnerDamage") or 0),
+            "explosionOuter": float(projectile.get("explosionOuterDamage") or 0),
+            "impactExplode": bool(projectile.get("projImpactExplode")),
+        }
+    else:
+        alt["weaponType"] = "bullet"
+    if impact := general.get("impactType"):
+        # A prefix the surface completes, as a weapon's own is (`shotgun_concrete`).
+        alt.setdefault("sounds", {})["impact"] = impact
+    return alt
+
+
+def iw5_shared_alt(name, attach, info):
+    """The other half of a sight that flips (`hybrid`, `hamrhybrid`): the same gun and magazine, aimed through the other optic."""
+    ads = _block(attach, "adsSettings")
+    alt = {
+        "shareAmmo": True,
+        "stock": 0,
+        "roles": iw5_roles(info, name, column=1),
+        "times": iw5_times(info, name, column=1),
+    }
+    if ads.get("adsZoomFov") is not None:
+        alt["adsZoomFov"] = float(ads["adsZoomFov"])
+    for role, key in (("adsIn", "adsTransInTime"), ("adsOut", "adsTransOutTime")):
+        if ads.get(key) is not None:
+            alt["times"][role] = float(ads[key])
+    return alt
+
+
+def alt_models(entries):
+    """Every model an underbarrel weapon fires, for packing beside the equipment's."""
+    return {p["model"] for e in entries if (p := (e.get("alt") or {}).get("projectile"))}
 
 
 # --- IW4: one weapon file per combination -------------------------------------
@@ -385,6 +601,10 @@ def resolve_clips(entries, clip_names):
     by_lower = {c.lower(): c for c in clip_names}
     used = set()
     for entry in entries:
+        if alt := entry.get("alt"):
+            # The underbarrel weapon's clips, held to the same rule: one the dump lacks is no clip.
+            alt["roles"] = {role: by_lower[name.lower()] for role, name in alt["roles"].items() if name.lower() in by_lower}
+            used.update(alt["roles"].values())
         roles = (entry.get("overrides") or {}).get("roles")
         if not roles:
             continue
@@ -401,7 +621,12 @@ def resolve_clips(entries, clip_names):
 
 def wanted_clips(entries):
     """Every clip name the attachments name, as the weapon files spell them. For deciding what to decode."""
-    return {name for entry in entries for name in ((entry.get("overrides") or {}).get("roles") or {}).values()}
+    return {
+        name
+        for entry in entries
+        for roles in (((entry.get("overrides") or {}).get("roles") or {}), ((entry.get("alt") or {}).get("roles") or {}))
+        for name in roles.values()
+    }
 
 
 def restrict_bones(entries, joints):

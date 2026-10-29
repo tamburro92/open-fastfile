@@ -28,6 +28,8 @@ uniform vec2 nearFar;
 // x: 0 no fog, 1 exponential squared (y density), 2 linear (y near, z far); three's two kinds.
 uniform vec3 fogParams;
 uniform vec3 fogColour;
+// 1 while the player looks through a thermal optic: the frame drawn as heat.
+uniform float thermal;
 varying vec2 vUv;
 ${VIEW_DEPTH_GLSL}
 void main() {
@@ -42,6 +44,13 @@ void main() {
     float z = viewDepthOf(stored, nearFar);
     float fog = fogParams.x < 1.5 ? 1.0 - exp(-fogParams.y * fogParams.y * z * z) : smoothstep(fogParams.y, fogParams.z, z);
     gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColour, fog);
+  }
+  if (thermal > 0.5) {
+    // White-hot: the world a cold grey by its own brightness, and anything drawn
+    // at full emissive white (a body, Viewmodel's heat) saturating to white.
+    float heat = dot(gl_FragColor.rgb, vec3(0.299, 0.587, 0.114));
+    float shade = heat > 0.97 ? 1.0 : 0.08 + heat * 0.45;
+    gl_FragColor.rgb = vec3(shade);
   }
 }
 `;
@@ -58,6 +67,7 @@ export class OutputPass {
       nearFar: { value: new THREE.Vector2(0.1, 200) },
       fogParams: { value: new THREE.Vector3() },
       fogColour: { value: new THREE.Color() },
+      thermal: { value: 0 },
     },
     depthTest: false,
     depthWrite: false,
@@ -77,6 +87,11 @@ export class OutputPass {
    */
   setGrade(key: string): void {
     addPatch(this.material, { name: "grade", key: `grade:${key}`, apply: () => {} });
+  }
+
+  /** Draw the frame as heat, while a thermal optic is looked through. A uniform: no recompile either way. */
+  setThermal(on: boolean): void {
+    this.material.uniforms.thermal!.value = on ? 1 : 0;
   }
 
   render(renderer: THREE.WebGLRenderer, target: FrameTarget, fog: THREE.Fog | THREE.FogExp2 | null): void {

@@ -74,6 +74,11 @@ export interface SnapshotMessage {
    */
   revealed: boolean[];
   /**
+   * Which of `players` this receiver's heartbeat sensor shows, in the same order;
+   * empty unless the gun in their hands carries one.
+   */
+  sensed: boolean[];
+  /**
    * The gametype's counters (`GametypeDecl.counters`), values only and in its
    * order: both ends hold the declaration that names them. Empty for a gametype
    * with none, which costs four bits.
@@ -106,6 +111,7 @@ export const snapshotMessage = struct({
   sentries: array(sentryStateSchema, SENTRY_COUNT_BITS),
   // Eight bits of count, as `players` has.
   revealed: array(bool, 8),
+  sensed: array(bool, 8),
   counters: array(counterValue, COUNTER_COUNT_BITS),
   // Last, and usually empty: three bits on a quiet tick. This is the only place
   // on the wire where something that *happened* can arrive, so it is also the

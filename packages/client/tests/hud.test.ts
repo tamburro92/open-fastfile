@@ -42,6 +42,7 @@ function state(over: Partial<PlayerState> = {}): PlayerState {
     dead: false,
     respawnIn: 0,
     points: 0,
+    alt: null,
     ...over,
   };
 }
@@ -156,6 +157,7 @@ describe("the connection that does the de-duping", () => {
       streaks: null,
       sentries: [],
       revealed: [],
+      sensed: [],
       counters: [],
       events,
     });
@@ -235,10 +237,10 @@ describe("whose numbers the HUD shows", () => {
     const { ui, hud } = setup();
     hud.joined(joined(), "me");
     hud.snapshot(state({ weapon: { state: "idle", ammo: 7 } as PlayerState["weapon"] }), [], 0);
-    expect(ui.hud.player.value!.weapon).toEqual({ name: "M4A1", ammo: 7, reloading: false });
+    expect(ui.hud.player.value!.weapon).toEqual({ name: "M4A1", ammo: 7, reloading: false, reserve: null });
 
     hud.snapshot(state({ weapon: { state: "reloading", ammo: 0 } as PlayerState["weapon"] }), [], 0);
-    expect(ui.hud.player.value!.weapon).toEqual({ name: "M4A1", ammo: 0, reloading: true });
+    expect(ui.hud.player.value!.weapon).toEqual({ name: "M4A1", ammo: 0, reloading: true, reserve: null });
 
     // A weapon this catalogue does not hold is drawn as nothing rather than as
     // somebody else's gun.

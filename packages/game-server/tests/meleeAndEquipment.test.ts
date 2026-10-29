@@ -93,7 +93,33 @@ function registry(): WeaponRegistry {
       slot: "primary",
       class: "rifle",
       def: weaponDef({ clipSize: 30 }),
-      attachments: [],
+      // MW3's `gl`, as the exporter writes it: an M203 with its own magazine and round.
+      attachments: [
+        {
+          id: "gl",
+          type: "underbarrel",
+          alt: {
+            clipSize: 1,
+            stock: 1,
+            fireType: "Single Shot",
+            weaponType: "projectile",
+            damage: { max: 120, min: 120 },
+            roles: { idle: "idle", fire: "fire", reload: "reload", raise: "pullout" },
+            times: { fire: 0.3, reload: 2.6 },
+            projectile: {
+              model: "projectile_m203grenade",
+              speed: 2400,
+              speedUp: 10,
+              activateDistance: 300,
+              lifetime: 30,
+              explosionRadius: 300,
+              explosionInner: 110,
+              explosionOuter: 25,
+              impactExplode: true,
+            },
+          },
+        },
+      ],
     },
   ];
   return new WeaponRegistry(entries);
@@ -480,5 +506,54 @@ describe("MW3 Lethal & Tactical Equipment", () => {
     const events = sim.getEvents("victim");
     const flashEvent = events.find((e) => e.kind === "announce" && e.what === "flashbang");
     expect(flashEvent).toBeDefined();
+  });
+
+  describe("an underbarrel launcher", () => {
+    const grenadier = () => loadout({ primary: { weapon: `${GAME}/m4_mp`, attachments: ["gl"] } });
+    /** Switched to the launcher and given time to bring it up, aimed level down -z. */
+    function aimed(sim: ReturnType<typeof setupMatch>, target: number) {
+      sim.match.join("grenadier", grenadier());
+      sim.match.join("target", loadout());
+      sim.match.place("grenadier", { x: 0, y: 0, z: 0 }, 0, 0);
+      sim.match.place("target", { x: 0, y: 0, z: target }, 0, 0);
+      const wait = (seconds: number) => {
+        for (let i = 0; i < TICK_RATE * seconds; i++) {
+          sim.stepTick({ grenadier: idleInput(0, 0), target: idleInput(0, 0) });
+        }
+      };
+      wait(1.5); // the rifle's first draw, which no switch may cut short
+      sim.stepTick({ grenadier: { ...idleInput(0, 0), alt: true }, target: idleInput(0, 0) });
+      wait(1.5);
+      expect(sim.getLatest("grenadier")!.state.alt).toMatchObject({ held: true });
+    }
+    const fire = (sim: ReturnType<typeof setupMatch>, seconds: number) => {
+      sim.stepTick({ grenadier: { ...idleInput(0, 0), fire: true }, target: idleInput(0, 0) });
+      const events: GameEvent[] = [];
+      for (let i = 0; i < TICK_RATE * seconds; i++) {
+        sim.stepTick({ grenadier: idleInput(0, 0), target: idleInput(0, 0) });
+        events.push(...sim.getEvents("target"));
+      }
+      return events;
+    };
+
+    it("fires a round that flies, arms past its distance, and goes off where it lands", () => {
+      const sim = setupMatch();
+      aimed(sim, -22);
+      const events = fire(sim, 1.5);
+      const blast = events.find((event) => event.kind === "detonate");
+      expect(blast).toMatchObject({ what: "launcher", by: "grenadier" });
+      expect(sim.getLatest("target")!.state.health).toBeLessThan(100);
+      // Its one grenade of stock reloads it, and that is the last.
+      expect(sim.getLatest("grenadier")!.state.alt).toMatchObject({ held: true });
+    });
+
+    it("is a dud short of arming: it hits whoever it meets, and does not go off", () => {
+      const sim = setupMatch();
+      aimed(sim, -3);
+      const events = fire(sim, 0.5);
+      expect(events.some((event) => event.kind === "detonate")).toBe(false);
+      // `damage.max`, 120: a 40 mm round in the chest from three metres kills.
+      expect(sim.getLatest("target")!.state.dead).toBe(true);
+    });
   });
 });

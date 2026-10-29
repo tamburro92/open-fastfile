@@ -1742,8 +1742,13 @@ Three things about the asset are traps:
 - **An attachment with its own `ammunition` block is a second weapon, not a
   change to this one.** `shotgun`, `gl`, `gp25` and `m320` carry a clip size, an
   ADS zoom, a recoil curve and a fire type belonging to the underbarrel weapon.
-  Folded onto the host they make a plausible four-round M4. Nothing but the
-  model and the hide rule is taken from those four.
+  Folded onto the host they make a plausible four-round M4. So they are written
+  apart, as the entry's `alt` (`attachments.iw5_alt`): the asset's numbers and
+  `projectile`, and the *alt* columns of the host weapon file's `animOverrides`
+  and `soundOverrides` — which name two clips per role, the gun as held with the
+  launcher fitted and the launcher itself, with a millisecond time for each. A
+  hybrid sight (`shareAmmoWithAlt`) is a second weapon on the same magazine: its
+  `adsSettingsMain` is the gun as it comes and `adsSettings` the other optic.
 - **The real numbers are in absolute blocks, not the scales.** An ACOG's
   `adsSettings.adsZoomFov` is 30 outright, against the M4's 50. What the scales
   actually carry in the shipped data is `ammunitionScale` 1.5 (extended mags)

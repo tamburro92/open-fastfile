@@ -16,7 +16,7 @@ import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection, coneSample, shotSpread, shotStream, spreadDirection, type Aim, type ReadKick } from "@3d/shared/sim/recoil.js";
 import { DEFAULT_SURFACE } from "@3d/shared/sim/surfaces.js";
 import type { WeaponController } from "@3d/shared/sim/weapon.js";
-import { BULLET_RANGE } from "@3d/shared/sim/weaponDef.js";
+import { BULLET_RANGE, type LauncherProjectile } from "@3d/shared/sim/weaponDef.js";
 import type { Actors } from "../actors.js";
 import { poseBody } from "../bodies.js";
 import type { MatchClock } from "./clock.js";
@@ -89,6 +89,11 @@ const IDENTITY: readonly number[] = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0
 export class Shots {
   /** Every shot this tick's replay fired, in the order they left. Cleared at the top of each tick. */
   readonly fired: FiredShot[] = [];
+  /**
+   * Where a round that flies goes instead of being traced: an underbarrel
+   * launcher's (`WeaponDef.projectile`). `Match` points it at `Projectiles.launch`.
+   */
+  launcher: ((shooter: PlayerId, eye: Vec3, aim: Vec3, def: LauncherProjectile, impact: number) => void) | null = null;
   /**
    * One shot's scratch: where a player was, what the map answered, and the far end
    * of the segment. A burst of pellets allocates its answers and nothing else.
@@ -172,38 +177,57 @@ export class Shots {
     // same seeded stream the recoil is, so a client has nothing to send and
     // nothing to bend. It predicts the identical cone from the identical seed.
     const cone = heat ? shotSpread(held.def, heat.spread, heat.ads, up) : 0;
+    // A shotgun's `shotCount` pellets, each in the same cone on a stream of its own
+    // (`shotStream`'s `pellet`); a rifle's one is pellet 0, the stream it always had.
+    const pellets = Math.max(1, held.def.shotCount ?? 1);
     for (let i = 0; i < count; i++) {
       const ordinal = (before + i + 1) & 0xffff;
-      // Per round rather than per step: two rounds of a burst share an aim and
-      // must not share a deviation.
-      const aim = aimDirection(aimAngles(movement, kick, this.shotAim), this.shotDirection);
-      spreadDirection(aim, cone, coneSample(shotStream(member.player.seed, ordinal), this.shotCone));
-      const result = this.trace(shooter, eye, aim, BULLET_RANGE, message);
-      this.fired.push({ shooter, ordinal, from: { ...eye }, direction: { ...aim }, result });
-      if (result?.kind === "player") {
-        // `held.def` rather than the entry's: it is the definition with this
-        // player's attachments already merged into it (`resolveWeapon`), so a
-        // silencer's damage penalty is in the number without being looked up
-        // twice.
-        const amount = shotDamage(held.def, result.location, result.distance, this.rules());
-        const victim = this.roster.get(result.id);
-        const was = victim?.player.health ?? 0;
-        this.damage.hurt({ id: result.id, amount, by: shooter, cause: "bullet", location: result.location, along: { ...aim } });
-        // **After** the damage, and only if it cost them something. A marker is
-        // this server's answer about its own trace, so a round a teammate absorbs
-        // with friendly fire off, or one a script ignored, or one that met a
-        // location the weapon file scores at zero, draws nothing.
-        if (victim && victim.player.health < was) {
-          this.outbox.push({ kind: "hit", lethal: victim.player.dead }, shooter, 0);
+      // One marker a round however many of its pellets landed: a marker per pellet
+      // would fill a snapshot's event tail with one shotgun blast.
+      let marked = false;
+      let lethal = false;
+      for (let pellet = 0; pellet < pellets; pellet++) {
+        // Per round rather than per step: two rounds of a burst share an aim and
+        // must not share a deviation.
+        const aim = aimDirection(aimAngles(movement, kick, this.shotAim), this.shotDirection);
+        spreadDirection(aim, cone, coneSample(shotStream(member.player.seed, ordinal, pellet), this.shotCone));
+        if (held.def.projectile) {
+          // A round that flies: launched along the same aim and cone, and judged where it lands.
+          this.launcher?.(shooter, { ...eye }, { ...aim }, held.def.projectile, held.def.damage?.max ?? 0);
+          continue;
         }
-      } else if (result?.kind === "actor") {
-        const amount = shotDamage(held.def, result.location, result.distance, this.rules());
-        const was = this.actors.health(result.id);
-        this.damage.hurt({ kind: "actor", actor: result.id, amount, by: shooter, cause: "bullet", location: result.location });
-        // A marker only for a round that cost it something, as for a player.
-        if (this.actors.health(result.id) < was) {
-          this.outbox.push({ kind: "hit", lethal: !this.actors.alive(result.id) }, shooter, 0);
+        const result = this.trace(shooter, eye, aim, BULLET_RANGE, message);
+        this.fired.push({ shooter, ordinal, from: { ...eye }, direction: { ...aim }, result });
+        if (result?.kind === "player") {
+          // `held.def` rather than the entry's: it is the definition with this
+          // player's attachments already merged into it (`resolveWeapon`), so a
+          // silencer's damage penalty is in the number without being looked up
+          // twice.
+          const amount = shotDamage(held.def, result.location, result.distance, this.rules());
+          const victim = this.roster.get(result.id);
+          const was = victim?.player.health ?? 0;
+          this.damage.hurt({ id: result.id, amount, by: shooter, cause: "bullet", location: result.location, along: { ...aim } });
+          // **After** the damage, and only if it cost them something. A marker is
+          // this server's answer about its own trace, so a round a teammate absorbs
+          // with friendly fire off, or one a script ignored, or one that met a
+          // location the weapon file scores at zero, draws nothing.
+          if (victim && victim.player.health < was) {
+            marked = true;
+            lethal ||= victim.player.dead;
+          }
+        } else if (result?.kind === "actor") {
+          const amount = shotDamage(held.def, result.location, result.distance, this.rules());
+          const was = this.actors.health(result.id);
+          this.damage.hurt({ kind: "actor", actor: result.id, amount, by: shooter, cause: "bullet", location: result.location });
+          // A marker only for a round that cost it something, as for a player.
+          if (this.actors.health(result.id) < was) {
+            marked = true;
+            lethal ||= !this.actors.alive(result.id);
+          }
         }
+      }
+      if (marked) {
+        this.outbox.push({ kind: "hit", lethal }, shooter, 0);
       }
     }
   }

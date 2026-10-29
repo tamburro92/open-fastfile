@@ -116,6 +116,8 @@ export interface Correction {
   sentries: SentryState[];
   /** Who our UAV shows us, by id; empty with none up. */
   revealed: PlayerId[];
+  /** Who our heartbeat sensor shows us, by id; empty without one in hand. */
+  sensed: PlayerId[];
   /** The inputs sent after `ack`, oldest first: what prediction has to redo. */
   pending: readonly SentInput[];
   /** Which of the world's solids are present, or null for a world with none. */
@@ -430,6 +432,7 @@ export class Connection {
       streaks: message.streaks,
       sentries: message.sentries,
       revealed: message.players.filter((_, i) => message.revealed[i] === true).map((p) => p.id),
+      sensed: message.players.filter((_, i) => message.sensed[i] === true).map((p) => p.id),
       pending: this.sent,
       events: this.seen?.unseen(message.events) ?? [],
       presence: message.presence,

@@ -54,6 +54,12 @@ export const CLIP_ROLES = [
   "reloadEnd",
   // A grenade's pin coming out, before its throw (`fire`).
   "holdFire",
+  // Changing between a gun and the weapon under its barrel: MW3's `alt_raise`,
+  // `bullet_2_grenade` on the way in and `grenade_2_bullet` on the way back.
+  "altRaise",
+  // The draw and the putaway with an empty magazine, which a launcher authors.
+  "emptyRaise",
+  "emptyDrop",
 ] as const;
 
 export type ClipRole = (typeof CLIP_ROLES)[number];
@@ -81,7 +87,8 @@ export type WeaponTimes = Partial<
     | "adsIn"
     | "adsOut"
     | "adsReloadOut"
-    | "holdFire",
+    | "holdFire"
+    | "altRaise",
     number
   >
 >;
@@ -195,6 +202,24 @@ export interface WeaponSounds {
   notes?: Record<string, string>;
 }
 
+/**
+ * A round that flies and goes off, in CoD units, as the attachment asset spells it
+ * (`gl`, `gp25`, `m320`). Inside `activateDistance` of the muzzle it is a dud: it
+ * hits for the weapon's `damage.max` and does not explode, which is how MW3 stops a
+ * launcher being fired into the floor at your feet.
+ */
+export interface LauncherProjectile {
+  model: string;
+  speed: number;
+  speedUp: number;
+  activateDistance: number;
+  lifetime: number;
+  explosionRadius: number;
+  explosionInner: number;
+  explosionOuter: number;
+  impactExplode: boolean;
+}
+
 /** A weapon as the exporter describes it in its GLB. */
 export interface WeaponDef {
   game: string;
@@ -272,6 +297,12 @@ export interface WeaponDef {
   penetrateType?: string;
   /** Joints whose surfaces are not drawn: the weapon's hideTags and the folded backup sight. */
   hideBones: string[];
+  /** Looked through, a thermal optic: the world drawn cold and bodies white-hot. A fitted `thermal` sets it. */
+  thermal?: boolean;
+  /** A heartbeat sensor's screen on the gun, showing the enemies near (`game/equipment.ts`'s `HEARTBEAT`). */
+  heartbeat?: boolean;
+  /** What a `projectile` weapon fires: an underbarrel launcher's 40 mm round. Absent for a gun that traces. */
+  projectile?: LauncherProjectile;
   /** Whether the weapon has a silencer / suppressor fitted (stealth: suppresses radar ping on fire). */
   silenced?: boolean;
   /**

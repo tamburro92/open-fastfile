@@ -1,0 +1,36 @@
+/* A fan of the half circle ahead, on a dark screen, with the player at the bottom middle. */
+.screen {
+  position: absolute;
+  right: 22rem;
+  bottom: 1.5rem;
+  width: 9rem;
+  height: 4.5rem;
+  border-radius: 4.5rem 4.5rem 0 0;
+  background: radial-gradient(circle at 50% 100%, rgba(30, 60, 30, 0.85), rgba(8, 20, 8, 0.9));
+  border: 1px solid rgba(140, 220, 140, 0.35);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sweep {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 100%,
+    transparent 0 32%,
+    rgba(140, 220, 140, 0.12) 33% 34%,
+    transparent 35% 65%,
+    rgba(140, 220, 140, 0.12) 66% 67%,
+    transparent 68%
+  );
+}
+
+.blip {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin: 0 0 -0.25rem -0.25rem;
+  border-radius: 50%;
+  background: rgb(255, 80, 60);
+  box-shadow: 0 0 0.4rem rgba(255, 80, 60, 0.9);
+}

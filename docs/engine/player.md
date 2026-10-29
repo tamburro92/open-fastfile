@@ -969,6 +969,18 @@ inputs** does, though — it steps the same ticks from the same state and has to
 end up holding the same gun, and "this putaway is a swap" is not derivable from
 anything else. One bit, and `tests/loadout.test.ts` is what says so.
 
+**The weapon under the barrel is a third half-weapon.** A fitted launcher,
+underbarrel shotgun or hybrid sight (`AttachmentEntry.alt`) is a second
+`WeaponController` on the same carried gun, as MW3 makes it a second weapon
+(`alt_iw5_m4_mp_gl`). `input.alt` trades the two in one tick: the held half
+goes `lowered` at once and the other plays its own `altRaise`, so nothing spans
+ticks and no `swapping`-like bit is needed. A launcher's reserve is finite (two
+grenades for an M203) where every other gun reloads for ever, and
+`PlayerState.alt` carries which half is held, the other half's magazine and that
+reserve. A launcher's round is not traced: `Shots.fire` hands it to
+`Projectiles.launch`, which arms it past `activateDistance` and lets it strike as
+a dud short of it.
+
 A class names its attachments (`acog`) and the simulation numbers them (slot 3).
 The two spellings are deliberate: a snapshot goes out sixty times a second so it
 carries the number, and a stored class outlives the catalogue that handed the
