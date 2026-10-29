@@ -256,7 +256,7 @@ describe("MW3 Melee Combat", () => {
     }
   });
 
-  it("enforces 0.66s melee cooldown", () => {
+  it("waits a weapon's own meleeTime between two stabs: 0.8 s where it names none", () => {
     const sim = setupMatch({ friendlyFire: true });
     sim.match.join("attacker", loadout());
     sim.match.join("victim1", loadout());
@@ -274,7 +274,7 @@ describe("MW3 Melee Combat", () => {
     });
     expect(sim.getLatest("victim1")?.state.dead).toBe(true);
 
-    // Next tick (16ms later < 0.66s), attacker tries to melee victim2
+    // Next tick (16ms later < 0.8s), attacker tries to melee victim2
     sim.stepTick({
       attacker: { ...idleInput(0, 0), melee: true },
       victim1: idleInput(0, 0),
@@ -283,8 +283,8 @@ describe("MW3 Melee Combat", () => {
     // Cooldown prevents second melee attack!
     expect(sim.getLatest("victim2")?.state.health).toBe(100);
 
-    // Advance 40 ticks (~0.67s > 0.66s)
-    for (let i = 0; i < 40; i++) {
+    // Advance 50 ticks (~0.83s > 0.8s)
+    for (let i = 0; i < 50; i++) {
       sim.stepTick({
         attacker: idleInput(0, 0),
         victim1: idleInput(0, 0),

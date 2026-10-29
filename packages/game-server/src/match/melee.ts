@@ -16,7 +16,8 @@ import type { Member, Roster } from "./roster.js";
 /** Authentic MW3 melee parameters: */
 export const MELEE_DAMAGE = 135;
 export const MELEE_RANGE = 2.0; // 2.0 meters reach
-export const MELEE_COOLDOWN = 0.66; // 0.66s cooldown
+/** Between two stabs, for a weapon whose file names no `meleeTime` (MW3's rifles say 0.8). */
+export const MELEE_COOLDOWN = 0.8;
 export const MELEE_CONE_DOT = 0.5; // ~60 degree angle tolerance
 
 export class Melee {
@@ -39,7 +40,9 @@ export class Melee {
     }
 
     const now = this.clock.now;
-    if (now - member.equipment.lastMeleeAt < MELEE_COOLDOWN) {
+    // The weapon's own `meleeTime`: 0.8 s for a rifle's slice, 0.529 s with a tactical knife.
+    const cooldown = member.player.weapon?.def.times.melee ?? MELEE_COOLDOWN;
+    if (now - member.equipment.lastMeleeAt < cooldown) {
       return;
     }
     member.equipment.lastMeleeAt = now;

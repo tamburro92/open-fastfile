@@ -5,6 +5,7 @@
 // them. docs/engine/rendering.md#the-viewmodel.
 
 import * as THREE from "three";
+import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { ViewmodelRig } from "../scene/viewmodel.js";
 import { keepAlpha } from "../scene/importedMaterials.js";
 import { horizontalSpeed, type MovementState } from "@3d/shared/sim/movement.js";
@@ -147,6 +148,9 @@ class Scope {
   }
 }
 
+/** Where the hands hold MW3's knife. */
+const KNIFE_TAG = "tag_knife_attach";
+
 export class Viewmodel {
   readonly scene = new THREE.Scene();
   readonly camera = new THREE.PerspectiveCamera(codFovToVertical(COD_FOV), 1, NEAR, FAR);
@@ -179,6 +183,9 @@ export class Viewmodel {
   private readonly motionPose: MotionPose = { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 };
   private wasPaused = false;
   private unsubscribe: (() => void) | undefined;
+  /** The knife's model, the store's; and this rig's copy of it on the hands' `tag_knife_attach`. */
+  private knifeTemplate: THREE.Object3D | undefined;
+  private knife: THREE.Object3D | undefined;
   private readonly baseFov = codFovToVertical(COD_FOV);
 
   constructor() {
@@ -221,6 +228,13 @@ export class Viewmodel {
     this.scope.use(overlay);
     this.weapon = weapon;
     this.unsubscribe = weapon.on((e) => this.onWeaponEvent(e));
+    const knifeTag = this.knifeTemplate ? rig.root.getObjectByName(KNIFE_TAG) : undefined;
+    if (knifeTag && this.knifeTemplate) {
+      // A copy per rig, which goes with it: `releaseRig` frees the skeletons, the store the rest.
+      this.knife = SkeletonUtils.clone(this.knifeTemplate);
+      knifeTag.add(this.knife);
+      this.showKnife(weapon.data.clip?.role === "melee");
+    }
     this.showWeaponClip();
     this.mixer.update(0);
   }
@@ -229,6 +243,7 @@ export class Viewmodel {
   clear(): void {
     this.unsubscribe?.();
     this.unsubscribe = undefined;
+    this.knife = undefined;
     if (this.rig && this.mixer) {
       this.mixer.stopAllAction();
       this.mixer.uncacheRoot(this.rig.root);
@@ -417,7 +432,20 @@ export class Viewmodel {
   private onWeaponEvent(e: WeaponEvent): void {
     if (e.type === "play") {
       this.play(e.clip, e.time, e.rate, e.loop, e.fade);
+      this.showKnife(e.role === "melee");
     }
+  }
+
+  /** The knife, out while the hands stab — and all the time for a tactical knife, held in the other hand. */
+  private showKnife(stabbing: boolean): void {
+    if (this.knife) {
+      this.knife.visible = stabbing || this.weapon?.def.tacticalKnife === true;
+    }
+  }
+
+  /** The knife model the hands hold to stab, from the session's store; undefined until it has loaded. */
+  setKnife(template: THREE.Object3D | undefined): void {
+    this.knifeTemplate = template;
   }
 
   /**

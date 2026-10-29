@@ -18,6 +18,10 @@ import { attachmentModelUrl, equipmentModelUrl, overlayImageUrl, weaponModelUrl 
 import type { OffhandKind } from "../engine/offhand.js";
 import type { AssetStore, GltfAsset } from "../scene/assets.js";
 import { buildViewmodelRig, type FittedAttachment, type ViewmodelRig } from "../scene/viewmodel.js";
+import { worldWeaponUrl } from "../scene/assetUrl.js";
+
+/** The knife's model in the catalogue's `worldweapons` (packed by the `catalog` step's equipment). */
+const KNIFE_MODEL = "viewmodel_knife";
 import type { GameContent } from "./content.js";
 
 /** The grenade each kind is thrown as, by its MW3 weapon file: the catalogue's equipment entries. */
@@ -74,7 +78,7 @@ export class WeaponViewmodel {
     // conditional on having built a class.
     const carried = this.carry(cast.defaultWeapon);
     this.armedSeen = this.player.armed;
-    await Promise.all([this.fetchCarried(), this.fetchOffhand(assets, hands)]);
+    await Promise.all([this.fetchCarried(), this.fetchOffhand(assets, hands), this.fetchKnife(assets)]);
     return this.showHeld({ ready: !raise }) ? carried : undefined;
   }
 
@@ -192,6 +196,14 @@ export class WeaponViewmodel {
    * The three grenades' rigs on this world's hands. A world whose catalogue has
    * no equipment built throws with no animation, rather than not at all.
    */
+  /** MW3's knife, every weapon file's `knifeModel`: drawn on the hands while they stab. */
+  private async fetchKnife(assets: AssetStore): Promise<void> {
+    const knife = await assets.gltf(worldWeaponUrl(OFFHAND_GAME, KNIFE_MODEL)).catch(() => undefined);
+    if (this.assets === assets) {
+      this.viewmodel.setKnife(knife?.scene);
+    }
+  }
+
   private async fetchOffhand(assets: AssetStore, hands: GltfAsset): Promise<void> {
     const kinds = Object.keys(OFFHAND) as OffhandKind[];
     const models = await Promise.all(kinds.map((kind) => assets.gltf(equipmentModelUrl(OFFHAND_GAME, OFFHAND[kind])).catch(() => undefined)));

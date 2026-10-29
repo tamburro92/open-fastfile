@@ -74,6 +74,8 @@ CLIP_ROLES = {
     "reloadEnd": "reloadEndAnim",
     # A grenade's pin coming out, before its throw (`fireAnim`).
     "holdFire": "holdFireAnim",
+    # The knife: MW3's slice, or a tactical knife's own, held with the pistol.
+    "melee": "meleeAnim",
 }
 # What a round takes off, and how far it carries. `damage` **is** the maximum —
 # there is no `maxDamage` key — and it is the player-versus-player number: MW2's
@@ -200,6 +202,7 @@ TIMES = {
     "adsOut": "adsTransOutTime",
     "adsReloadOut": "adsReloadTransTime",
     "holdFire": "holdFireTime",
+    "melee": "meleeTime",
 }
 # The procedural motion's parameters, copied as numbers under the game's own
 # names. A verbatim tuple rather than a rename map like `DAMAGE` and `SPREAD`,

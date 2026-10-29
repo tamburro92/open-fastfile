@@ -413,3 +413,19 @@ def test_iw5_hybrid_is_a_second_weapon_on_the_same_magazine_magnified_by_default
         },
         "times": {"altRaise": 1.1, "adsIn": pytest.approx(0.35), "adsOut": pytest.approx(0.35)},
     }
+
+
+@pytest.mark.skipif(mw3_dump() is None, reason="needs MW3's attachment assets dumped (catalog --dump mw3)")
+def test_iw5_tactical_knife_holds_the_pistol_with_a_knife_and_stabs_quicker():
+    # The USP's `tactical`: every clip is the knife-in-hand version, and its stab
+    # takes 0.529 s against the pistol's own `meleeTime` of 0.8.
+    work = mw3_dump()
+    info = parse_infostring(read_text(os.path.join(work, "weapons", "weapons", "iw5_usp45_mp")))
+    base = spec_of(info)
+    assert base["times"]["melee"] == 0.8
+    assert base["roles"]["melee"] == "viewmodel_knife_melee_slice"
+    overrides = iw5_entry("tactical", read_defs(work)["tactical"], base, info=info)["overrides"]
+    assert overrides["tacticalKnife"] is True
+    assert overrides["roles"]["melee"] == "viewmodel_USPMGS_melee"
+    assert overrides["roles"]["idle"] == "viewmodel_USPMGS_idle"
+    assert overrides["times"]["melee"] == pytest.approx(0.529)

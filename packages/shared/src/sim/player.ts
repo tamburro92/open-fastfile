@@ -480,6 +480,8 @@ export class Player {
       weapon.setInput(this.weaponInput);
       if (climbing) {
         this.stow();
+      } else if (input.melee) {
+        weapon.melee();
       } else if (input.reload) {
         weapon.reload();
       }

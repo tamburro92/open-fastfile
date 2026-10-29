@@ -572,7 +572,9 @@ EQUIPMENT_WEAPONS = {
 # campaign's `sentry_minigun`. The scripts are not in the companion zone, so the
 # name is written here.
 EQUIPMENT_SCRIPT_MODELS = {
-    "iw5": ("sentry_minigun_weak",),
+    # The knife every weapon file names as its `knifeModel`, drawn on the hands'
+    # `tag_knife_attach` while it stabs — and the whole time a tactical knife is fitted.
+    "iw5": ("sentry_minigun_weak", "viewmodel_knife"),
 }
 
 

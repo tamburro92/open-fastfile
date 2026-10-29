@@ -112,6 +112,7 @@ ALT_WEAPON_KEY = "ammunition"
 # What MW3 calls its two thermal optics (`thermal`, `thermalsmg`).
 THERMAL_DISPLAY = "WEAPON_THERMAL_ATTACHMENT"
 HEARTBEAT_DISPLAY = "WEAPON_HEARTBEAT_ATTACHMENT"
+TACTICAL_DISPLAY = "WEAPON_TACTICAL_ATTACHMENT"
 # A sight that flips between two optics is a second weapon on the same magazine.
 SHARE_AMMO_KEY = "shareAmmoWithAlt"
 # The block holding what a round is and how it leaves the barrel. Not the one above.
@@ -203,6 +204,8 @@ IW5_OVERRIDE_ROLES = {
     "rechamber": "rechamber",
     "reload_start": "reloadStart",
     "reload_end": "reloadEnd",
+    # A tactical knife's own stab, held with the pistol (`USPMGS_melee`).
+    "melee": "melee",
 }
 # The roles whose time column means something to `WeaponDef.times`. The others'
 # lengths are their clips'.
@@ -222,6 +225,7 @@ IW5_OVERRIDE_TIMES = {
     "rechamber": "rechamber",
     "reload_start": "reloadStart",
     "reload_end": "reloadEnd",
+    "melee": "melee",
 }
 # The aiming clips, which are all an optic's rows carry and all the engine takes
 # from a non-underbarrel attachment: an optic puts its own sight line on the eye.
@@ -295,6 +299,9 @@ def iw5_entry(name, attach, base, model=None, tag=None, info=None):
         # The screen on the gun that shows who is near (`heartbeat`, `heartbeat2`).
         if attach.get("displayName") == HEARTBEAT_DISPLAY:
             overrides["heartbeat"] = True
+        # A pistol held with a knife in the other hand, which stabs quicker (its `melee` rows).
+        if attach.get("displayName") == TACTICAL_DISPLAY:
+            overrides["tacticalKnife"] = True
         for key, roles in TIMER_SCALES.items():
             if (factor := scale(attach, key)) is not None:
                 times.update({role: base["times"][role] * factor for role in roles if role in base["times"]})

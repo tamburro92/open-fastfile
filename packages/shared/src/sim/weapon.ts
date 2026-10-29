@@ -42,6 +42,8 @@ export const WEAPON_STATES = [
   "rechambering",
   "reloadStart",
   "reloadEnd",
+  // The knife out: nothing else until its `meleeTime` is up.
+  "meleeing",
 ] as const;
 
 export type WeaponState = (typeof WEAPON_STATES)[number];
@@ -166,6 +168,10 @@ const FIRE_STATES: readonly WeaponState[] = ["idle", "firing", "sprintIn", "spri
 const RELOAD_FROM: readonly WeaponState[] = ["idle", "firing", "sprintIn", "sprinting", "sprintOut", "rechambering"];
 /** The three halves of a segmented reload, and the one state a magazine reload uses (`reloading`). */
 const RELOAD_STATES: readonly WeaponState[] = ["reloadStart", "reloading", "reloadEnd"];
+/** What a stab cannot start from: the weapon is not in the hands, or is already stabbing. */
+const MELEE_NOT_FROM: readonly WeaponState[] = ["lowered", "raising", "dropping", "meleeing"];
+/** A weapon file that names no `meleeTime` stabs as long as MW3's own rifles do. */
+const DEFAULT_MELEE_TIME = 0.8;
 
 /** Shots one trigger press fires: every shot while held (0), one, or a burst. */
 function shotsPerPress(fireType: string): number {
@@ -340,6 +346,25 @@ export class WeaponController {
   }
 
   /**
+   * The knife: its clip, and nothing else from this weapon until its `meleeTime`
+   * is up — 0.8 s with a USP's own slice, 0.529 s with a tactical knife in hand.
+   * It cuts a reload short as a weapon change does; not a draw, a putaway or
+   * another stab. Returns whether it started.
+   */
+  melee(): boolean {
+    const d = this.d;
+    if (MELEE_NOT_FROM.includes(d.state)) {
+      return false;
+    }
+    d.reloadQueued = false;
+    d.refillAt = null;
+    const time = this.def.times.melee ?? (this.def.roles.melee ? this.clipInfo("melee").duration : DEFAULT_MELEE_TIME);
+    this.enter("meleeing", time);
+    this.play("melee", { time, restart: true });
+    return true;
+  }
+
+  /**
    * Come up as the other half of the same gun: an underbarrel weapon and its host
    * trade places with one clip, `altRaise` (MW3's `bullet_2_grenade` and back),
    * rather than a putaway and a draw. Falls back to a quick raise where the
@@ -441,6 +466,7 @@ export class WeaponController {
         }
         break;
       case "rechambering":
+      case "meleeing":
         if ((d.timer -= dt) <= 0) {
           this.toIdle();
         }

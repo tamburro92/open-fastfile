@@ -60,6 +60,8 @@ export const CLIP_ROLES = [
   // The draw and the putaway with an empty magazine, which a launcher authors.
   "emptyRaise",
   "emptyDrop",
+  // The knife: the weapon file's slice, or a tactical knife's own stab.
+  "melee",
 ] as const;
 
 export type ClipRole = (typeof CLIP_ROLES)[number];
@@ -88,7 +90,8 @@ export type WeaponTimes = Partial<
     | "adsOut"
     | "adsReloadOut"
     | "holdFire"
-    | "altRaise",
+    | "altRaise"
+    | "melee",
     number
   >
 >;
@@ -301,6 +304,8 @@ export interface WeaponDef {
   thermal?: boolean;
   /** A heartbeat sensor's screen on the gun, showing the enemies near (`game/equipment.ts`'s `HEARTBEAT`). */
   heartbeat?: boolean;
+  /** A knife held in the other hand the whole time, as MW3's tactical knife is; its stab is the `melee` clip. */
+  tacticalKnife?: boolean;
   /** What a `projectile` weapon fires: an underbarrel launcher's 40 mm round. Absent for a gun that traces. */
   projectile?: LauncherProjectile;
   /** Whether the weapon has a silencer / suppressor fitted (stealth: suppresses radar ping on fire). */
