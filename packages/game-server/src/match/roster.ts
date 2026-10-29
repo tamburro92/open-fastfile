@@ -202,6 +202,8 @@ export class Roster {
           ammo: held.data.ammo,
           clipSize: held.def.clipSize,
           state: held.data.state,
+          weaponClass: held.def.weaponClass,
+          fireType: held.def.fireType,
         }
       : undefined;
     return {

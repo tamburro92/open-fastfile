@@ -510,6 +510,38 @@ the reach so the chase ends in range. `params.reach` is the actor's kind's, and
 blow itself is the actor runtime's ([actors](actors.md#a-tick)), so a bot given
 this brain stands in front of its quarry and hits nothing.
 
+**`combat`** is free-for-all's and team deathmatch's soldier, and fights as MW3's AI
+does. MW3's multiplayer has no bot AI to copy; the AI on its multiplayer maps is
+Survival's, and every number the brain acts on is read from Survival's and the
+campaign's compiled scripts and weapons into `game/bots/mw3Ai.ts`, each with its
+file and key ([reverse/iw5-ai](../../reverse/iw5-ai/README.md)). The lobby's
+difficulty (`params.difficulty`) is `_gameskill`'s row: recruit, regular, hardened,
+veteran are easy, normal, hardened, veteran. It thinks every tick, because each
+shot is rolled as it is fired:
+
+- **Seeing**: the nearest living opponent in a 120° cone with a clear line, kept
+  while it stays in sight, the field looked over every 0.1 s.
+- **Hitting**: a shot lands with chance `accuracy` (0.2, the Survival soldier's) ×
+  `base_enemy_accuracy` × the weapon class's `aivsplayer` graph at distance ×
+  `accuracyDistScale` / `maxDist`, and misses on purpose for `missTimeConstant` +
+  distance × `missTimeDistanceFactor` once it opens fire on someone. A hit is
+  aimed at the chest down the sights; a miss beside the target.
+- **Firing**: `shoot_behavior`'s style by range — everything within 250 units,
+  bursts (taps with a semi-automatic) to 1600, single shots beyond — with
+  `init`'s burst lengths and `combat_utility`'s pauses; a semi-automatic's trigger
+  is let go between shots, and a shot is counted off the magazine.
+- **Distance**: stands within the soldier's engagement range (768 units), walks in
+  firing to its falloff (1024), runs in beyond it.
+- **Grenades** no oftener than `playerGrenadeBaseTime` + `playerGrenadeRangeTime`,
+  never inside the frag's own blast, pitched to land at the target's feet.
+- **Melee** within 64 units; **hunting** the nearest opponent when it sees none, as
+  Survival sends its AI at the players; a reload at empty, or below half with
+  nobody in sight.
+
+What MW3 keeps in its executable — the view cone, how fast an actor turns, where a
+miss goes, how the graph's distance is scaled — is not in any file, and each such
+constant says so where it is defined.
+
 **`chase`** (`gametypes/chase.ts`, `scripts/chase.ts`): survivors and a horde,
 on team deathmatch's spawns so each side starts at its own end. `matchStart` adds
 eight `seek-nearest` bots to the horde. Its `games:` names only the games whose

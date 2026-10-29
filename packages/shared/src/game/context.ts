@@ -77,6 +77,9 @@ export interface PlayerStateView {
     readonly ammo: number;
     readonly clipSize: number;
     readonly state: WeaponState;
+    /** The weapon file's `weaponClass` (`rifle`, `smg`, `spread`, ...) and `fireType`, where the definition carries them. */
+    readonly weaponClass?: string;
+    readonly fireType?: string;
   };
 }
 
