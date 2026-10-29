@@ -388,6 +388,12 @@ export class MatchController {
     // After `others` is in hand: a death needs the feet of whoever fell,
     // and a hit marker is this player's own answer about their own round.
     this.soundEvents(events, self, others);
+    for (const event of events) {
+      if (event.kind === "announce" && event.what === "flashbang" && event.player === this.ticket?.playerId) {
+        // Tenths of a second blind (game-server/src/match/projectiles.ts), and no sprint for as long.
+        firstPerson.blockRun((event.value ?? 0) / 10);
+      }
+    }
     this.roster = this.rosterOf(tick, self, others, counters);
     // The gametype's own, and the only events this engine does not know the
     // meaning of: a script published them and a script is what reads them.

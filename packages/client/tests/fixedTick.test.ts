@@ -190,6 +190,19 @@ describe("the fixed tick", () => {
     expect(controls.player.movement.yaw).toBeCloseTo(sent.yaw, 12);
   });
 
+  it("sends no sprint while a flashbang has them, as the server would refuse it", () => {
+    const { devices, controls, ticks } = setup();
+    devices.hold("forward");
+    devices.hold("run");
+    controls.blockRun(0.5);
+    for (let i = 0; i < TICK_RATE; i++) {
+      controls.update(TICK_DT);
+    }
+    const blocked = Math.round(0.5 * TICK_RATE);
+    expect(ticks.slice(0, blocked - 1).every((input) => !input.run)).toBe(true);
+    expect(ticks.slice(blocked + 1).every((input) => input.run)).toBe(true);
+  });
+
   it("hands each tick the state that tick produced", () => {
     const devices = new FakeDevices();
     const controls = new FirstPersonControls(new THREE.PerspectiveCamera(), devices, ground);

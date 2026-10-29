@@ -5,10 +5,15 @@
 // - Shockwave blast ring expanding rapidly outwards
 // - Billowing rising smoke clouds
 // - Flying high-velocity sparks / glowing shrapnel debris
-// - Dynamic PointLight flash illuminating surrounding geometry
 // - Ground scorch mark decal
 // - Spatial 3D explosion sound dispatch (grenade_explode_default / flashbang_explode_default)
 // - Visceral camera shake / trauma jitter for players in blast range
+
+//
+// No light. A `PointLight` added to the scene changes the number of lights every
+// lit material's program is keyed on, so three recompiles the whole map's shaders
+// — once as it appears and again as it goes: seconds of a frozen game per
+// explosion. The fireball's additive glow is the flash.
 
 import * as THREE from "three";
 import type { Vec3 } from "@3d/shared/sim/capsule.js";
@@ -16,6 +21,9 @@ import type { AudioSystem } from "../audio/system.js";
 import type { FirstPersonControls } from "../controls/firstPerson.js";
 import type { DetonationKind } from "@3d/shared/sim/projectile.js";
 import { PREDATOR } from "@3d/shared/game/equipment.js";
+
+/** Where the prewarm's explosion goes off: under any map, and out of every view. */
+const PREWARM_DEPTH = -10_000;
 
 interface Spark {
   position: THREE.Vector3;
@@ -38,7 +46,6 @@ interface ActiveExplosion {
   kind: DetonationKind;
   origin: THREE.Vector3;
   age: number;
-  light?: THREE.PointLight;
   fireball?: THREE.Mesh;
   shockwave?: THREE.Mesh;
   scorch?: THREE.Mesh;
@@ -62,6 +69,15 @@ export class ExplosionFx {
 
   constructor() {
     this.root.name = "explosions-fx";
+  }
+
+  /**
+   * One explosion far below the map, for the load's shader prewarm to draw: its
+   * materials compile behind the loading screen instead of on the first grenade.
+   * It fades away on its own like any other; nothing can see it meanwhile.
+   */
+  prewarm(): void {
+    this.spawn({ x: 0, y: PREWARM_DEPTH, z: 0 }, "frag");
   }
 
   /**
@@ -92,16 +108,6 @@ export class ExplosionFx {
         controls.addTrauma(shakeStrength * (kind === "flashbang" ? 0.75 : 1.0));
       }
     }
-
-    // 3. Dynamic point light flash
-    const lightColor = kind === "flashbang" ? 0xffffff : 0xff9933;
-    const lightIntensity = kind === "flashbang" ? 28.0 : 18.0;
-    const lightDistance = kind === "flashbang" ? 30.0 : 20.0;
-
-    const light = new THREE.PointLight(lightColor, lightIntensity, lightDistance);
-    light.position.copy(pos);
-    light.position.y += 0.3;
-    this.root.add(light);
 
     // 4. Fireball / Flash core mesh
     const fireballMat = new THREE.MeshBasicMaterial({
@@ -205,7 +211,6 @@ export class ExplosionFx {
       kind,
       origin: pos,
       age: 0,
-      light,
       fireball,
       shockwave,
       scorch,
@@ -226,17 +231,6 @@ export class ExplosionFx {
     for (let i = this.active.length - 1; i >= 0; i--) {
       const exp = this.active[i]!;
       exp.age += dt;
-
-      // 1. Dynamic light decay (0.25s)
-      if (exp.light) {
-        const lightFrac = Math.max(0, 1.0 - exp.age / 0.25);
-        exp.light.intensity = (exp.kind === "flashbang" ? 28.0 : 18.0) * (lightFrac * lightFrac);
-        if (exp.age >= 0.25) {
-          this.root.remove(exp.light);
-          exp.light.dispose();
-          exp.light = undefined;
-        }
-      }
 
       // 2. Fireball expansion and fade (0.35s)
       if (exp.fireball) {
@@ -345,7 +339,7 @@ export class ExplosionFx {
       }
 
       // 7. Cleanup active explosion entry when all parts are done
-      if (!exp.light && !exp.fireball && !exp.shockwave && !exp.sparksMesh && exp.smoke.length === 0 && (!exp.scorch || exp.age >= 6.0)) {
+      if (!exp.fireball && !exp.shockwave && !exp.sparksMesh && exp.smoke.length === 0 && (!exp.scorch || exp.age >= 6.0)) {
         if (exp.scorch) {
           this.root.remove(exp.scorch);
           (exp.scorch.material as THREE.Material).dispose();
@@ -360,10 +354,6 @@ export class ExplosionFx {
    */
   clear(): void {
     for (const exp of this.active) {
-      if (exp.light) {
-        this.root.remove(exp.light);
-        exp.light.dispose();
-      }
       if (exp.fireball) {
         this.root.remove(exp.fireball);
         (exp.fireball.material as THREE.Material).dispose();

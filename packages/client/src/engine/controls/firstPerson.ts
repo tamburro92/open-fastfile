@@ -31,9 +31,44 @@ import { aimAngles, type Aim } from "@3d/shared/sim/recoil.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { DEFAULT_SENSITIVITY, radiansPerCount } from "../../input/sensitivity.js";
 
-type PlayerAction = "forward" | "back" | "left" | "right" | "run" | "jump" | "crouch" | "prone" | "fire" | "ads" | "reload" | "swap" | "use" | "melee" | "lethal" | "tactical" | "killstreak";
+type PlayerAction =
+  | "forward"
+  | "back"
+  | "left"
+  | "right"
+  | "run"
+  | "jump"
+  | "crouch"
+  | "prone"
+  | "fire"
+  | "ads"
+  | "reload"
+  | "swap"
+  | "use"
+  | "melee"
+  | "lethal"
+  | "tactical"
+  | "killstreak";
 
-const PLAYER_ACTIONS: readonly PlayerAction[] = ["forward", "back", "left", "right", "run", "jump", "crouch", "prone", "fire", "ads", "reload", "swap", "use", "melee", "lethal", "tactical", "killstreak"];
+const PLAYER_ACTIONS: readonly PlayerAction[] = [
+  "forward",
+  "back",
+  "left",
+  "right",
+  "run",
+  "jump",
+  "crouch",
+  "prone",
+  "fire",
+  "ads",
+  "reload",
+  "swap",
+  "use",
+  "melee",
+  "lethal",
+  "tactical",
+  "killstreak",
+];
 
 /** The devices this reads. Satisfied by input/InputManager. */
 export interface DeviceInput {
@@ -109,6 +144,18 @@ export class FirstPersonControls {
   /** Radians of view per count of mouse movement. See input/sensitivity.ts. */
   private radiansPerCount = radiansPerCount(DEFAULT_SENSITIVITY);
   private shakeTrauma = 0;
+  /**
+   * Seconds left of a flashbang's blindness, in which there is no sprinting. The
+   * server drops `run` from every input it takes in that time
+   * (game-server/src/match/drain.ts); predicting a sprint it will refuse is a
+   * correction every tick, which is the stutter a flashed player used to see.
+   */
+  private runBlocked = 0;
+
+  /** A flashbang went off on us: no sprinting for `seconds`, as the server enforces. */
+  blockRun(seconds: number): void {
+    this.runBlocked = Math.max(this.runBlocked, seconds);
+  }
 
   /** Add camera trauma / shake (e.g. from nearby explosion). Clamped to [0, 1]. */
   addTrauma(amount: number): void {
@@ -419,6 +466,7 @@ export class FirstPersonControls {
       this.stance = this.stance === "prone" ? "stand" : "prone";
     }
     const input = this.readInput();
+    this.runBlocked = Math.max(0, this.runBlocked - this.tickDt);
 
     // The symmetry rule (@3d/shared/net/packet.ts): quantized fields are lossy,
     // so a client must predict with the value the server will decode, not with
@@ -474,7 +522,7 @@ export class FirstPersonControls {
     }
     c.forward = this.axis("forward", "back");
     c.right = this.axis("right", "left");
-    c.run = this.down("run");
+    c.run = this.runBlocked <= 0 && this.down("run");
     c.jump = this.down("jump");
     c.fire = this.down("fire");
     c.ads = this.down("ads");
@@ -557,11 +605,11 @@ export class FirstPersonControls {
     let deathTilt = 0;
     let deathPitchOffset = 0;
     if (this.deathElapsed >= 0) {
-      const progress = Math.min(1, this.deathElapsed / 0.70);
+      const progress = Math.min(1, this.deathElapsed / 0.7);
       const dropFraction = progress * progress * (3 - 2 * progress);
       eye = eye * (1 - dropFraction) + 0.22 * dropFraction;
       deathTilt = 0.26 * dropFraction;
-      deathPitchOffset = 0.10 * dropFraction;
+      deathPitchOffset = 0.1 * dropFraction;
     }
     this.camera.position.set(
       previous.x + (feet.x - previous.x) * t + this.smoothing.x,

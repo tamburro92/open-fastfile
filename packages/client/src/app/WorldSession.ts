@@ -415,6 +415,9 @@ export class WorldSession {
         "compile shaders",
         async () => {
           try {
+            // An explosion out of sight, so the first grenade compiles nothing.
+            // Here rather than earlier: its fireball is gone a third of a second on.
+            this.systems.projectiles.explosions.prewarm();
             await viewer.prewarm();
           } catch (e) {
             console.warn("Shader prewarm failed; continuing without it", e);

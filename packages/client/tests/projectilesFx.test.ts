@@ -51,6 +51,15 @@ describe("ProjectilesView", () => {
 });
 
 describe("ExplosionFx", () => {
+  it("adds no light: one would recompile every lit material in the map, twice", () => {
+    const fx = new ExplosionFx();
+    fx.spawn({ x: 0, y: 0, z: 0 }, "frag");
+    fx.spawn({ x: 0, y: 0, z: 0 }, "flashbang");
+    let lights = 0;
+    fx.root.traverse((node) => (lights += (node as { isLight?: boolean }).isLight ? 1 : 0));
+    expect(lights).toBe(0);
+  });
+
   it("spawns its parts and frees them on clear()", () => {
     const fx = new ExplosionFx();
     fx.spawn({ x: 0, y: 0, z: 0 }, "frag");
