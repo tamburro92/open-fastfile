@@ -16,9 +16,10 @@ The skill levels a lobby offers — recruit, regular, hardened, veteran — are
 ## Answer
 
 `extract.py` reads it all; `packages/shared/src/game/bots/mw3Ai.ts` holds the
-result, each number with its file and key. The executable is not in an install
-(only zones are), so what the engine does with these numbers is read from how
-the scripts use them, and marked `engine:` where it is a reading.
+result, each number with its file and key. What the engine does with them is in
+`iw5sp.exe`: what has been read there is below, and the rest is marked `engine:`
+where it is a reading. The multiplayer client is not available, only `iw5sp.exe`
+and `iw5mp_server.exe`.
 
 | What | Where | Found by |
 | --- | --- | --- |
@@ -29,6 +30,16 @@ the scripts use them, and marked `engine:` where it is a reading.
 | Pauses after a burst | `animscripts/combat_utility` | the first function's four `return randomFloatRange( a, b )` |
 | Melee range 64 | `animscripts/melee` | the squared distance 4096 |
 | Hit chance by distance | `accuracy/aivsplayer/*.accu`, named by Survival's weapons with their `maxDist` | the weapon dump |
+
+## Read from `iw5sp.exe`
+
+- **The accuracy graph's lookup, 0x587bd0.** x is the distance over the double at
+  0x7b9c78, 4000 units, clamped to 1. Against a player the caller first multiplies
+  the distance by `ai_accuracyDistScale` (0x587d3d). A weapon's `maxDist` plays no part.
+- **With no graph, 0x52e5f4.** `ai_playerNearAccuracy` 0.5 within `ai_playerNearRange`
+  800, `ai_playerFarAccuracy` 0.1 beyond `ai_playerFarRange` 2000, linear between.
+
+That `self.accuracy` and `base_enemy_accuracy` multiply the graph's answer is still a reading.
 
 ## What the bytecode is
 

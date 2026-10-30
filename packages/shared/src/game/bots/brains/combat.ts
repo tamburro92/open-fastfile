@@ -12,12 +12,15 @@
 //   is rolled against the skill's hit chance, and on its first `missTime` seconds
 //   on a target it misses on purpose. A shot that is to miss is aimed beside the
 //   target; one that is to hit is aimed at its chest, down the sights.
-// - **Keeps its distance**: stands and fights within the soldier's engagement
-//   range, walks in firing beyond it, and runs in past its falloff.
+// - **Closes in**: Survival sends its AI at the players, so it walks in firing
+//   until it is as close as the soldier will come (`engageMinDist`), and runs in
+//   without firing past the falloff. Blocked on the way, it fights from where it is.
+// - **Hunts** when it sees no one: Survival sends its AI at the players, so it goes
+//   for the nearest living opponent — to its own spot within Survival's goal radius
+//   of them, so that a squad spreads out instead of walking one line.
+// - **Holds fire** with a teammate on the line, and moves on rather than wait behind them.
 // - **Throws** its lethal, no more often than the skill's grenade timer allows.
 // - **Knifes** what is within MW3's melee range.
-// - **Hunts** when it sees no one: Survival sends its AI at the players, so it goes
-//   to the nearest living opponent.
 
 import type { PlayerId } from "../../../net/messages/fields.js";
 import type { Vec3 } from "../../../sim/capsule.js";
@@ -26,6 +29,7 @@ import { eyeHeight } from "../../../sim/stance.js";
 import { UNITS_PER_M } from "../../../sim/units.js";
 import { GRENADE_BLAST, GRENADE_THROW_LOFT, GRENADE_THROW_SPEED, THROW_TIMES } from "../../equipment.js";
 import { defineBrain, IDLE, type BotSelf, type BrainContext, type Goal } from "../brain.js";
+import { SEEK_GIVE_UP, SEEK_PERIOD, SEEK_TRIES } from "./seekNearest.js";
 import {
   burstDelay,
   burstShots,
@@ -35,6 +39,7 @@ import {
   MELEE_RANGE,
   missTime,
   shootStyle,
+  SURVIVAL_GOAL_RADIUS,
   SURVIVAL_SOLDIER,
   type BotDifficulty,
   type ShootStyle,
@@ -56,6 +61,13 @@ export const MISS_OFFSET: readonly [number, number] = [0.7, 1.2];
 export const RELOAD_WHEN_SAFE = 0.5;
 /** Ours: the throw's aim is held this long past the pin's `holdFireTime`, s, so the release tick is covered. */
 const THROW_SLACK = 0.1;
+/**
+ * Ours: a teammate this close to the line of fire, m, holds the trigger back: a body and a
+ * margin. iw5sp.exe keeps its actors off their friends too, and that check is not read.
+ */
+export const FRIEND_CLEARANCE = 0.7;
+
+const u = (units: number) => units / UNITS_PER_M;
 
 export interface CombatMemory {
   readonly difficulty: BotDifficulty;
@@ -78,6 +90,15 @@ export interface CombatMemory {
   lastDistUnits: number;
   /** It held the trigger last tick: a semi-automatic needs it let go between shots. */
   firedLastTick: boolean;
+  /** Who it is hunting, the goal it hunts them with until `huntAt`, and who it could not reach, until when. */
+  quarry: PlayerId | null;
+  hunting: Goal | null;
+  huntAt: number;
+  avoid: Map<PlayerId, number>;
+  /** Its own spot around whoever it goes for, as an angle and a distance within the goal radius, m. */
+  spot: { angle: number; distance: number };
+  /** Until when it fights its target from where it stands: the motor could not take it closer. */
+  holdUntil: number;
   /** The grenade timer, and a throw in progress: aim held until the grenade leaves. */
   grenadeReadyAt: number;
   throwUntil: number;
@@ -104,6 +125,12 @@ export const combatBrain = defineBrain<CombatMemory>({
       missLift: 0,
       lastDistUnits: 0,
       firedLastTick: false,
+      quarry: null,
+      hunting: null,
+      huntAt: -Infinity,
+      avoid: new Map(),
+      spot: rollSpot(rng),
+      holdUntil: -Infinity,
       grenadeReadyAt: grenadeWait(difficulty, rng),
       throwUntil: -Infinity,
       throwAim: null,
@@ -137,12 +164,33 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
   }
   memory.lastAmmo = ammo;
 
+  // The motor's verdict on the last walk: a quarry it could not reach is passed over
+  // for a while, as seek-nearest does, and a target it could not close on is fought from here.
+  // Either way it takes another spot around them, which is usually what was in the way.
+  const blocked = self.motor.status === "noPath" || self.motor.status === "stuck";
+  if (blocked && self.motor.goal.kind === "moveTo") {
+    memory.spot = rollSpot(memory.rng);
+    if (memory.targetId !== null) {
+      memory.holdUntil = now + SEEK_GIVE_UP;
+    } else if (memory.quarry !== null) {
+      memory.avoid.set(memory.quarry, now + SEEK_GIVE_UP);
+      memory.huntAt = now;
+    }
+  }
+
   const target = see(ctx, self, eye, memory);
   if (!target) {
+    // There, and nobody in sight: there is nothing to wait for at this spot, so on to another.
+    if (self.motor.status === "arrived" && memory.quarry !== null) {
+      memory.spot = rollSpot(memory.rng);
+      memory.huntAt = now;
+    }
     memory.targetId = null;
     memory.firedLastTick = false;
-    return hunt(ctx, self, weapon);
+    return hunt(ctx, self, memory, weapon);
   }
+  memory.quarry = null;
+  memory.hunting = null;
 
   const distUnits = target.distance * UNITS_PER_M;
   if (target.id !== memory.targetId) {
@@ -168,7 +216,8 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
     rollShot(memory, distUnits, weapon?.weaponClass);
   }
   const tap = semiAuto || memory.style === "semi" || memory.style === "single";
-  const fire = !reload && weapon?.state !== "reloading" && memory.shotsLeft > 0 && !(tap && memory.firedLastTick);
+  const clear = !friendInLine(ctx, self, eye, target);
+  const fire = clear && !reload && weapon?.state !== "reloading" && memory.shotsLeft > 0 && !(tap && memory.firedLastTick);
 
   const hits = memory.nextHits && now >= memory.missUntil;
   const aim = hits ? target.chest : missPoint(eye, target.chest, memory.missOffset, memory.missLift);
@@ -191,15 +240,14 @@ export function thinkCombat(ctx: BrainContext, self: BotSelf, memory: CombatMemo
     melee,
   };
 
-  // Engagement: fighting where it stands within the soldier's range, walking in
-  // beyond it, and running in past its falloff without firing.
+  // A friend in the way sends it on, even from where it would stand: waiting behind them fires at nobody.
+  if (clear && (now < memory.holdUntil || distUnits <= SURVIVAL_SOLDIER.engageMinDist)) {
+    return { kind: "look", point: aim, ...engaged };
+  }
   if (distUnits > SURVIVAL_SOLDIER.engageMaxFalloff) {
-    return { kind: "moveTo", point: target.feet, track: target.id, route: ctx.nav.route(feet, target.feet) ?? undefined, run: true, aimAt: aim, turnSpeed: AIM_TURN_SPEED, reload };
+    return { kind: "moveTo", point: spotNear(ctx, target.feet, memory.spot), run: true, aimAt: aim, turnSpeed: AIM_TURN_SPEED, reload };
   }
-  if (distUnits > SURVIVAL_SOLDIER.engageMaxDist) {
-    return { kind: "moveTo", point: target.feet, track: target.id, route: ctx.nav.route(feet, target.feet) ?? undefined, run: false, ...engaged };
-  }
-  return { kind: "look", point: aim, ...engaged };
+  return { kind: "moveTo", point: spotNear(ctx, target.feet, memory.spot), run: false, ...engaged };
 }
 
 /** The opponent it fights: the one in hand while it stays in sight, else the nearest in sight, looked for every `SCAN_PERIOD`. */
@@ -309,9 +357,18 @@ export function throwPitch(horizontal: number, dy: number): number | null {
   return null;
 }
 
-/** Nobody in sight: reload if the magazine is low, and go for the nearest living opponent it can reach. */
-function hunt(ctx: BrainContext, self: BotSelf, weapon: { ammo: number; clipSize: number; state: string } | undefined): Goal {
+/**
+ * Nobody in sight: reload if the magazine is low, and go for the nearest living
+ * opponent it can reach. Chosen every `SEEK_PERIOD`, as seek-nearest chooses, and
+ * the same goal held in between: a path asked for every tick is a path the motor
+ * would be handed afresh every tick.
+ */
+function hunt(ctx: BrainContext, self: BotSelf, memory: CombatMemory, weapon: { ammo: number; clipSize: number; state: string } | undefined): Goal {
   const reload = weapon !== undefined && weapon.ammo < weapon.clipSize * RELOAD_WHEN_SAFE && weapon.state !== "reloading";
+  if (memory.hunting && ctx.now < memory.huntAt) {
+    return reload && memory.hunting.kind === "moveTo" ? { ...memory.hunting, reload } : memory.hunting;
+  }
+  memory.huntAt = ctx.now + SEEK_PERIOD;
   const feet = self.movement.feet;
   const opponents: { id: PlayerId; feet: Vec3; d: number }[] = [];
   for (const player of ctx.players) {
@@ -319,18 +376,67 @@ function hunt(ctx: BrainContext, self: BotSelf, weapon: { ammo: number; clipSize
       continue;
     }
     const state = ctx.state(player.id);
-    if (state?.alive) {
+    if (state?.alive && ctx.now >= (memory.avoid.get(player.id) ?? -Infinity)) {
       opponents.push({ id: player.id, feet: state.feet, d: Math.hypot(state.feet.x - feet.x, state.feet.y - feet.y, state.feet.z - feet.z) });
     }
   }
   opponents.sort((a, b) => a.d - b.d);
-  for (const quarry of opponents.slice(0, 3)) {
-    const route = ctx.nav.route(feet, quarry.feet);
+  for (const quarry of opponents.slice(0, SEEK_TRIES)) {
+    if (quarry.id !== memory.quarry) {
+      memory.spot = rollSpot(memory.rng);
+    }
+    const point = spotNear(ctx, quarry.feet, memory.spot);
+    const route = ctx.nav.route(feet, point);
     if (route) {
-      return { kind: "moveTo", point: quarry.feet, track: quarry.id, route, run: true, reload };
+      memory.quarry = quarry.id;
+      memory.hunting = { kind: "moveTo", point, route, run: true };
+      return { ...memory.hunting, reload };
     }
   }
-  return reload ? { kind: "idle", reload } : IDLE;
+  memory.quarry = null;
+  memory.hunting = reload ? { kind: "idle", reload } : IDLE;
+  return memory.hunting;
+}
+
+/** Whether a living teammate stands between the eye and the target, within `FRIEND_CLEARANCE` of the line. */
+function friendInLine(ctx: BrainContext, self: BotSelf, eye: Vec3, target: Seen): boolean {
+  if (self.team === undefined) {
+    return false;
+  }
+  const dx = target.chest.x - eye.x;
+  const dy = target.chest.y - eye.y;
+  const dz = target.chest.z - eye.z;
+  const lengthSq = dx * dx + dy * dy + dz * dz;
+  for (const player of ctx.players) {
+    if (player.id === self.id || !isTeammate(self, player.team)) {
+      continue;
+    }
+    const state = ctx.state(player.id);
+    if (!state?.alive) {
+      continue;
+    }
+    // Their chest, as the target's is measured: a body is taller than the margin only at its ends.
+    const px = state.feet.x - eye.x;
+    const py = state.feet.y + (state.eyeHeight ?? STAND_EYE_HEIGHT) * 0.75 - eye.y;
+    const pz = state.feet.z - eye.z;
+    const t = (px * dx + py * dy + pz * dz) / lengthSq;
+    if (t > 0 && t < 1 && Math.hypot(px - t * dx, py - t * dy, pz - t * dz) < FRIEND_CLEARANCE) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** A spot within Survival's goal radius: anywhere around, never right on top of them. */
+function rollSpot(rng: () => number): { angle: number; distance: number } {
+  return { angle: rng() * 2 * Math.PI, distance: u(SURVIVAL_GOAL_RADIUS) * (0.25 + 0.75 * rng()) };
+}
+
+/** The graph's node nearest this bot's spot around `feet`, or `feet` itself where none is near. */
+function spotNear(ctx: BrainContext, feet: Vec3, spot: { angle: number; distance: number }): Vec3 {
+  const at = { x: feet.x + Math.cos(spot.angle) * spot.distance, y: feet.y, z: feet.z + Math.sin(spot.angle) * spot.distance };
+  const node = ctx.nav.ready ? ctx.nav.nearestNode(at) : -1;
+  return node >= 0 ? ctx.nav.nodeFeet(node) : feet;
 }
 
 function isTeammate(self: BotSelf, team: string | undefined): boolean {

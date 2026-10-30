@@ -6,8 +6,9 @@
 // (`aitype/enemy_so_*`, the weapons and their accuracy graphs). In game units,
 // inches, as the files spell them; converted where they are used.
 //
-// What is not in any file — the engine's side of an actor, which lives in the
-// executable — is marked "engine:" where it is defined, with the reading taken.
+// The engine's side of an actor lives in `iw5sp.exe`: what was read there says
+// where, and what is still not read from any file is marked "engine:", with the
+// reading taken.
 
 /** MW3's four skill levels, as a lobby names them. `_gameskill` spells them easy, normal, hardened, veteran. */
 export type BotDifficulty = "recruit" | "regular" | "hardened" | "veteran";
@@ -81,6 +82,16 @@ export const SURVIVAL_SOLDIER = {
   engageMaxFalloff: 1024,
 } as const;
 
+/**
+ * Engine: an actor walks to somewhere within its `goalradius` of its goal, not to
+ * the goal itself, which keeps a squad from walking one line. 384 is the value
+ * Survival's AI script (common_survival.ff, scriptfile 1564) stores most often in
+ * the field read as `goalradius`: 5 times, beside 128, 300, 448, 512 and 900. The
+ * field is a token, known only by what it is set to, and which of those values
+ * applies to a soldier sent at a player is not decoded.
+ */
+export const SURVIVAL_GOAL_RADIUS = 384;
+
 /** `animscripts/shoot_behavior`: the squared distances 62500, 810000 and 2560000 that pick a shoot style. */
 export const SHOOT_STYLE_RANGE = { full: 250, burst: 900, far: 1600 } as const;
 
@@ -125,22 +136,23 @@ export const AI_VS_PLAYER_GRAPHS = {
   default: [[0, 1], [1, 0]],
 } as const satisfies Record<string, AccuracyGraph>;
 
-/**
- * Per `weaponClass`, the graph Survival's weapons of that class name
- * (`aiVsPlayerAccuracyGraph`) and their `maxDist`. Engine: the graph's x is read
- * as the distance over `maxDist`, which is what makes 1.0 a different range for
- * a pistol (250) and a sniper rifle (730).
- */
-export const WEAPON_CLASS_AI: Readonly<Record<string, { readonly graph: keyof typeof AI_VS_PLAYER_GRAPHS; readonly maxDist: number }>> = {
-  rifle: { graph: "assault_rifle", maxDist: 590 },
-  mg: { graph: "mg", maxDist: 590 },
-  smg: { graph: "smg", maxDist: 340 },
-  spread: { graph: "shotgun", maxDist: 680 },
-  sniper: { graph: "sniper_rifle", maxDist: 730 },
-  pistol: { graph: "pistol", maxDist: 250 },
-  rocketlauncher: { graph: "rpg", maxDist: 1400 },
+/** Per `weaponClass`, the graph Survival's weapons of that class name (`aiVsPlayerAccuracyGraph`). */
+export const WEAPON_CLASS_GRAPH: Readonly<Record<string, keyof typeof AI_VS_PLAYER_GRAPHS>> = {
+  rifle: "assault_rifle",
+  mg: "mg",
+  smg: "smg",
+  spread: "shotgun",
+  sniper: "sniper_rifle",
+  pistol: "pistol",
+  rocketlauncher: "rpg",
 };
-const DEFAULT_CLASS = WEAPON_CLASS_AI.rifle!;
+
+/**
+ * iw5sp.exe, the graph's lookup (0x587bd0): x is the distance over 4000 units,
+ * clamped to 1; against a player the distance is first scaled by
+ * `ai_accuracyDistScale`, which `_gameskill` sets from `accuracyDistScale` (0x587d3d).
+ */
+export const ACCURACY_GRAPH_RANGE = 4000;
 
 /** The difficulty a lobby named, or regular for anything else. */
 export function difficultyOf(raw: unknown): BotDifficulty {
@@ -170,9 +182,9 @@ export function graphAt(graph: AccuracyGraph, x: number): number {
  */
 export function hitChance(difficulty: BotDifficulty, weaponClass: string | undefined, distanceUnits: number): number {
   const skill = GAMESKILL[difficulty];
-  const weapon = (weaponClass !== undefined ? WEAPON_CLASS_AI[weaponClass] : undefined) ?? DEFAULT_CLASS;
-  const x = Math.min(1, (distanceUnits * skill.accuracyDistScale) / weapon.maxDist);
-  return Math.min(1, SURVIVAL_SOLDIER.accuracy * skill.baseEnemyAccuracy * graphAt(AI_VS_PLAYER_GRAPHS[weapon.graph], x));
+  const graph = (weaponClass !== undefined ? WEAPON_CLASS_GRAPH[weaponClass] : undefined) ?? "assault_rifle";
+  const x = Math.min(1, (distanceUnits * skill.accuracyDistScale) / ACCURACY_GRAPH_RANGE);
+  return Math.min(1, SURVIVAL_SOLDIER.accuracy * skill.baseEnemyAccuracy * graphAt(AI_VS_PLAYER_GRAPHS[graph], x));
 }
 
 /** Seconds of deliberate misses once it opens fire on a target this far off. */

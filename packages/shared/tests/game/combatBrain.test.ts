@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BrainContext, Goal } from "../../src/game/bots/brain.js";
 import { COMBAT_BRAIN, combatBrain, MISS_OFFSET, throwPitch, type CombatMemory } from "../../src/game/bots/brains/combat.js";
+import { SEEK_GIVE_UP } from "../../src/game/bots/brains/seekNearest.js";
 import {
   BURST_FIRE_NUM_SHOTS,
   burstDelay,
@@ -13,6 +14,7 @@ import {
   missTime,
   SEMI_FIRE_NUM_SHOTS,
   shootStyle,
+  SURVIVAL_GOAL_RADIUS,
   type BotDifficulty,
 } from "../../src/game/bots/mw3Ai.js";
 import { Motor } from "../../src/game/bots/motor.js";
@@ -165,11 +167,13 @@ describe("MW3's AI numbers", () => {
   });
 
   it("multiplies the soldier's accuracy, the skill's and the weapon's graph into one shot's chance", () => {
-    // 0.2 x 1.0 x the assault rifle's 0.6 at point blank, and its 0.1 from maxDist (590) on.
+    // 0.2 x 1.0 x the assault rifle's 0.6 at point blank, its 0.5 at x = 0.35 (1400 of
+    // iw5sp.exe's 4000 units), and its 0.1 from 4000 on.
     expect(hitChance("regular", "rifle", 0)).toBeCloseTo(0.12);
-    expect(hitChance("regular", "rifle", 2000)).toBeCloseTo(0.02);
-    // Hardened reads the graph at 0.6 of the distance: at 590 units, x = 0.6, between 0.2 and 0.1.
-    expect(hitChance("hardened", "rifle", 590)).toBeCloseTo(0.2 * 1.15 * 0.18);
+    expect(hitChance("regular", "rifle", 1400)).toBeCloseTo(0.1);
+    expect(hitChance("regular", "rifle", 6000)).toBeCloseTo(0.02);
+    // Hardened reads the graph at 0.6 of the distance: 2000 units is x = 0.3.
+    expect(hitChance("hardened", "rifle", 2000)).toBeCloseTo(0.2 * 1.15 * (0.6 - (0.1 * 0.3) / 0.35));
     for (const d of [0, 200, 500, 900, 1600]) {
       expect(hitChance("recruit", "smg", d)).toBeLessThanOrEqual(hitChance("veteran", "smg", d));
     }
@@ -261,10 +265,34 @@ describe("Call of Duty MW3 Combat Brain", () => {
     const { self, memory } = bot("regular");
     const goal = combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
     expect(goal.kind).toBe("moveTo");
+    expect(memory.quarry).toBe("enemy");
     if (goal.kind === "moveTo") {
-      expect(goal.track).toBe("enemy");
       expect(goal.run).toBe(true);
+      // Somewhere within the goal radius of them, on the graph (whose nodes are 5 m apart here).
+      expect(Math.hypot(goal.point.x, goal.point.z + 15)).toBeLessThanOrEqual(u(SURVIVAL_GOAL_RADIUS) + 5);
     }
+  });
+
+  it("gives each bot its own spot around its quarry, so a squad does not walk one line", () => {
+    const spots = [0.1, 0.4, 0.8].map((value) => {
+      const self = bot("regular").self;
+      return (combatBrain.init(self, () => value, { difficulty: "regular" }) as CombatMemory).spot;
+    });
+    expect(new Set(spots.map((s) => s.angle)).size).toBe(3);
+    for (const spot of spots) {
+      expect(spot.distance).toBeLessThanOrEqual(u(SURVIVAL_GOAL_RADIUS));
+    }
+  });
+
+  it("takes another spot, and passes over a quarry for a while, when the motor could not get there", () => {
+    const { self, memory } = bot("regular");
+    combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
+    const before = memory.spot;
+    self.motor.goal = { kind: "moveTo", point: at([0, 0, -15]) };
+    self.motor.status = "stuck";
+    combatBrain.think(mockContext({ players: duel(15), now: 2, hasLineOfSight: () => false }), self, memory);
+    expect(memory.spot).not.toBe(before);
+    expect(memory.avoid.get("enemy")).toBe(2 + SEEK_GIVE_UP);
   });
 
   it("misses a recruit's miss time on purpose, then aims at the chest", () => {
@@ -337,12 +365,12 @@ describe("Call of Duty MW3 Combat Brain", () => {
     expect("reload" in goal && goal.reload).toBe(true);
   });
 
-  it("holds its ground within the soldier's engagement range, walks in beyond it, and runs past the falloff", () => {
+  it("closes in firing to the soldier's engageMinDist, and runs in past its falloff", () => {
     const within = bot("regular");
-    expect(combatBrain.think(mockContext({ players: duel(u(600)), now: 1 }), within.self, within.memory).kind).toBe("look");
+    expect(combatBrain.think(mockContext({ players: duel(u(200)), now: 1 }), within.self, within.memory).kind).toBe("look");
 
     const beyond = bot("regular");
-    const walk = combatBrain.think(mockContext({ players: duel(u(900)), now: 1 }), beyond.self, beyond.memory);
+    const walk = combatBrain.think(mockContext({ players: duel(u(600)), now: 1 }), beyond.self, beyond.memory);
     expect(walk.kind).toBe("moveTo");
     if (walk.kind === "moveTo") {
       expect(walk.run).toBe(false);
@@ -356,6 +384,43 @@ describe("Call of Duty MW3 Combat Brain", () => {
       expect(run.run).toBe(true);
       expect(run.fire).toBeUndefined();
     }
+  });
+
+  it("fights from where it stands once the motor could not take it closer", () => {
+    const { self, memory } = bot("regular");
+    expect(combatBrain.think(mockContext({ players: duel(15), now: 1 }), self, memory).kind).toBe("moveTo");
+    self.motor.goal = { kind: "moveTo", point: at([0, 0, -15]) };
+    self.motor.status = "noPath";
+    const goal = combatBrain.think(mockContext({ players: duel(15), now: 2 }), self, memory);
+    expect(goal.kind).toBe("look");
+    expect(memory.holdUntil).toBe(2 + SEEK_GIVE_UP);
+  });
+
+  it("holds fire with a teammate on the line, and moves on rather than wait behind them", () => {
+    const { self, memory } = bot("veteran");
+    const players: TestPlayer[] = [...duel(u(200)), { id: "friend", team: "allies", feet: at([0, 0, -2]) }];
+    const goal = combatBrain.think(mockContext({ players, now: 1 }), self, memory);
+    expect(memory.targetId).toBe("enemy");
+    expect(fireOf(goal)).toBe(false);
+    expect(goal.kind).toBe("moveTo");
+  });
+
+  it("fires past a teammate who is off the line, or behind it, and at anyone in a free-for-all", () => {
+    for (const feet of [at([3, 0, -2]), at([0, 0, 2])]) {
+      const { self, memory } = bot("veteran");
+      const players: TestPlayer[] = [...duel(u(200)), { id: "friend", team: "allies", feet }];
+      expect(fireOf(combatBrain.think(mockContext({ players, now: 1 }), self, memory))).toBe(true);
+    }
+  });
+
+  it("does not wait at a spot where it finds nobody", () => {
+    const { self, memory } = bot("regular");
+    combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
+    const before = memory.spot;
+    self.motor.status = "arrived";
+    const goal = combatBrain.think(mockContext({ players: duel(15), now: 1.1, hasLineOfSight: () => false }), self, memory);
+    expect(memory.spot).not.toBe(before);
+    expect(goal.kind).toBe("moveTo");
   });
 
   it("knifes an opponent within MW3's melee range", () => {
