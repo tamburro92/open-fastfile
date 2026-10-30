@@ -102,6 +102,9 @@ export function readWeaponDef(userData: Record<string, unknown>): WeaponDef {
  * them), hang whatever is fitted on the gun's tags, and hide the surfaces the
  * game does not draw.
  */
+/** The longest still clip MW3 has: two frames at 30 a second, on its launchers' `ads_up`. Longer and a missing clip is a broken export. */
+const STILL_CLIP_SECONDS = 0.1;
+
 export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: ViewmodelOptions = {}): ViewmodelRig {
   // The GLB's own copy is read even when the catalogue's is given: it is the
   // only check that this file is a weapon GLB at all, and the fallback for a
@@ -178,7 +181,11 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
   }
 
   for (const [role, name] of Object.entries(def.roles)) {
-    if (!clips.has(name)) {
+    // MW3 authors some aiming clips as a frame or two that move no bone, and the
+    // exporter writes those as no animation at all. Nothing to play is what they
+    // mean, and refusing the rig would leave the player with no hands.
+    const known = def.clips[name];
+    if (!clips.has(name) && !(known && known.duration <= STILL_CLIP_SECONDS)) {
       throw new Error(`weapon ${def.weapon}: its ${role} clip ${name} is not in the file`);
     }
   }

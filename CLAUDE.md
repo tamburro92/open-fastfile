@@ -326,12 +326,6 @@ In this order, since each step assumes the previous:
 - **The view hands are chosen per game, not per side.** A gametype names one pair
   for a whole game, so 21 of 42 imported worlds show a different pair than they
   used to name. The catalogue holds all 46; picking per side is what teams will do.
-- **Riot shields and Ghosts' knife-only weapon draw nothing.** Their `adsUp`/
-  `adsDown` roles name one-frame clips that move no bone, which the catalogue
-  writes as no animation at all, so `buildViewmodelRig` throws "not in the file"
-  and `WorldSession` leaves the player unarmed (iw4, both iw5 copies, iw6, and
-  `iw6_knifeonly_mp`). AW's build drops such a role (`catalog.s1_without_still_clips`);
-  the other games' builds do not yet.
 - **Zombies has never been seen or heard in a browser.** Its whole round loop is
   proved headless on theater-bo1 (`game-server/tests/zombiesNav.test.ts`), but no one
   has looked at an actor's pose, the prompt or the tally on screen, or listened to a
