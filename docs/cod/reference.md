@@ -1383,16 +1383,16 @@ the muzzle would sit at the gun's root. Also:
 reload at frame 40, which is its `reloadAddTime` of 1.333 s: the magazine is
 full from there). `notetrackSoundMap` maps a cue to a sound alias.
 
-**The magazine is the one bone that ignores its clip's asset type.** A view clip's
-translations are absolute — 47 of the 48 position tracks in an M4 reload start
-within half an inch of their bind pose — but `tag_clip` is keyed at exactly the
-origin on the first and last frame of every reload clip in both games, while its
-bind is four inches away in the magwell. A reload begins and ends at idle, which
-does not key the magazine at all, so read as absolute those keys drop the
-magazine a hand's width out of the gun for the length of the reload and float it
-back afterwards. `animations.OFFSET_BONES` is that one exception, and
-`packages/client/tests/weaponClips.test.ts` measures it against the built
-catalogue.
+**A view clip is absolute on the hands and an offset on the gun.** On MW3 this is
+measured, and it is the rule AW's dump states outright: a hand joint's key is its
+translation, and a gun joint's adds to its bind. `j_bolt` is keyed at 0 with its
+bind 12 in away, `j_pump` at -3 with its bind at 14, a revolver's `j_cylinder_ammo`
+at +3.15 with its bind at -3.15. Read as absolute, bolts collapse onto the gun's
+root and the rounds float beside the cylinder. `catalog.view_absolute_bones` hands
+`clip_to_gltf` the hands' joints; `packages/client/tests/weaponClips.test.ts`
+measures it against the built catalogue. The other games have not been measured:
+they keep the asset type, and `animations.OFFSET_BONES` for the one bone noticed
+there, the magazine.
 
 **Scope overlays.** A sniper scope is not geometry the player looks through: at
 full aim the game **hides the viewmodel outright** and multiplies a picture over

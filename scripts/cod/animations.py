@@ -42,6 +42,13 @@ TRANSLATION_BY_ASSET_TYPE = {1: "absolute", 2: "offset"}
 # the reload and float it back afterwards. docs/cod/reference.md#animations.
 OFFSET_BONES = ("tag_clip",)
 
+# Modern Warfare 3's view clips follow the same rule as Advanced Warfare's below,
+# though its dump does not say so: absolute on the hands' joints and an offset on
+# the gun's. `tag_clip` above is the case that got noticed first. Keys of 0 on
+# `j_bolt`, -3 on a pump 14 in from its parent and +3.15 on a revolver's rounds
+# 3.15 in off its cylinder all mean "this far from the bind": read as absolute,
+# bolts collapse onto the gun's root and the rounds float beside it.
+# `catalog.view_absolute_bones` carries it. docs/cod/reference.md#viewmodels.
 # Advanced Warfare's rule, which is not the asset type's: a translation key adds to
 # the model's own tagPositions, and the view arms store zeros there. So a key is
 # absolute on those models' joints and an offset on every other, whatever the type;
@@ -50,12 +57,17 @@ ZERO_TAG_POSITIONS = "zeroTagPositions"  # the xmodel-dump key the S1 dumper wri
 S1_ADDITIVE_TYPE = 6  # the aim, lean and `*_additive` clips: rotations on top of a pose, not a pose
 
 
+def skin_joint_names(gltf):
+    """Every joint a GLB's skins name."""
+    return {gltf["nodes"][j].get("name", "") for s in gltf.get("skins", []) for j in s["joints"]}
+
+
 def absolute_joints(xmodel_dir, model, gltf):
     """The joint names of `model`'s GLB `gltf` if its xmodel dump says its tagPositions are zeros, else none."""
     path = os.path.join(xmodel_dir, f"{model}.json")
     if not (os.path.exists(path) and read_json(path).get(ZERO_TAG_POSITIONS)):
         return set()
-    return {gltf["nodes"][j].get("name", "") for s in gltf.get("skins", []) for j in s["joints"]}
+    return skin_joint_names(gltf)
 
 
 # Where each game keeps its animated-model scripts: text rawfiles found by path, or

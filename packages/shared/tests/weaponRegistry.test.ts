@@ -205,6 +205,22 @@ describe("attachments", () => {
     expect(fittedIds(rifle, fittedSlots(rifle, ["grip", "acog"]))).toEqual(["acog", "grip"]);
   });
 
+  it("fits a rifle's own scope when its class names no sight, and only then", () => {
+    const sniper = entry("iw5_msr_mp", [
+      { id: "silencer03" },
+      { id: "acog", type: "scope" },
+      { id: "msrscope", type: "scope" },
+      { id: "msrscopevz", type: "scope" },
+    ]);
+    expect(fittedIds(sniper, fittedSlots(sniper, []))).toEqual(["msrscope"]);
+    expect(fittedIds(sniper, fittedSlots(sniper, ["silencer03"]))).toEqual(["silencer03", "msrscope"]);
+    // Another optic instead of it, not beside it.
+    expect(fittedIds(sniper, fittedSlots(sniper, ["acog"]))).toEqual(["acog"]);
+    expect(fittedIds(sniper, fittedSlots(sniper, ["msrscopevz"]))).toEqual(["msrscopevz"]);
+    // A gun with sights of its own takes nothing.
+    expect(fittedSlots(entry("iw5_m4_mp", [{ id: "acog", type: "scope" }]), [])).toEqual([]);
+  });
+
   it("ignores an attachment this weapon does not offer", () => {
     expect(fittedSlots(rifle, ["silencer"])).toEqual([]);
   });
@@ -317,9 +333,7 @@ describe("attachments", () => {
   });
 
   it("automatically hides tag_sight_on and reveals tag_sight_off when an optic is equipped", () => {
-    const rifle = entry("m4", [
-      { id: "reflex", type: "scope", tag: "tag_red_dot" },
-    ]);
+    const rifle = entry("m4", [{ id: "reflex", type: "scope", tag: "tag_red_dot" }]);
     expect(rifle.def.hideBones).toEqual(["tag_sight_off"]);
     const fitted = resolveWeapon(rifle, [0]);
     expect(fitted.hideBones).toEqual(["tag_sight_on"]);

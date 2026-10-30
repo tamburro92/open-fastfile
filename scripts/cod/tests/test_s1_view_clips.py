@@ -12,7 +12,7 @@ import struct
 
 import pytest
 
-from scripts.cod.animations import ZERO_TAG_POSITIONS, absolute_joints, clip_to_gltf
+from scripts.cod.animations import ZERO_TAG_POSITIONS, absolute_joints, clip_to_gltf, skin_joint_names
 from scripts.cod.catalog import s1_absolute_bones, s1_akimbo, s1_without_still_clips
 from scripts.cod.files import read_bytes, read_json
 from scripts.cod.gltf import read_glb, write_glb
@@ -64,6 +64,13 @@ def test_on_s1_the_arms_are_absolute_and_the_gun_an_offset_whatever_the_asset_ty
     out = translations(gltf, buf)
     assert out["j_elbow_le"] == pytest.approx([12.094, 0.0, 0.0])  # its bind length, not twice it
     assert out["tag_clip"] == pytest.approx([4.3, 0.0, -0.7])  # two inches down from the magwell
+
+
+def test_on_iw5_the_hands_are_absolute_and_the_gun_an_offset(tmp_path):
+    # MW3 follows the same rule, though its dump does not say so; a bolt keyed at 0 means "at rest".
+    gltf, buf = view_rig(), bytearray()
+    clip_to_gltf(gltf, buf, clip(1, mag=(0.0, 0.0, 0.0)), absolute_bones={"tag_origin", "j_elbow_le"})
+    assert translations(gltf, buf)["tag_clip"] == pytest.approx([4.3, 0.0, 1.3])
 
 
 def test_on_s1_a_body_clip_of_type_1_is_an_offset():
@@ -150,6 +157,11 @@ def test_the_other_games_catalogued_clips_come_out_the_same(game):
     clips_dir = os.path.join(ROOT, ".cache", "cod", BUILT[game], "view_anim", "xanim")
     if not (os.path.isdir(weapons) and os.path.isdir(clips_dir)):
         pytest.skip(f"no built {game} catalogue or no clip dump beside it")
+    # MW3 reads the hands' joints as absolute and the gun's as offsets; the others, the asset type.
+    absolute = None
+    if game == "iw5":
+        hands = os.path.join(ROOT, "worlds", "catalog", "viewhands", "iw5", "viewhands_delta", "viewhands_delta.glb")
+        absolute = skin_joint_names(read_glb(hands)[0])
     for weapon in sorted(os.listdir(weapons))[:3]:
         glb = os.path.join(weapons, weapon, f"{weapon}.glb")
         if not os.path.exists(glb) or not read_json(os.path.join(weapons, weapon, f"{weapon}.json")):
@@ -158,7 +170,7 @@ def test_the_other_games_catalogued_clips_come_out_the_same(game):
         fresh, fresh_buf = {**built, "animations": []}, bytearray(buf)
         fresh["accessors"], fresh["bufferViews"] = list(built["accessors"]), list(built["bufferViews"])
         for anim in built.get("animations", []):
-            clip_to_gltf(fresh, fresh_buf, decode(read_bytes(os.path.join(clips_dir, anim["name"])), anim["name"]))
+            clip_to_gltf(fresh, fresh_buf, decode(read_bytes(os.path.join(clips_dir, anim["name"])), anim["name"]), absolute)
         assert [a["name"] for a in fresh["animations"]] == [a["name"] for a in built.get("animations", [])]
         for old, new in zip(built.get("animations", []), fresh["animations"], strict=True):
             assert [c["target"] for c in old["channels"]] == [c["target"] for c in new["channels"]]

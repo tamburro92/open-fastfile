@@ -308,16 +308,7 @@ export function resolveWeapon(entry: WeaponEntry, fitted: Fitted): WeaponDef {
   // A second pass, because a sight and a grip each author clips for the same
   // weapon and the winner depends on the role rather than on the slot: the sight
   // owns the aiming clips and the grip everything it changed about the handling.
-  const sights = entry.attachments.filter(
-    (attachment, slot) =>
-      slots.has(slot) &&
-      (attachment.type === "scope" ||
-        attachment.tag === "tag_red_dot" ||
-        attachment.tag === "tag_eotech" ||
-        attachment.tag === "tag_acog_2" ||
-        attachment.tag === "tag_scope" ||
-        attachment.tag === "tag_thermal_scope"),
-  );
+  const sights = entry.attachments.filter((attachment, slot) => slots.has(slot) && isSight(attachment));
   if (sights.length > 0) {
     // Sights fold down or hide the weapon's default iron sights (tag_sight_on)
     // and reveal the folded iron sight mount (tag_sight_off).
@@ -404,9 +395,39 @@ export function resolveAlt(entry: WeaponEntry, fitted: Fitted): { def: WeaponDef
   };
 }
 
-/** The slots a set of attachment ids occupies on one weapon, in slot order; an id it does not offer is ignored. */
+/** Whether an attachment is something to aim through, which replaces the iron sights or another optic. */
+function isSight(attachment: AttachmentEntry): boolean {
+  return (
+    attachment.type === "scope" ||
+    attachment.tag === "tag_red_dot" ||
+    attachment.tag === "tag_eotech" ||
+    attachment.tag === "tag_acog_2" ||
+    attachment.tag === "tag_scope" ||
+    attachment.tag === "tag_thermal_scope"
+  );
+}
+
+/**
+ * The scope a weapon carries when its class names no sight: MW3's sniper rifles
+ * offer one by their own name (`msrscope` on `iw5_msr_mp`). Their model has no
+ * sights of its own to fall back on, so a class with none would aim through nothing.
+ */
+function defaultScope(entry: WeaponEntry): AttachmentId | undefined {
+  const base = /^(?:iw5_)?(.+)_mp$/.exec(entry.id)?.[1];
+  return entry.attachments.find((attachment) => attachment.id === `${base}scope`)?.id;
+}
+
+/**
+ * The slots a set of attachment ids occupies on one weapon, in slot order; an id it
+ * does not offer is ignored. A weapon that needs a sight and was given none takes
+ * its own (`defaultScope`).
+ */
 export function fittedSlots(entry: WeaponEntry, ids: readonly AttachmentId[]): number[] {
   const wanted = new Set(ids);
+  const scope = defaultScope(entry);
+  if (scope !== undefined && !entry.attachments.some((attachment) => wanted.has(attachment.id) && isSight(attachment))) {
+    wanted.add(scope);
+  }
   const slots: number[] = [];
   entry.attachments.forEach((attachment, slot) => {
     if (wanted.has(attachment.id)) {

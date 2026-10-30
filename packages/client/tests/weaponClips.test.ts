@@ -26,7 +26,7 @@ const CASES = [
   ["iw4", "ak47_mp"],
 ] as const;
 
-/** The magazine's tag. The one bone whose translation is an offset in a clip whose others are absolute. */
+/** The magazine's tag. A clip's keys are absolute on the hands and an offset on every joint of the gun. */
 const MAGAZINE = "tag_clip";
 
 /** Inches. A viewmodel's magwell is about four inches from the gun's origin, so this is well inside the error it catches. */
@@ -41,6 +41,35 @@ async function loadGltf(file: string) {
   const bytes = fs.readFileSync(file);
   return new GLTFLoader().parseAsync(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), "");
 }
+
+/** A joint of the gun that MW3's own clips key at 0 or thereabouts, meaning "this far from where it rests". */
+const AT_REST = [
+  ["iw5", "iw5_acr_mp", "viewmodel_masada_gl_reload_empty", "j_bolt"],
+  ["iw5", "iw5_barrett_mp", "viewmodel_barrett_fire", "j_recoil"],
+  ["iw5", "iw5_mp412_mp", "viewmodel_mp412_tac_reload", "j_ammo1"],
+] as const;
+
+describe.skipIf(!AT_REST.every(([game, name]) => exists(game, name)))("a gun's joints in MW3's clips", () => {
+  it.each(AT_REST)("start where they rest (%s/%s %s %s)", async (game, name, clipName, joint) => {
+    const gltf = await loadGltf(exists(game, name)!);
+    const bone = gltf.scene.getObjectByName(joint)!;
+    const track = gltf.animations.find((c) => c.name === clipName)!.tracks.find((t) => t.name === `${joint}.position`)!;
+    const first = new THREE.Vector3(track.values[0], track.values[1], track.values[2]);
+    expect(first.distanceTo(bone.position)).toBeLessThan(0.2);
+    // Away from the gun's origin, or an absolute reading would pass this too.
+    expect(bone.position.length()).toBeGreaterThan(0.5);
+  });
+
+  it("keep a revolver's rounds in its cylinder, not beside it", async () => {
+    for (const name of ["iw5_mp412_mp", "iw5_44magnum_mp"]) {
+      const gltf = await loadGltf(exists("iw5", name)!);
+      const idle = gltf.animations.find((c) => c.name.endsWith("_idle") && c.tracks.some((t) => t.name === "j_cylinder_ammo.position"))!;
+      const track = idle.tracks.find((t) => t.name === "j_cylinder_ammo.position")!;
+      // Sideways: the cylinder is on the gun's centre line, and these keys are 3.15 in to cancel a bind of -3.15.
+      expect(Math.abs(track.values[1]!), name).toBeLessThan(0.1);
+    }
+  });
+});
 
 describe.skipIf(!CASES.every(([game, name]) => exists(game, name)))("a catalogued weapon's clips", () => {
   it.each(CASES)("start the magazine in the magwell (%s/%s)", async (game, name) => {

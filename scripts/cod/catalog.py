@@ -24,7 +24,7 @@ import re
 import shutil
 
 from . import attachments, aw_cast, backends, cast_clips, composite, materials, sound, t6_catalog, textures, zones
-from .animations import absolute_joints
+from .animations import absolute_joints, skin_joint_names
 from .fastfile import is_t5
 from .files import find_file, read_bytes, read_json, read_text, write_text
 from .gltf import read_glb, skin_roots
@@ -284,6 +284,16 @@ def s1_absolute_bones(models, hands, hands_raw):
     if not joints:
         raise SystemExit(f"{hands}'s dump does not say its tagPositions are zero; re-dump the companion zones")
     return joints
+
+
+def view_absolute_bones(game_key, models, hands, hands_raw):
+    """The joints a view clip keys absolutely, or None where the asset type decides.
+
+    The hands', for AW and MW3 (`animations`). The other games' have not been
+    measured against this rule: they keep the asset type and `OFFSET_BONES`."""
+    if game_key == "s1":
+        return s1_absolute_bones(models, hands, hands_raw)
+    return skin_joint_names(read_glb(hands_raw)[0]) if game_key == "iw5" else None
 
 
 def s1_akimbo(info, defs):
@@ -670,10 +680,13 @@ def build_equipment(work, worlds_root, game_key, states, hands=None):
     hands_raw = _model_glb(models, hands)
     scratch = os.path.join(work, "catalog")
     os.makedirs(scratch, exist_ok=True)
+    absolute = view_absolute_bones(game_key, models, hands, hands_raw)
     for name, info in infos.items():
         if VIEWMODEL_WORD not in info.get("gunModel", "").split("_"):
             continue  # a missile or a turret: nothing held
-        built, problems = build_one(work, worlds_root, game_key, name, info, hands_raw, iwi, states, scratch, kind=EQUIPMENT_KIND)
+        built, problems = build_one(
+            work, worlds_root, game_key, name, info, hands_raw, iwi, states, scratch, absolute_bones=absolute, kind=EQUIPMENT_KIND
+        )
         if built is None:
             print(f"  !! equipment {name}: {problems}")
             continue
@@ -730,7 +743,7 @@ def build_from_zone(work, worlds_root, game_key, states, hands=None):
         print(f"  ! the zone ships no view hands (not even {BASE_VIEWHANDS}), so no weapon can be rigged")
         return []
     print(f"  rigging onto {hands}")
-    absolute = s1_absolute_bones(models, hands, hands_raw) if game_key == "s1" else None
+    absolute = view_absolute_bones(game_key, models, hands, hands_raw)
 
     iwi = texture_index(os.path.join(work, "img"))
     scratch = os.path.join(work, "catalog")
