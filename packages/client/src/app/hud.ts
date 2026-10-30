@@ -50,6 +50,8 @@ export class Hud {
   private readonly lines: { line: KillFeedEntry; at: number }[] = [];
   /** Player death tallies for the scoreboard. */
   private readonly playerDeaths = new Map<PlayerId, number>();
+  /** And kills, which neither the wire nor a player's state carries: suicides are nobody's. */
+  private readonly playerKills = new Map<PlayerId, number>();
   /** Current gametype declaration, if known. */
   private gametype?: GametypeDecl;
   private grenadeDangerExpiresAt = 0;
@@ -154,6 +156,9 @@ export class Hud {
           break;
         case "death":
           this.playerDeaths.set(event.victim, (this.playerDeaths.get(event.victim) ?? 0) + 1);
+          if (event.killer !== null && !isSuicide(event.victim, event.killer)) {
+            this.playerKills.set(event.killer, (this.playerKills.get(event.killer) ?? 0) + 1);
+          }
           this.addKill(event, now);
           break;
         case "spawn":
@@ -210,12 +215,13 @@ export class Hud {
       return this.gametype.teams[teamIndex];
     };
 
-    const entries: { id: string; name: string; score: number; deaths: number; isSelf: boolean; team?: string }[] = [];
+    const entries: { id: string; name: string; score: number; kills: number; deaths: number; isSelf: boolean; team?: string }[] = [];
     if (this.me !== undefined) {
       entries.push({
         id: this.me,
         name: this.nameOf(this.me),
         score: self?.points ?? 0,
+        kills: this.playerKills.get(this.me) ?? 0,
         deaths: this.playerDeaths.get(this.me) ?? 0,
         isSelf: true,
         team: teamOf(self?.team) ?? this.ui.currentTeam.value ?? undefined,
@@ -226,6 +232,7 @@ export class Hud {
         id: peer.id,
         name: this.nameOf(peer.id),
         score: peer.state.points,
+        kills: this.playerKills.get(peer.id) ?? 0,
         deaths: this.playerDeaths.get(peer.id) ?? 0,
         isSelf: false,
         team: teamOf(peer.state.team),
@@ -264,6 +271,7 @@ export class Hud {
     this.keepsPoints = false;
     this.gametype = undefined;
     this.playerDeaths.clear();
+    this.playerKills.clear();
     this.ui.hud.scoreboard.value = [];
     this.ui.hud.scoreboardOpen.value = false;
     this.ui.hud.matchWinner.value = null;

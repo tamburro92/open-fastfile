@@ -163,9 +163,7 @@ describe("FFA In-Game HUD & Scoreboard", () => {
 
     const hudWidget = screen.getByTestId("ffa-hud");
     expect(hudWidget).toBeTruthy();
-    expect(hudWidget.textContent).toContain("1ST");
     expect(hudWidget.textContent).toContain("12");
-    expect(hudWidget.textContent).toContain("/ 30");
     expect(hudWidget.textContent).toContain("7:30");
     // Duplicate raw counters and floating zombie points are suppressed in FFA:
     expect(screen.queryByTestId("hud-counters")).toBeNull();
@@ -194,9 +192,8 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     });
 
     const hudWidget = screen.getByTestId("ffa-hud");
-    expect(hudWidget.textContent).toContain("2ND");
     expect(hudWidget.textContent).toContain("11");
-    expect(hudWidget.textContent).toContain("LEADER: 18");
+    expect(hudWidget.textContent).toContain("18");
   });
 
   it("renders the tactical Scoreboard when opened", () => {
@@ -231,7 +228,6 @@ describe("FFA In-Game HUD & Scoreboard", () => {
     expect(scoreboard.textContent).toContain("Price");
     expect(scoreboard.textContent).toContain("Soap");
     expect(scoreboard.textContent).toContain("5:00");
-    expect(scoreboard.textContent).toContain("30");
   });
 
   it("renders MatchEnd banner with VICTORY when self ranks 1st", () => {

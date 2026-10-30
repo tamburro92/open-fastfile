@@ -1,0 +1,64 @@
+/* One unit is one of MW3's 640x480 menu units, so this scales with the screen as its HUD does. */
+.bars {
+  --u: min(calc(100vw / 640), calc(100vh / 480));
+  display: flex;
+  flex-direction: column;
+  margin-bottom: calc(var(--u) * 4);
+  font-family: var(--font-menu);
+  color: white;
+  text-shadow: 0 0 calc(var(--u) * 1) black;
+}
+.timer {
+  margin-bottom: calc(var(--u) * 1);
+  font-size: calc(var(--u) * 11);
+  font-variant-numeric: tabular-nums;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 3);
+}
+.score {
+  width: calc(var(--u) * 22);
+  text-align: right;
+  font-size: calc(var(--u) * 11);
+  font-variant-numeric: tabular-nums;
+}
+.track {
+  position: relative;
+  width: calc(var(--u) * 100);
+}
+.top .track {
+  height: calc(var(--u) * 9);
+}
+.bottom .track {
+  height: calc(var(--u) * 8);
+}
+.bg {
+  position: absolute;
+  inset: 0;
+  background-size: 100% 100%;
+}
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: flex;
+}
+.bar {
+  flex: 1;
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+}
+/* The art's first columns are empty (5 of 16 and 6 of 16): it sits over the bar's end. */
+.top .cap {
+  margin-left: calc(var(--u) * -2.5);
+}
+.bottom .cap {
+  margin-left: calc(var(--u) * -3);
+}
+.cap {
+  flex: none;
+  width: calc(var(--u) * 8);
+  mask-size: 100% 100%;
+  -webkit-mask-size: 100% 100%;
+}

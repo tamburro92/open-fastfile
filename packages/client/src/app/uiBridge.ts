@@ -353,6 +353,8 @@ export interface ScoreboardEntry {
   id: string;
   name: string;
   score: number;
+  /** Who they have killed, as the feed has counted it. Absent reads as none. */
+  kills?: number;
   deaths: number;
   isSelf: boolean;
   team?: string;

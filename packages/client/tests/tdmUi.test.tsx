@@ -130,11 +130,8 @@ describe("TDM In-Game HUD & Scoreboard", () => {
 
     const tdmHud = screen.getByTestId("tdm-hud");
     expect(tdmHud).toBeTruthy();
-    expect(tdmHud.textContent).toContain("Allies");
     expect(tdmHud.textContent).toContain("42");
-    expect(tdmHud.textContent).toContain("Axis");
     expect(tdmHud.textContent).toContain("38");
-    expect(tdmHud.textContent).toContain("/ 75");
     expect(tdmHud.textContent).toContain("8:34");
     // Duplicate counters and floating points suppressed in TDM:
     expect(screen.queryByTestId("hud-counters")).toBeNull();

@@ -1,192 +1,144 @@
+/* Every number is one of MW3's 640x480 menu units, from its `scoreboard` and
+   `page_scoreboard` menus (common_mp's patch and localized_ui_mp). */
 .overlay {
+  --u: min(calc(100vw / 640), calc(100vh / 480));
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 90%;
-  max-width: 680px;
-  background: rgba(12, 16, 22, 0.9);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.7);
-  color: #fff;
-  font-family: inherit;
-  z-index: 100;
+  inset: 0;
+  font-family: var(--font-menu);
+  color: white;
   pointer-events: none;
-  animation: fadeIn 0.15s ease-out;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -48%);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
+.band {
+  position: absolute;
+  inset: calc(var(--u) * 3) 0 auto 0;
+  height: calc(var(--u) * 22);
+  font-size: calc(var(--u) * 11);
+  text-shadow: 0 0 calc(var(--u) * 1) black;
 }
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.04);
+/* `gradient_fadein` at the menu's width of -640, which is flipped: solid at the left
+   and gone at the right, in its foreColor. */
+.band::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(128 128 128 / 0.75);
+  mask: url(/assets/hud/gradient_fadein.png) 0 0 / 100% 100%;
+  -webkit-mask: url(/assets/hud/gradient_fadein.png) 0 0 / 100% 100%;
+  transform: scaleX(-1);
 }
-
-.modeTitle {
-  font-size: 1.15rem;
-  font-weight: 800;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: #f5a623;
-  margin: 0;
-}
-
-.matchInfo {
-  display: flex;
-  gap: 16px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: #b0b8c4;
-}
-
-.infoItem {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.infoVal {
-  color: #fff;
-  font-weight: 700;
-}
-
-.table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.th {
-  padding: 10px 16px;
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #8a94a6;
-  text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.thRight {
-  text-align: right;
-}
-
-.row {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  transition: background 0.1s;
-}
-
-.selfRow {
-  background: rgba(245, 166, 35, 0.18);
-  font-weight: 700;
-}
-
-.selfRow .name {
-  color: #f5a623;
-}
-
-.td {
-  padding: 10px 16px;
-  font-size: 0.9rem;
-}
-
-.tdRight {
-  text-align: right;
+.bandScore,
+.bandEnemy,
+.bandCentre,
+.bandTime {
+  position: absolute;
+  bottom: calc(var(--u) * 3);
   font-variant-numeric: tabular-nums;
 }
-
-.rank {
-  font-weight: 700;
-  color: #8a94a6;
-  width: 48px;
+.bandScore {
+  left: calc(var(--u) * 36);
 }
-
-.selfRow .rank {
-  color: #f5a623;
+.bandEnemy {
+  left: calc(var(--u) * 134);
 }
-
-.name {
-  color: #e2e8f0;
-}
-
-.youBadge {
-  margin-left: 8px;
-  font-size: 0.7rem;
-  background: #f5a623;
-  color: #000;
-  font-weight: 800;
-  padding: 1px 5px;
-  border-radius: 2px;
-  text-transform: uppercase;
-}
-
-.botBadge {
-  margin-left: 8px;
-  font-size: 0.65rem;
-  background: rgba(148, 163, 184, 0.18);
-  color: #94a3b8;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 2px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.footer {
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.4);
+.bandCentre {
+  left: 0;
+  right: 0;
   text-align: center;
-  font-size: 0.72rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #64748b;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.bandTime {
+  right: calc(var(--u) * 12);
 }
 
-/* Two-team TDM Scoreboard styles: */
-.teamSection {
-  margin-bottom: 6px;
+.page {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--u) * 26);
+  width: calc(var(--u) * 533.33);
+  height: calc(var(--u) * 357);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  background: rgb(0 0 0 / 0.55);
+}
+.title {
+  flex: none;
+  height: calc(var(--u) * 48);
+  padding: calc(var(--u) * 10) calc(var(--u) * 6);
+  background: rgb(41 43 41);
+  font-size: calc(var(--u) * 19);
+  box-sizing: border-box;
+}
+.columns,
+.row {
+  position: relative;
+  flex: none;
+  height: calc(var(--u) * 15);
+  font-size: calc(var(--u) * 11);
+  line-height: calc(var(--u) * 15);
+}
+.columns {
+  color: rgb(255 204 102);
+}
+.rows {
+  flex: 1;
+  overflow: hidden;
+}
+.foot {
+  flex: none;
+  height: calc(var(--u) * 24);
+  background: rgb(79 89 69);
 }
 
-.teamHeader {
+/* Right edges of the columns, as the menu gives them. */
+.player,
+.score,
+.kills,
+.assists,
+.deaths {
+  position: absolute;
+  top: 0;
+}
+.player {
+  left: calc(var(--u) * 3);
+}
+.score {
+  right: calc(var(--u) * (533.33 - 353.33));
+}
+.kills {
+  right: calc(var(--u) * (533.33 - 413.33));
+}
+.assists {
+  right: calc(var(--u) * (533.33 - 473.33));
+}
+.deaths {
+  right: calc(var(--u) * (533.33 - 530.33));
+}
+
+.odd::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.15);
+}
+.tint,
+.self {
+  position: absolute;
+  inset: 0;
+}
+.tint {
+  opacity: 0.33;
+}
+.self {
+  background: rgb(255 255 255 / 0.3);
+}
+
+.teamHead {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  padding: 6px 16px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-}
-
-.alliesHeader {
-  border-left: 4px solid #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  color: #38bdf8;
-}
-
-.axisHeader {
-  border-left: 4px solid #f87171;
-  background: rgba(248, 113, 113, 0.12);
-  color: #f87171;
-}
-
-.teamScore {
-  font-size: 1.15rem;
-  font-weight: 900;
+  height: calc(var(--u) * 15);
+  padding: 0 calc(var(--u) * 3);
+  font-size: calc(var(--u) * 11);
+  line-height: calc(var(--u) * 15);
+  font-weight: 600;
 }
