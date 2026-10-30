@@ -510,41 +510,33 @@ the reach so the chase ends in range. `params.reach` is the actor's kind's, and
 blow itself is the actor runtime's ([actors](actors.md#a-tick)), so a bot given
 this brain stands in front of its quarry and hits nothing.
 
-**`combat`** is free-for-all's and team deathmatch's soldier, and fights as MW3's AI
-does. MW3's multiplayer has no bot AI to copy; the AI on its multiplayer maps is
-Survival's, and every number the brain acts on is read from Survival's and the
-campaign's compiled scripts and weapons into `game/bots/mw3Ai.ts`, each with its
-file and key ([reverse/iw5-ai](../../reverse/iw5-ai/README.md)). The lobby's
-difficulty (`params.difficulty`) is `_gameskill`'s row: recruit, regular, hardened,
-veteran are easy, normal, hardened, veteran. It thinks every tick, because each
-shot is rolled as it is fired:
+**`combat`** is free-for-all's and team deathmatch's bot. MW3's multiplayer has no
+bot AI to copy, so it plays by [Bot Warfare](https://github.com/ineedbots/iw5_bot_warfare),
+a community mod for MW3 that drives a bot through a player's inputs, as a bot here
+is. Its numbers, its authors' tuning rather than Infinity Ward's, are in
+`game/bots/botWarfare.ts`, with the credit its README asks for, and the lobby's
+four difficulties are its levels 1, 3, 5 and 7. It thinks every 0.05 s, the mod's
+loop:
 
-- **Seeing**: the nearest living opponent in a 120° cone with a clear line, kept
-  while it stays in sight, the field looked over every 0.1 s.
-- **Hitting**: a shot lands with chance `accuracy` (0.2, the Survival soldier's) ×
-  `base_enemy_accuracy` × the weapon class's `aivsplayer` graph at distance ×
-  `accuracyDistScale` / 4000 units (`iw5sp.exe`, 0x587bd0), and misses on purpose for `missTimeConstant` +
-  distance × `missTimeDistanceFactor` once it opens fire on someone. A hit is
-  aimed at the chest down the sights; a miss beside the target.
-- **Firing**: `shoot_behavior`'s style by range — everything within 250 units,
-  bursts (taps with a semi-automatic) to 1600, single shots beyond — with
-  `init`'s burst lengths and `combat_utility`'s pauses; a semi-automatic's trigger
-  is let go between shots, and a shot is counted off the magazine.
-- **Distance**: walks in firing until `engageMinDist` (256 units), and runs in
-  without firing past the falloff (1024). The motor's `stuck` or `noPath` makes it
-  fight from where it stands for three seconds.
-- **Friends**: holds fire with a teammate within 0.7 m of the line, and moves on
-  rather than wait behind them.
-- **Grenades** no oftener than `playerGrenadeBaseTime` + `playerGrenadeRangeTime`,
-  never inside the frag's own blast, pitched to land at the target's feet.
-- **Melee** within 64 units; a reload at empty, or below half with nobody in sight.
-- **Hunting**: with nobody in sight it goes for the nearest opponent it can reach,
-  chosen every half second, to a spot of its own within Survival's goal radius of
-  them (384 units), so that a squad does not walk one line. A spot it cannot reach,
-  or reaches to find nobody, is swapped for another.
+- **Target**: anyone in its `fov` with a line to the head or an ankle is tracked,
+  counts after `init_react_time`, and is remembered for `remember_time`. The most
+  recently seen, then the nearest, is the target.
+- **Aim**: a look takes `aim_time`, leads a moving target, picks a body height at
+  every `bone_update_interval`, and starts off by an offset closing over
+  `aim_offset_time`. Nothing is rolled: a round goes where the gun points.
+- **Fire**: after `reaction_time`, on target, and fully down the sights unless
+  within 200 units or holding a shotgun; on at the last place for
+  `shoot_after_time`. A teammate on the line holds it, which is this game's own rule.
+- **Movement**: with a target it can shoot it stands or strafes, by a roll made once
+  per target, and jumps or drops as it first looks. Otherwise it goes to where the
+  target was last seen, a teammate it follows, or **a random node of the map**, kept
+  until reached or blocked: that is what keeps a team from walking one line.
+- **Grenades** at the place it lost someone, 256 to 1024 units off, with room overhead.
+  **Knife** within this game's reach. **Reload** at empty, or quiet under half.
+  **Footsteps** of a runner within 100 units, from level 3.
 
-What is not read from MW3 yet — the view cone, how fast an actor turns, where a miss
-goes, how an actor keeps off its friends — says so where it is defined.
+Not carried over, for needing what a world here lacks: camping and grenade spots
+(the mod's hand-placed waypoints), objectives, killstreaks and weapon swaps.
 
 **`chase`** (`gametypes/chase.ts`, `scripts/chase.ts`): survivors and a horde,
 on team deathmatch's spawns so each side starts at its own end. `matchStart` adds

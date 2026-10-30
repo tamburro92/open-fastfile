@@ -42,6 +42,7 @@ import type { PlayerInput } from "../../sim/input.js";
 import { clampPitch, type MovementState, type Vec3 } from "../../sim/movement.js";
 import { eyeHeight } from "../../sim/stance.js";
 import { IDLE, type Goal, type MotorStatus, type MotorView, type MoveTo } from "./brain.js";
+import { aimStep } from "./botWarfare.js";
 import type { NavPlanner, Route } from "./planner.js";
 
 /** Within `arrive` horizontally, and this vertically, m, is there: a target on the floor above is not. */
@@ -191,7 +192,17 @@ export class Motor implements MotorView {
         dt,
         "turnSpeed" in goal ? goal.turnSpeed : undefined,
         "triggerDiscipline" in goal ? goal.triggerDiscipline : undefined,
+        "aimTime" in goal ? goal.aimTime : undefined,
       );
+    }
+    if ("strafe" in goal && goal.strafe !== undefined) {
+      out.right = goal.strafe;
+    }
+    if ("jump" in goal && goal.jump !== undefined) {
+      out.jump = goal.jump;
+    }
+    if ("prone" in goal && goal.prone !== undefined) {
+      out.prone = goal.prone;
     }
     if (out.ads || out.fire) {
       out.run = false;
@@ -472,6 +483,10 @@ function face(out: PlayerInput, m: Readonly<MovementState>, point: Readonly<Vec3
 }
 
 /** Turn to face and aim at a target point in 3D: sets yaw and pitch, preserving world movement direction as strafing. */
+function wrapAngle(a: number): number {
+  return a - 2 * Math.PI * Math.round(a / (2 * Math.PI));
+}
+
 function aimAtPoint(
   out: PlayerInput,
   m: Readonly<MovementState>,
@@ -479,6 +494,7 @@ function aimAtPoint(
   dt?: number,
   turnSpeed?: number,
   triggerDiscipline?: number,
+  aimTime?: number,
 ): void {
   const up = eyeHeight(m);
   const eyeX = m.feet.x;
@@ -502,7 +518,11 @@ function aimAtPoint(
   let finalYaw = targetYaw;
   let finalPitch = targetPitch;
 
-  if (turnSpeed !== undefined && turnSpeed > 0 && dt !== undefined && dt > 0) {
+  if (aimTime !== undefined && dt !== undefined) {
+    const share = aimStep(aimTime, dt);
+    finalYaw = m.yaw + wrapAngle(targetYaw - m.yaw) * share;
+    finalPitch = m.pitch + (targetPitch - m.pitch) * share;
+  } else if (turnSpeed !== undefined && turnSpeed > 0 && dt !== undefined && dt > 0) {
     const maxStep = turnSpeed * dt;
     let diffYaw = targetYaw - m.yaw;
     while (diffYaw > Math.PI) {

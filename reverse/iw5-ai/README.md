@@ -1,5 +1,10 @@
 # MW3's AI, read from its files
 
+**No longer what the bots run on.** `combat` now plays by Bot Warfare
+(`packages/shared/src/game/bots/botWarfare.ts`), and the `mw3Ai.ts` named below is
+gone. This stays as what was found: how MW3's actors really aim, for whoever wants
+Survival's enemies rather than players.
+
 ## The question
 
 **What does MW3 say a soldier fighting a player does — how well it shoots, how it

@@ -1,6 +1,6 @@
 """Read MW3's AI numbers out of its own compiled scripts and weapon files.
 
-Writes the JSON that `packages/shared/src/game/bots/mw3Ai.ts` was written from,
+Writes the JSON of MW3 actor numbers, once behind the combat brain,
 so a bot's rules can be checked against the game again. Reads `$COD_MW3_DIR`
 (reverse/tools/paths.py), keeps its dumps under `--work`, and writes `--out`.
 

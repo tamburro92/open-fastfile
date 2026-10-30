@@ -54,6 +54,10 @@ export class NavPlanner {
     this.search = new NavSearch(graph);
   }
 
+  get nodeCount(): number {
+    return this.graph.nodeCount;
+  }
+
   /** Always true: a planner exists only once the world's graph is baked. */
   get ready(): boolean {
     return true;

@@ -28,6 +28,12 @@ export type Goal =
       readonly look?: Vec3;
       readonly aimAt?: Vec3;
       readonly turnSpeed?: number;
+      /** Seconds a look takes: each tick turns that share of what is left (botWarfare.ts). Wins over `turnSpeed`. */
+      readonly aimTime?: number;
+      /** Sidestep while it stands: -1 left, 1 right. */
+      readonly strafe?: number;
+      readonly jump?: boolean;
+      readonly prone?: boolean;
       readonly fire?: boolean;
       readonly ads?: boolean;
       readonly crouch?: boolean;
@@ -39,6 +45,12 @@ export type Goal =
       readonly point: Vec3;
       readonly aimAt?: Vec3;
       readonly turnSpeed?: number;
+      /** Seconds a look takes: each tick turns that share of what is left (botWarfare.ts). Wins over `turnSpeed`. */
+      readonly aimTime?: number;
+      /** Sidestep while it stands: -1 left, 1 right. */
+      readonly strafe?: number;
+      readonly jump?: boolean;
+      readonly prone?: boolean;
       readonly triggerDiscipline?: number;
       readonly fire?: boolean;
       readonly ads?: boolean;
@@ -58,6 +70,12 @@ export type Goal =
       readonly target: PlayerId;
       readonly aimAt?: Vec3;
       readonly turnSpeed?: number;
+      /** Seconds a look takes: each tick turns that share of what is left (botWarfare.ts). Wins over `turnSpeed`. */
+      readonly aimTime?: number;
+      /** Sidestep while it stands: -1 left, 1 right. */
+      readonly strafe?: number;
+      readonly jump?: boolean;
+      readonly prone?: boolean;
       readonly triggerDiscipline?: number;
       readonly fire?: boolean;
       readonly ads?: boolean;
@@ -90,6 +108,10 @@ export interface MoveTo {
   readonly aimAt?: Vec3;
   /** Max angular aim rotation speed in rad/s. Smooths bot turning instead of instant snap. */
   readonly turnSpeed?: number;
+  /** Seconds a look takes: each tick turns that share of what is left (botWarfare.ts). Wins over `turnSpeed`. */
+  readonly aimTime?: number;
+  readonly jump?: boolean;
+  readonly prone?: boolean;
   /** Angular threshold (radians) within which the crosshairs must be aligned before firing. */
   readonly triggerDiscipline?: number;
   /** Whether to hold fire this tick. */
@@ -130,6 +152,8 @@ export interface MotorView {
 /** What a brain may ask of the graph. */
 export interface BrainNav {
   readonly ready: boolean;
+  /** The graph's size: nodes are numbered from 0. */
+  readonly nodeCount: number;
   /** The usable node nearest a point, within a height limit; -1 for none. */
   nearestNode(point: Vec3, maxDy?: number): number;
   nodeFeet(node: number): Vec3;

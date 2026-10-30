@@ -1,22 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BrainContext, Goal } from "../../src/game/bots/brain.js";
-import { COMBAT_BRAIN, combatBrain, MISS_OFFSET, throwPitch, type CombatMemory } from "../../src/game/bots/brains/combat.js";
-import { SEEK_GIVE_UP } from "../../src/game/bots/brains/seekNearest.js";
-import {
-  BURST_FIRE_NUM_SHOTS,
-  burstDelay,
-  burstShots,
-  difficultyOf,
-  GAMESKILL,
-  graphAt,
-  grenadeWait,
-  hitChance,
-  missTime,
-  SEMI_FIRE_NUM_SHOTS,
-  shootStyle,
-  SURVIVAL_GOAL_RADIUS,
-  type BotDifficulty,
-} from "../../src/game/bots/mw3Ai.js";
+import { COMBAT_BRAIN, combatBrain, THINK_PERIOD, type CombatMemory } from "../../src/game/bots/brains/combat.js";
+import { aimStep, BOT_SKILLS, canAds, difficultyOf, inRange, sightRate, type BotDifficulty } from "../../src/game/bots/botWarfare.js";
 import { Motor } from "../../src/game/bots/motor.js";
 import { brainFor } from "../../src/game/bots/registry.js";
 import type { PlayerStateView, PlayerView } from "../../src/game/context.js";
@@ -75,7 +60,7 @@ interface TestPlayer {
   alive?: boolean;
   bot?: boolean;
   eyeHeight?: number;
-  weapon?: { ammo: number; clipSize: number; state: "idle" | "firing" | "reloading"; weaponClass?: string; fireType?: string };
+  weapon?: { ammo: number; clipSize: number; state: "idle" | "firing" | "reloading"; weaponClass?: string; fireType?: string; ads?: number };
 }
 
 function mockContext(options: { players: TestPlayer[]; now?: number; nav?: NavPlanner; hasLineOfSight?: (from: Vec3, to: Vec3) => boolean }): BrainContext {
@@ -112,348 +97,268 @@ function mockContext(options: { players: TestPlayer[]; now?: number; nav?: NavPl
   } as unknown as BrainContext;
 }
 
-/** Metres for a distance MW3 states in units. */
+/** Metres for a distance the mod states in units. */
 const u = (units: number) => units * 0.0254;
 
 /** A bot at the origin facing -Z, its memory, and an rng a test can set. */
-function bot(difficulty: BotDifficulty, team = "allies") {
-  const roll = { value: 0.5 };
+function bot(difficulty: BotDifficulty, roll = 0.5) {
+  const dice = { value: roll };
   const self = {
     id: "#b1",
     index: 1,
-    team,
+    team: "allies",
     objective: { kind: "none" as const },
     movement: createMovement(at([0, 0, 0]), 0, 0),
     motor: new Motor(),
   };
-  const memory = combatBrain.init(self, () => roll.value, { difficulty }) as CombatMemory;
-  return { self, memory, roll };
+  const memory = combatBrain.init(self, () => dice.value, { difficulty }) as CombatMemory;
+  return { self, memory, dice };
 }
 
-/** One opponent straight ahead, `distance` m off, with this bot's weapon. */
-function duel(distance: number, weapon?: TestPlayer["weapon"]): TestPlayer[] {
+const WEAPON = { ammo: 30, clipSize: 30, state: "idle" as const, weaponClass: "rifle", fireType: "Full Auto", ads: 1 };
+
+/** One opponent straight ahead, `distance` m off. */
+function duel(distance: number, weapon: TestPlayer["weapon"] = WEAPON): TestPlayer[] {
   return [
     { id: "#b1", team: "allies", feet: at([0, 0, 0]), weapon },
     { id: "enemy", team: "axis", feet: at([0, 0, -distance]) },
   ];
 }
 
-const aimOf = (goal: Goal) => ("aimAt" in goal ? goal.aimAt : undefined);
-const fireOf = (goal: Goal) => ("fire" in goal ? goal.fire : undefined);
-/** How far the aim is beside the target's chest, m. */
-function aimOff(goal: Goal, distance: number): number {
-  const aim = aimOf(goal)!;
-  return Math.hypot(aim.x, aim.z + distance);
+/** Think every `THINK_PERIOD` for `seconds`, from `from`; the last goal. */
+function run(b: ReturnType<typeof bot>, players: TestPlayer[], seconds: number, from = 1, sight?: (a: Vec3, c: Vec3) => boolean): Goal {
+  let goal: Goal = { kind: "idle" };
+  const nav = new NavPlanner(testGraph(), new NavMatchState(testGraph()));
+  const ticks = Math.round(seconds / THINK_PERIOD);
+  for (let i = 0; i <= ticks; i++) {
+    goal = combatBrain.think(mockContext({ players, now: from + i * THINK_PERIOD, nav, hasLineOfSight: sight }), b.self, b.memory);
+  }
+  return goal;
 }
 
-describe("MW3's AI numbers", () => {
-  it("reads _gameskill's four rows as the lobby's four difficulties", () => {
-    expect(GAMESKILL.recruit.baseEnemyAccuracy).toBe(0.9);
-    expect(GAMESKILL.regular.baseEnemyAccuracy).toBe(1.0);
-    expect(GAMESKILL.hardened.accuracyDistScale).toBe(0.6);
-    expect(GAMESKILL.veteran.accuracyDistScale).toBe(0.8);
-    expect(GAMESKILL.recruit.missTimeConstant).toBe(1.0);
-    expect(GAMESKILL.veteran.missTimeDistanceFactor).toBe(0);
+const fireOf = (goal: Goal) => ("fire" in goal ? goal.fire : undefined);
+
+describe("Bot Warfare's numbers", () => {
+  it("maps the lobby's four levels on the mod's 1, 3, 5 and 7", () => {
+    expect(BOT_SKILLS.recruit.base).toBe(1);
+    expect(BOT_SKILLS.regular.initReact).toBe(750);
+    expect(BOT_SKILLS.hardened.aimTime).toBe(0.25);
+    expect(BOT_SKILLS.veteran.bones).toEqual(["head"]);
     expect(difficultyOf("Veteran")).toBe("veteran");
     expect(difficultyOf("godmode")).toBe("regular");
-    expect(difficultyOf(undefined)).toBe("regular");
   });
 
-  it("reads an accuracy graph linearly between its knots", () => {
-    const graph = [[0, 0.6], [0.5, 0.2], [1, 0.1]] as const;
-    expect(graphAt(graph, 0)).toBe(0.6);
-    expect(graphAt(graph, 0.25)).toBeCloseTo(0.4);
-    expect(graphAt(graph, 2)).toBe(0.1);
+  it("takes in a far target slower, and one past dist_max never, by weapon", () => {
+    const s = BOT_SKILLS.recruit; // 1000 to 2500 units, times 0.9 for a rifle
+    expect(sightRate(s, "rifle", 500)).toBe(1);
+    expect(sightRate(s, "rifle", 1500)).toBeGreaterThan(0);
+    expect(sightRate(s, "rifle", 1500)).toBeLessThan(1);
+    expect(sightRate(s, "rifle", 2300)).toBe(0);
+    expect(sightRate(s, "mg", 2300)).toBeGreaterThan(0);
   });
 
-  it("multiplies the soldier's accuracy, the skill's and the weapon's graph into one shot's chance", () => {
-    // 0.2 x 1.0 x the assault rifle's 0.6 at point blank, its 0.5 at x = 0.35 (1400 of
-    // iw5sp.exe's 4000 units), and its 0.1 from 4000 on.
-    expect(hitChance("regular", "rifle", 0)).toBeCloseTo(0.12);
-    expect(hitChance("regular", "rifle", 1400)).toBeCloseTo(0.1);
-    expect(hitChance("regular", "rifle", 6000)).toBeCloseTo(0.02);
-    // Hardened reads the graph at 0.6 of the distance: 2000 units is x = 0.3.
-    expect(hitChance("hardened", "rifle", 2000)).toBeCloseTo(0.2 * 1.15 * (0.6 - (0.1 * 0.3) / 0.35));
-    for (const d of [0, 200, 500, 900, 1600]) {
-      expect(hitChance("recruit", "smg", d)).toBeLessThanOrEqual(hitChance("veteran", "smg", d));
-    }
+  it("does not aim down the sights up close or with a shotgun, and a shotgun holds its fire past 500", () => {
+    expect(canAds("rifle", 199)).toBe(false);
+    expect(canAds("rifle", 201)).toBe(true);
+    expect(canAds("spread", 400)).toBe(false);
+    expect(inRange("spread", 501)).toBe(false);
+    expect(inRange("rifle", 5000)).toBe(true);
   });
 
-  it("gives a recruit its deliberate misses, growing with distance, and a veteran none", () => {
-    expect(missTime("recruit", 1000)).toBeCloseTo(1.8);
-    expect(missTime("regular", 1000)).toBeCloseTo(0.15);
-    expect(missTime("veteran", 1000)).toBe(0);
-  });
-
-  it("picks shoot_behavior's style by range", () => {
-    expect(shootStyle(200, "rifle", false)).toBe("full");
-    expect(shootStyle(200, "rifle", true)).toBe("semi");
-    expect(shootStyle(600, "smg", false)).toBe("burst");
-    expect(shootStyle(1200, "rifle", false)).toBe("burst");
-    expect(shootStyle(2000, "rifle", false)).toBe("single");
-    expect(shootStyle(2000, "mg", false)).toBe("burst");
-    expect(shootStyle(300, "sniper", true)).toBe("single");
-  });
-
-  it("draws a burst's rounds from animscripts/init's tables", () => {
-    expect(burstShots("burst", () => 0)).toBe(BURST_FIRE_NUM_SHOTS[0]);
-    expect(burstShots("burst", () => 0.999)).toBe(5);
-    expect(burstShots("semi", () => 0.5)).toBe(SEMI_FIRE_NUM_SHOTS[6]);
-    expect(burstShots("single", () => 0.9)).toBe(1);
-    expect(burstShots("full", () => 0)).toBe(Infinity);
-  });
-
-  it("pauses after a burst as combat_utility does, a sniper by its skill", () => {
-    expect(burstDelay("regular", "rifle", () => 0)).toBe(0.4);
-    expect(burstDelay("regular", "rifle", () => 1)).toBe(0.9);
-    expect(burstDelay("regular", "pistol", () => 0)).toBe(0.15);
-    expect(burstDelay("regular", "spread", () => 1)).toBe(1.7);
-    expect(burstDelay("recruit", "sniper", () => 0)).toBe(3.0);
-    expect(burstDelay("veteran", "sniper", () => 1)).toBe(1.5);
-  });
-
-  it("waits playerGrenadeBaseTime plus up to playerGrenadeRangeTime between grenades", () => {
-    expect(grenadeWait("recruit", () => 0)).toBe(40);
-    expect(grenadeWait("regular", () => 1)).toBe(50);
-    expect(grenadeWait("veteran", () => 0.5)).toBe(30);
-  });
-
-  it("finds a throw that reaches a target, and none for one out of reach", () => {
-    expect(throwPitch(10, 0)).not.toBeNull();
-    expect(throwPitch(5, 0)!).toBeLessThan(throwPitch(20, 0)!);
-    expect(throwPitch(80, 0)).toBeNull();
+  it("turns a look over aim_time, never slower than a tick's worth of 0.05 s", () => {
+    expect(aimStep(0.5, 0.05)).toBeCloseTo(0.1);
+    expect(aimStep(0, 0.05)).toBe(1);
   });
 });
 
-describe("Call of Duty MW3 Combat Brain", () => {
-  it("registers in the BRAINS table under 'combat'", () => {
+describe("the combat brain", () => {
+  it("is in the BRAINS table, and thinks on the mod's 0.05 s", () => {
     expect(brainFor(COMBAT_BRAIN)).toBe(combatBrain);
-    expect(combatBrain.id).toBe("combat");
+    expect(combatBrain.period).toBe(THINK_PERIOD);
   });
 
-  it("takes the lobby's difficulty, and regular for one it does not know", () => {
-    expect(bot("veteran").memory.difficulty).toBe("veteran");
-    const self = bot("regular").self;
-    expect((combatBrain.init(self, () => 0.5, { difficulty: "godmode" }) as CombatMemory).difficulty).toBe("regular");
+  it("waits out spawn_time before anything", () => {
+    const b = bot("recruit");
+    expect(run(b, duel(10), 0.5).kind).toBe("idle");
+    expect(b.memory.tracked.size).toBe(0);
   });
 
   it("ignores teammates and the dead", () => {
-    const { self, memory } = bot("regular");
-    const players: TestPlayer[] = [
-      { id: "#b1", team: "allies", feet: at([0, 0, 0]) },
-      { id: "friend", team: "allies", feet: at([0, 0, -5]) },
-      { id: "corpse", team: "axis", feet: at([0, 0, -6]), alive: false },
-    ];
-    const goal = combatBrain.think(mockContext({ players, now: 1 }), self, memory);
-    expect(memory.targetId).toBeNull();
-    expect(fireOf(goal)).toBeUndefined();
+    const b = bot("veteran");
+    run(b, [{ id: "#b1", team: "allies", feet: at([0, 0, 0]) }, { id: "friend", team: "allies", feet: at([0, 0, -5]) }, { id: "corpse", team: "axis", feet: at([0, 0, -6]), alive: false }], 1);
+    expect(b.memory.tracked.size).toBe(0);
   });
 
-  it("does not see an opponent behind it, or one behind a wall", () => {
-    const { self, memory } = bot("veteran");
-    const behind: TestPlayer[] = [
-      { id: "#b1", team: "allies", feet: at([0, 0, 0]) },
-      { id: "enemy", team: "axis", feet: at([0, 0, 10]) },
-    ];
-    combatBrain.think(mockContext({ players: behind, now: 1 }), self, memory);
-    expect(memory.targetId).toBeNull();
-    combatBrain.think(mockContext({ players: duel(10), now: 2, hasLineOfSight: () => false }), self, memory);
-    expect(memory.targetId).toBeNull();
+  it("sees within fov and with a line only", () => {
+    const behind = bot("veteran");
+    run(behind, [{ id: "#b1", team: "allies", feet: at([0, 0, 0]) }, { id: "enemy", team: "axis", feet: at([0, 0, 10]) }], 1);
+    expect(behind.memory.tracked.size).toBe(0);
+    const walled = bot("veteran");
+    run(walled, duel(10), 1, 1, () => false);
+    expect(walled.memory.tracked.size).toBe(0);
   });
 
-  it("hunts the nearest opponent it cannot see, as Survival sends its AI at the players", () => {
-    const { self, memory } = bot("regular");
-    const goal = combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
-    expect(goal.kind).toBe("moveTo");
-    expect(memory.quarry).toBe("enemy");
-    if (goal.kind === "moveTo") {
-      expect(goal.run).toBe(true);
-      // Somewhere within the goal radius of them, on the graph (whose nodes are 5 m apart here).
-      expect(Math.hypot(goal.point.x, goal.point.z + 15)).toBeLessThanOrEqual(u(SURVIVAL_GOAL_RADIUS) + 5);
-    }
+  it("only makes a target of one seen for init_react_time", () => {
+    const b = bot("recruit"); // 0.75 s of spawn_time, then 1.5 s
+    run(b, duel(10), 1.5);
+    expect(b.memory.tracked.has("enemy")).toBe(true);
+    expect(b.memory.targetId).toBeNull();
+    run(b, duel(10), 1, 2.55);
+    expect(b.memory.targetId).toBe("enemy");
   });
 
-  it("gives each bot its own spot around its quarry, so a squad does not walk one line", () => {
-    const spots = [0.1, 0.4, 0.8].map((value) => {
-      const self = bot("regular").self;
-      return (combatBrain.init(self, () => value, { difficulty: "regular" }) as CombatMemory).spot;
-    });
-    expect(new Set(spots.map((s) => s.angle)).size).toBe(3);
-    for (const spot of spots) {
-      expect(spot.distance).toBeLessThanOrEqual(u(SURVIVAL_GOAL_RADIUS));
-    }
+  it("fires only after reaction_time, and at range only fully down the sights", () => {
+    const b = bot("regular", 0.99); // strafes nobody; 500 ms of reaction after 750 ms of init
+    expect(fireOf(run(b, duel(10), 1.15))).toBe(false);
+    expect(fireOf(run(b, duel(10), 0.5, 2.2))).toBe(true);
+    expect(fireOf(run(b, duel(10, { ...WEAPON, ads: 0.4 }), 0.05, 2.75))).toBe(false);
   });
 
-  it("takes another spot, and passes over a quarry for a while, when the motor could not get there", () => {
-    const { self, memory } = bot("regular");
-    combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
-    const before = memory.spot;
-    self.motor.goal = { kind: "moveTo", point: at([0, 0, -15]) };
-    self.motor.status = "stuck";
-    combatBrain.think(mockContext({ players: duel(15), now: 2, hasLineOfSight: () => false }), self, memory);
-    expect(memory.spot).not.toBe(before);
-    expect(memory.avoid.get("enemy")).toBe(2 + SEEK_GIVE_UP);
-  });
-
-  it("misses a recruit's miss time on purpose, then aims at the chest", () => {
-    const { self, memory, roll } = bot("recruit");
-    roll.value = 0; // every roll a hit, once the miss time is over
-    const distance = 15; // 590 units: 1.0 + 0.47 s of misses, from 1 s to 2.47 s
-    const first = combatBrain.think(mockContext({ players: duel(distance), now: 1 }), self, memory);
-    expect(memory.missUntil).toBeCloseTo(1 + missTime("recruit", distance / 0.0254));
-    expect(aimOff(first, distance)).toBeGreaterThanOrEqual(MISS_OFFSET[0] - 1e-9);
-    const during = combatBrain.think(mockContext({ players: duel(distance), now: 2.4 }), self, memory);
-    expect(aimOff(during, distance)).toBeGreaterThanOrEqual(MISS_OFFSET[0] - 1e-9);
-    const later = combatBrain.think(mockContext({ players: duel(distance), now: 2.5 }), self, memory);
-    expect(aimOff(later, distance)).toBeLessThan(1e-6);
-  });
-
-  it("gives a veteran no miss time: its first shot may land", () => {
-    const { self, memory, roll } = bot("veteran");
-    roll.value = 0;
-    const goal = combatBrain.think(mockContext({ players: duel(15), now: 1 }), self, memory);
-    expect(memory.missUntil).toBe(1);
-    expect(aimOff(goal, 15)).toBeLessThan(1e-6);
+  it("fires from the hip up close, where it does not aim down the sights", () => {
+    const b = bot("veteran", 0.99);
+    const goal = run(b, duel(u(150), { ...WEAPON, ads: 0 }), 1);
     expect(fireOf(goal)).toBe(true);
-    expect("ads" in goal && goal.ads).toBe(true);
+    expect("ads" in goal && goal.ads).toBe(false);
   });
 
-  it("aims a shot rolled to miss beside the target", () => {
-    const { self, memory, roll } = bot("veteran");
-    roll.value = 0.99; // above any hit chance
-    const goal = combatBrain.think(mockContext({ players: duel(10), now: 1 }), self, memory);
-    expect(memory.nextHits).toBe(false);
-    expect(aimOff(goal, 10)).toBeGreaterThanOrEqual(MISS_OFFSET[0] - 1e-9);
-    expect(aimOff(goal, 10)).toBeLessThanOrEqual(Math.hypot(MISS_OFFSET[1], 0.2) + 1e-9);
+  it("starts its aim off on someone it sees again, and closes it over aim_offset_time", () => {
+    const b = bot("recruit", 0.99);
+    run(b, duel(10), 3); // Seen long enough that the first offset has already closed, as it does in the mod.
+    run(b, duel(10), 0.1, 4.05, () => false);
+    const again = run(b, duel(10), 0.05, 4.2);
+    expect(Math.abs("aimAt" in again ? again.aimAt!.x : 0)).toBeGreaterThan(0);
+    const late = run(b, duel(10), 2, 4.3);
+    expect(Math.abs("aimAt" in late ? late.aimAt!.x : 1)).toBeLessThan(1e-6);
   });
 
-  it("fires a burst of the drawn length, counted off the magazine, then pauses", () => {
-    const { self, memory, roll } = bot("veteran");
-    roll.value = 0; // a burst of 1, and the shortest pause
-    const weapon = { ammo: 30, clipSize: 30, state: "idle" as const, weaponClass: "rifle", fireType: "Full Auto" };
-    const at10 = (now: number, ammo: number) => combatBrain.think(mockContext({ players: duel(u(500) / 1, { ...weapon, ammo }), now }), self, memory);
-    expect(fireOf(at10(1, 30))).toBe(true);
-    expect(memory.style).toBe("burst");
-    expect(memory.shotsLeft).toBe(1);
-    expect(fireOf(at10(1.05, 29))).toBe(false); // the round went: the pause, 0.4 s, has begun
-    expect(memory.pauseUntil).toBeCloseTo(1.05 + 0.4);
-    expect(fireOf(at10(1.3, 29))).toBe(false);
-    expect(fireOf(at10(1.5, 29))).toBe(true);
+  it("aims a veteran at the head and an offset of nothing", () => {
+    const b = bot("veteran", 0.99);
+    const goal = run(b, duel(10), 1);
+    const aim = "aimAt" in goal ? goal.aimAt! : at([9, 9, 9]);
+    expect(aim.x).toBeCloseTo(0);
+    expect(aim.y).toBeCloseTo(1.524);
   });
 
-  it("taps a semi-automatic, letting go of the trigger between shots", () => {
-    const { self, memory, roll } = bot("veteran");
-    roll.value = 0.999; // the longest semi burst
-    const weapon = { ammo: 20, clipSize: 20, state: "idle" as const, weaponClass: "rifle", fireType: "Single Shot" };
-    const fires = [1, 1.05, 1.1, 1.15].map((now) => fireOf(combatBrain.think(mockContext({ players: duel(8, weapon), now }), self, memory)));
-    expect(memory.style).toBe("semi");
-    expect(fires).toEqual([true, false, true, false]);
-  });
-
-  it("reloads an empty magazine instead of firing", () => {
-    const { self, memory } = bot("regular");
-    const weapon = { ammo: 0, clipSize: 30, state: "idle" as const, weaponClass: "rifle", fireType: "Full Auto" };
-    const goal = combatBrain.think(mockContext({ players: duel(10, weapon), now: 1 }), self, memory);
-    expect("reload" in goal && goal.reload).toBe(true);
-    expect(fireOf(goal)).toBe(false);
-  });
-
-  it("reloads a half-empty magazine when nobody is in sight", () => {
-    const { self, memory } = bot("regular");
-    const weapon = { ammo: 10, clipSize: 30, state: "idle" as const, weaponClass: "rifle", fireType: "Full Auto" };
-    const goal = combatBrain.think(mockContext({ players: duel(10, weapon), now: 1, hasLineOfSight: () => false }), self, memory);
-    expect("reload" in goal && goal.reload).toBe(true);
-  });
-
-  it("closes in firing to the soldier's engageMinDist, and runs in past its falloff", () => {
-    const within = bot("regular");
-    expect(combatBrain.think(mockContext({ players: duel(u(200)), now: 1 }), within.self, within.memory).kind).toBe("look");
-
-    const beyond = bot("regular");
-    const walk = combatBrain.think(mockContext({ players: duel(u(600)), now: 1 }), beyond.self, beyond.memory);
-    expect(walk.kind).toBe("moveTo");
-    if (walk.kind === "moveTo") {
-      expect(walk.run).toBe(false);
-      expect(walk.fire).toBe(true);
-    }
-
-    const far = bot("regular");
-    const run = combatBrain.think(mockContext({ players: duel(u(1200)), now: 1 }), far.self, far.memory);
-    expect(run.kind).toBe("moveTo");
-    if (run.kind === "moveTo") {
-      expect(run.run).toBe(true);
-      expect(run.fire).toBeUndefined();
-    }
-  });
-
-  it("fights from where it stands once the motor could not take it closer", () => {
-    const { self, memory } = bot("regular");
-    expect(combatBrain.think(mockContext({ players: duel(15), now: 1 }), self, memory).kind).toBe("moveTo");
-    self.motor.goal = { kind: "moveTo", point: at([0, 0, -15]) };
-    self.motor.status = "noPath";
-    const goal = combatBrain.think(mockContext({ players: duel(15), now: 2 }), self, memory);
+  it("strafes the targets its rand says, and stands for the rest", () => {
+    const strafer = bot("veteran", 0.1); // rand 10, under its 65
+    const goal = run(strafer, duel(10), 1);
     expect(goal.kind).toBe("look");
-    expect(memory.holdUntil).toBe(2 + SEEK_GIVE_UP);
+    expect("strafe" in goal && Math.abs(goal.strafe ?? 0)).toBe(1);
+    const stander = bot("veteran", 0.99);
+    const still = run(stander, duel(10), 1);
+    expect(still.kind).toBe("look");
+    expect("strafe" in still && still.strafe !== undefined).toBe(false);
   });
 
-  it("holds fire with a teammate on the line, and moves on rather than wait behind them", () => {
-    const { self, memory } = bot("veteran");
-    const players: TestPlayer[] = [...duel(u(200)), { id: "friend", team: "allies", feet: at([0, 0, -2]) }];
-    const goal = combatBrain.think(mockContext({ players, now: 1 }), self, memory);
-    expect(memory.targetId).toBe("enemy");
-    expect(fireOf(goal)).toBe(false);
-    expect(goal.kind).toBe("moveTo");
-  });
-
-  it("fires past a teammate who is off the line, or behind it, and at anyone in a free-for-all", () => {
-    for (const feet of [at([3, 0, -2]), at([0, 0, 2])]) {
-      const { self, memory } = bot("veteran");
-      const players: TestPlayer[] = [...duel(u(200)), { id: "friend", team: "allies", feet }];
-      expect(fireOf(combatBrain.think(mockContext({ players, now: 1 }), self, memory))).toBe(true);
+  it("walks to where a target was last seen, then forgets them after remember_time", () => {
+    const b = bot("regular", 0.99);
+    run(b, duel(15), 2);
+    const walking = run(b, duel(15), 0.1, 3.1, () => false);
+    expect(walking.kind).toBe("moveTo");
+    if (walking.kind === "moveTo") {
+      expect(walking.point.z).toBeCloseTo(-15);
     }
+    run(b, duel(15), 2.5, 3.3, () => false);
+    expect(b.memory.tracked.size).toBe(0);
   });
 
-  it("does not wait at a spot where it finds nobody", () => {
-    const { self, memory } = bot("regular");
-    combatBrain.think(mockContext({ players: duel(15), now: 1, hasLineOfSight: () => false }), self, memory);
-    const before = memory.spot;
-    self.motor.status = "arrived";
-    const goal = combatBrain.think(mockContext({ players: duel(15), now: 1.1, hasLineOfSight: () => false }), self, memory);
-    expect(memory.spot).not.toBe(before);
+  it("with no target, goes to a random node of the map, each bot its own", () => {
+    const points = [0.05, 0.3, 0.7].map((roll) => {
+      const b = bot("veteran", roll);
+      const goal = run(b, [{ id: "#b1", team: "allies", feet: at([0, 0, 0]) }], 0.2);
+      return goal.kind === "moveTo" ? goal.point.z : NaN;
+    });
+    expect(new Set(points).size).toBeGreaterThan(1);
+    expect(points.every(Number.isFinite)).toBe(true);
+  });
+
+  it("keeps its node until it arrives or is blocked, and then picks again", () => {
+    const b = bot("veteran");
+    const players: TestPlayer[] = [{ id: "#b1", team: "allies", feet: at([0, 0, 0]) }];
+    run(b, players, 0.2);
+    const first = b.memory.walking;
+    run(b, players, 0.2, 1.3);
+    expect(b.memory.walking).toBe(first);
+    b.self.motor.status = "stuck";
+    run(b, players, 0.05, 1.6);
+    expect(b.memory.walking).not.toBe(first);
+  });
+
+  it("taps a semi-automatic semi_time apart, and holds an automatic", () => {
+    const b = bot("veteran", 0.99); // 0.1 s apart
+    run(b, duel(u(150), { ...WEAPON, fireType: "Single Shot" }), 0.5);
+    const fires = [1.6, 1.65, 1.7, 1.75].map((now) => fireOf(run(b, duel(u(150), { ...WEAPON, fireType: "Single Shot" }), 0, now)));
+    expect(fires.filter(Boolean)).toHaveLength(2);
+    const auto = bot("veteran", 0.99);
+    run(auto, duel(u(150)), 0.5);
+    expect([1.6, 1.65].map((now) => fireOf(run(auto, duel(u(150)), 0, now)))).toEqual([true, true]);
+  });
+
+  it("reloads when empty, and when quiet under half a magazine", () => {
+    const empty = bot("regular");
+    const dry = run(empty, duel(10, { ...WEAPON, ammo: 0 }), 1);
+    expect("reload" in dry && dry.reload).toBe(true);
+    const quiet = bot("veteran");
+    const players: TestPlayer[] = [{ id: "#b1", team: "allies", feet: at([0, 0, 0]), weapon: { ...WEAPON, ammo: 10 } }];
+    const goal = run(quiet, players, 0.2);
+    expect("reload" in goal && goal.reload).toBe(true);
+  });
+
+  it("holds fire with a teammate on the line", () => {
+    const b = bot("veteran", 0.99);
+    const players: TestPlayer[] = [...duel(15), { id: "friend", team: "allies", feet: at([0, 0, -7]) }];
+    expect(fireOf(run(b, players, 1))).toBe(false);
+    const clear = bot("veteran", 0.99);
+    expect(fireOf(run(clear, [...duel(15), { id: "friend", team: "allies", feet: at([4, 0, -7]) }], 1))).toBe(true);
+  });
+
+  it("walks a shotgun in past 500 units", () => {
+    const b = bot("veteran", 0.99);
+    const goal = run(b, duel(u(700), { ...WEAPON, weaponClass: "spread" }), 1);
     expect(goal.kind).toBe("moveTo");
+    expect(fireOf(goal)).toBe(false);
   });
 
-  it("knifes an opponent within MW3's melee range", () => {
-    const { self, memory } = bot("regular");
-    const goal = combatBrain.think(mockContext({ players: duel(u(60)), now: 1 }), self, memory);
-    expect("melee" in goal && goal.melee).toBe(true);
-    const further = bot("regular");
-    const shot = combatBrain.think(mockContext({ players: duel(u(100)), now: 1 }), further.self, further.memory);
-    expect("melee" in shot && shot.melee).toBe(false);
+  it("throws at a place it lost someone, on its rand, within 256 to 1024 units, and holds the aim", () => {
+    const b = bot("veteran", 0.1); // rand 10, under its 65
+    run(b, duel(u(500)), 1);
+    // A wall between them, and open sky overhead at both ends.
+    const overhead = (a: Vec3, c: Vec3) => a.x === c.x && a.z === c.z;
+    const lost = run(b, duel(u(500)), 2.6, 2.1, overhead);
+    expect(lost.kind).toBe("look");
+    expect(b.memory.throwAim).not.toBeNull();
+    expect(b.memory.throwAim!.y).toBeGreaterThan(1.5);
   });
 
-  it("throws its grenade once the skill's timer runs out, holds the throw, and waits again", () => {
-    const { self, memory, roll } = bot("veteran");
-    // The first timer was drawn at 0.5: 25 + 0.5 x 10 s. From here every draw is 0, so the next is 25 s on.
-    expect(memory.grenadeReadyAt).toBe(30);
-    roll.value = 0;
-    const early = combatBrain.think(mockContext({ players: duel(12), now: 10 }), self, memory);
-    expect("lethal" in early && early.lethal).toBeFalsy();
-
-    const throwing = combatBrain.think(mockContext({ players: duel(12), now: 30 }), self, memory);
-    expect("lethal" in throwing && throwing.lethal).toBe(true);
-    expect(aimOf(throwing)!.y).toBeGreaterThan(0); // pitched for the arc
-    expect(memory.grenadeReadyAt).toBe(55);
-    const held = combatBrain.think(mockContext({ players: duel(12), now: 30.3 }), self, memory);
-    expect(aimOf(held)).toEqual(aimOf(throwing));
-    expect(fireOf(held)).toBe(false);
+  it("plays the same twice from one stream of numbers", () => {
+    const seq = () => {
+      let i = 0;
+      return () => (i = (i * 7 + 3) % 11) / 11;
+    };
+    const once = () => {
+      const self = bot("regular").self;
+      const memory = combatBrain.init(self, seq(), { difficulty: "regular" }) as CombatMemory;
+      const out: Goal[] = [];
+      for (let t = 0; t < 60; t++) {
+        out.push(combatBrain.think(mockContext({ players: duel(12), now: 1 + t * THINK_PERIOD }), self, memory));
+      }
+      return JSON.stringify(out);
+    };
+    expect(once()).toBe(once());
   });
+});
 
-  it("never throws at an opponent inside the frag's own blast", () => {
-    const { self, memory, roll } = bot("veteran");
-    roll.value = 0;
-    const goal = combatBrain.think(mockContext({ players: duel(u(200)), now: 60 }), self, memory);
-    expect("lethal" in goal && goal.lethal).toBeFalsy();
+describe("the motor on a bot's look", () => {
+  it("turns a share of what is left over aimTime, and sidesteps", () => {
+    const motor = new Motor();
+    const nav = new NavPlanner(testGraph(), new NavMatchState(testGraph()));
+    const m = createMovement(at([0, 0, 0]), 0, 0);
+    motor.setGoal({ kind: "look", point: at([10, 1.4, 0]), aimAt: at([10, 1.4, 0]), aimTime: 0.5, strafe: -1, jump: true }, nav);
+    const out = idleInput(0, 0);
+    motor.step(m, 0.05, nav, out);
+    expect(Math.abs(out.yaw)).toBeCloseTo((Math.PI / 2) * 0.1, 2);
+    expect(out.right).toBe(-1);
+    expect(out.jump).toBe(true);
   });
 });
 

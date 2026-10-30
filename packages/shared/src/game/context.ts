@@ -73,6 +73,8 @@ export interface PlayerStateView {
   readonly health: number;
   readonly team?: TeamId;
   readonly eyeHeight?: number;
+  /** m/s. A copy, like `feet`. */
+  readonly velocity?: Vec3;
   readonly weapon?: {
     readonly ammo: number;
     readonly clipSize: number;
@@ -80,6 +82,8 @@ export interface PlayerStateView {
     /** The weapon file's `weaponClass` (`rifle`, `smg`, `spread`, ...) and `fireType`, where the definition carries them. */
     readonly weaponClass?: string;
     readonly fireType?: string;
+    /** How far down the sights, 0 to 1. */
+    readonly ads?: number;
   };
 }
 

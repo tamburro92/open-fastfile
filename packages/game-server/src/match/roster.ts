@@ -204,6 +204,7 @@ export class Roster {
           state: held.data.state,
           weaponClass: held.def.weaponClass,
           fireType: held.def.fireType,
+          ads: held.data.ads,
         }
       : undefined;
     return {
@@ -213,6 +214,7 @@ export class Roster {
       health: member.player.health,
       team: this.teamOf(id),
       eyeHeight: eyeHeight(member.player.movement),
+      velocity: { ...member.player.movement.velocity },
       weapon,
     };
   }
