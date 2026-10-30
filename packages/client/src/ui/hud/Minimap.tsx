@@ -20,9 +20,7 @@ export function Minimap() {
   return (
     <div class={styles.frame} hidden={!walking} data-testid="minimap">
       <MapImage map={map} />
-      <svg class={styles.player} viewBox="-10 -10 20 20" aria-hidden="true">
-        <path d="M0 -8 L6.5 7 L0 3.5 L-6.5 7 Z" />
-      </svg>
+      <img class={styles.player} src="/assets/hud/compassping_player.png" alt="" />
     </div>
   );
 }
@@ -49,41 +47,29 @@ function MapImage({ map }: { map: MinimapInfo }) {
   });
   return (
     <>
-      <img
-        ref={image}
-        class={styles.map}
-        src={map.image}
-        alt=""
-        draggable={false}
-        style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}
-      />
-      <div
-        ref={pingsLayer}
-        class={styles.pingsLayer}
-        style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}
-      >
-        <AllyArrows allies={allies.value} />
+      <img ref={image} class={styles.map} src={map.image} alt="" draggable={false} style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }} />
+      <div ref={pingsLayer} class={styles.pingsLayer} style={{ width: `${map.width * 100}%`, height: `${map.height * 100}%` }}>
+        <AllyArrows allies={allies.value} pings={pings.value} />
         <PingMarkers pings={pings.value} />
       </div>
     </>
   );
 }
 
-/** Each teammate as MW3's `compassping_green_mp`: a white arrow in a green glow, turned to where they face. */
-function AllyArrows({ allies }: { allies: readonly MinimapAlly[] }) {
+/** Each teammate as MW3 draws one, turned to where they face: `green_mp` while they fire, the hollow arrow otherwise. */
+function AllyArrows({ allies, pings }: { allies: readonly MinimapAlly[]; pings: readonly MinimapPing[] }) {
+  const firing = new Set(pings.filter((p) => !p.isEnemy).map((p) => p.id));
   return (
     <>
       {allies.map((a) => (
-        <svg
+        <img
           key={a.id}
           class={styles.ally}
-          viewBox="-10 -10 20 20"
+          src={`/assets/hud/cb_compassping_green${firing.has(a.id) ? "" : "_hollow"}_mp.png`}
+          alt=""
           style={{ left: `${a.u * 100}%`, top: `${a.v * 100}%`, transform: `translate(-50%, -50%) rotate(${a.rotation}rad)` }}
-          aria-hidden="true"
           data-testid="minimap-ally"
-        >
-          <path d="M0 -8 L6.5 7 L0 3.5 L-6.5 7 Z" />
-        </svg>
+        />
       ))}
     </>
   );

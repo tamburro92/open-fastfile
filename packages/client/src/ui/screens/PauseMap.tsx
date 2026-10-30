@@ -67,9 +67,7 @@ function Marker() {
   });
   return (
     <div ref={marker} class={styles.marker} hidden>
-      <svg class={styles.player} viewBox="-10 -10 20 20" aria-hidden="true">
-        <path d="M0 -8 L6.5 7 L0 3.5 L-6.5 7 Z" />
-      </svg>
+      <img class={styles.player} src="/assets/hud/compassping_player.png" alt="" />
     </div>
   );
 }

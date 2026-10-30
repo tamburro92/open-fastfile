@@ -27,53 +27,34 @@
   pointer-events: none;
 }
 
-/* A teammate: MW3's compassping_green_mp, a near-white arrow in a green glow, the player arrow's size. */
+/* A teammate: MW3's compassping_green, at the player arrow's size. */
 .ally {
   position: absolute;
-  width: 18px;
-  height: 18px;
-  fill: #efffef;
-  stroke: #1fd12f;
-  stroke-width: 1.5;
-  stroke-linejoin: round;
-  filter: drop-shadow(0 0 2px #20ff30);
+  width: 24px;
+  height: 24px;
   pointer-events: none;
 }
 
-/* Call of Duty MW3 style enemy gunfire radar ping dot. */
+/* MW3's compassping_enemyfiring, which a UAV's sweep draws too. */
 .enemyPing {
   position: absolute;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   transform: translate(-50%, -50%);
-  border-radius: 50%;
-  background-color: #ff3333;
-  border: 1.5px solid rgba(15, 0, 0, 0.9);
-  box-shadow: 0 0 6px #ff1a1a, inset 0 0 2px rgba(255, 255, 255, 0.5);
+  background: url("/assets/hud/cb_compassping_enemyfiring.png") center / contain no-repeat;
   pointer-events: none;
 }
 
-/* Local player firing pulse blip. */
+/* A friendly's shot is their arrow lighting up (AllyArrows), and the player's own marks nothing. */
 .selfPing {
-  position: absolute;
-  width: 22px;
-  height: 22px;
-  transform: translate(-50%, -50%);
-  border-radius: 50%;
-  border: 2px solid rgba(255, 51, 51, 0.9);
-  box-shadow: 0 0 8px rgba(255, 51, 51, 0.7);
-  pointer-events: none;
+  display: none;
 }
 
 .player {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   transform: translate(-50%, -50%);
-  fill: var(--minimap-player);
-  stroke: var(--scrim-strong);
-  stroke-width: 1.5;
-  stroke-linejoin: round;
 }

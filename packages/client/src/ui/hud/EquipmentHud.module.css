@@ -34,11 +34,18 @@
 }
 
 .icon {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* Said to a screen reader, where the icon says it to everyone else. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
 }
 
 .name {

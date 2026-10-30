@@ -1,38 +1,44 @@
+/* MW3's own `hud_grenadeicon` and `hud_grenadepointer`, on its 480-line HUD. */
 .container {
+  --unit: calc(100vh / 480);
+  --icon-at: calc(var(--unit) * -50);
+  --pointer-at: calc(var(--unit) * -75);
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  width: 0;
+  height: 0;
   pointer-events: none;
   z-index: 10;
-}
-
-.indicator {
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  top: -22px;
-  left: -22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 0 8px rgba(255, 40, 40, 0.9));
-  animation: pulse 0.5s ease-in-out infinite alternate;
+  /* The opacity alone: a keyframe's `transform` would replace where each one was put. */
+  animation: pulse 0.6s ease-in-out infinite alternate;
 }
 
 @keyframes pulse {
-  0% {
-    transform: scale(0.95);
-    opacity: 0.85;
+  from {
+    opacity: 0.55;
   }
-  100% {
-    transform: scale(1.1);
+  to {
     opacity: 1;
   }
 }
 
+.icon,
+.pointer {
+  position: absolute;
+  transform-origin: center;
+}
+
 .icon {
-  width: 32px;
-  height: 32px;
-  fill: #ff2a2a;
+  width: calc(var(--unit) * 25);
+  height: calc(var(--unit) * 25);
+  left: calc(var(--unit) * -12.5);
+  top: calc(var(--unit) * -12.5);
+}
+
+.pointer {
+  width: calc(var(--unit) * 25);
+  height: calc(var(--unit) * 12.5);
+  left: calc(var(--unit) * -12.5);
+  top: calc(var(--unit) * -6.25);
 }
