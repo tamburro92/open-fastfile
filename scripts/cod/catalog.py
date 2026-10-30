@@ -512,29 +512,43 @@ def _attachment_models(work, worlds_root, game_key, defs, iwi, states):
     return found
 
 
+def _alt_holds(work, info):
+    """The joints a hybrid sight's other optic holds aside: {joint: local rotation, xyzw}; {} for none.
+
+    A weapon file's `altAdjustAnim` (`viewmodel_m4_hybrid_idle`) is one frame turning
+    `j_flip`, the magnifier's hinge, to where `scope_down` ends. A gun's clips cannot
+    carry it, because the joint is the attachment's and not in the gun's skeleton.
+    """
+    name = info.get("altAdjustAnim")
+    path = os.path.join(work, "view_anim", "xanim", name or "")
+    if not name or not os.path.exists(path):
+        return {}
+    with open(path, "rb") as fh:
+        clip = decode(fh.read(), name)
+    return {bone.name: list(bone.rotation.values[0]) for bone in clip.bones if bone.rotation}
+
+
 def _reticle_models(work, worlds_root, game_key, defs, iwi, states):
-    """Pack each optic's reticle; return {attachment name: reticle model}.
+    """Pack each optic's reticles; return {attachment name: [reticle model, ...]}.
 
     IW5 draws an optic's reticle as a model of its own, `reticleViewModels[0]`
-    (`viewmodel_reticle_eotech`; the other seven are the unlockable custom
-    reticles), a 1.37-inch quad hung on the optic's `tag_reticle_attach` with an
+    (`viewmodel_reticle_eotech`; the other seven are the custom reticles a class
+    may choose), a 1.37-inch quad hung on the optic's `tag_reticle_attach` with an
     emissive, premultiplied material. Packed beside the optic models, once a model.
     """
     models = os.path.join(work, "models")
     found, packed = {}, {}
     for name, attach in defs.items():
-        model = next((m for m in attach.get("reticleViewModels") or [] if m), None)
-        if model is None:
-            continue
-        if model not in packed:
-            raw = _model_glb(models, model)
-            packed[model] = raw is not None
-            if raw is not None:
-                out = entry_dir(worlds_root, "attachments", game_key, model)
-                os.makedirs(out, exist_ok=True)
-                pack_one(raw, os.path.join(out, f"{model}.glb"), iwi, VIEW_TEXTURE_SIZE, states, False)
-        if packed[model]:
-            found[name] = model
+        for model in (m for m in attach.get("reticleViewModels") or [] if m):
+            if model not in packed:
+                raw = _model_glb(models, model)
+                packed[model] = raw is not None
+                if raw is not None:
+                    out = entry_dir(worlds_root, "attachments", game_key, model)
+                    os.makedirs(out, exist_ok=True)
+                    pack_one(raw, os.path.join(out, f"{model}.glb"), iwi, VIEW_TEXTURE_SIZE, states, False)
+            if packed[model]:
+                found.setdefault(name, []).append(model)
     return found
 
 
@@ -783,7 +797,13 @@ def build_from_zone(work, worlds_root, game_key, states, hands=None):
         fitted = _fitted(game_key, name, info, guns, defs, models)
         for entry in fitted:
             if entry["id"] in reticles and "model" in entry:
-                entry["reticle"] = reticles[entry["id"]]
+                entry["reticle"], *custom = reticles[entry["id"]]
+                if custom:
+                    entry["customReticles"] = custom
+            if (entry.get("alt") or {}).get("shareAmmo"):
+                held = _alt_holds(work, info)
+                if held:
+                    entry["alt"]["holds"] = held
         unproven += attachments.check_variants(name, info, guns, fitted)
         built, problems = build_one(work, worlds_root, game_key, name, info, hands_raw, iwi, states, scratch, fitted, absolute)
         if built is None:

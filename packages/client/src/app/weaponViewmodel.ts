@@ -29,6 +29,9 @@ import type { GameContent } from "./content.js";
 const OFFHAND: Record<OffhandKind, string> = { frag: "frag_grenade_mp", semtex: "semtex_mp", flashbang: "flash_grenade_mp" };
 const OFFHAND_GAME = "iw5";
 
+/** A fitted attachment with every reticle its optic offers: its own, then the custom ones. */
+type CarriedAttachment = Omit<FittedAttachment, "reticle"> & { reticles: (GltfAsset | undefined)[] };
+
 export class WeaponViewmodel {
   /** The dev toggle; the hands are also hidden outside walk mode. */
   shown = true;
@@ -38,7 +41,7 @@ export class WeaponViewmodel {
   /** Copies of the world's lights for the viewmodel's own pass, made once per world. */
   private lights: THREE.Light[] = [];
   /** Every carried weapon's models, by `rigKey`, so a swap redraws without a fetch. */
-  private readonly carried = new Map<string, { weapon: GltfAsset; attachments: FittedAttachment[] }>();
+  private readonly carried = new Map<string, { weapon: GltfAsset; attachments: CarriedAttachment[] }>();
   /** The `rigKey` currently drawn, or null for empty hands. What `followSwap` compares against. */
   private drawn: string | null = null;
   /**
@@ -48,6 +51,11 @@ export class WeaponViewmodel {
    * what notices.
    */
   private armedSeen = -1;
+  /** The joints a hybrid sight holds aside on the rig drawn, and how far through swinging them it is. */
+  private held: { joint: THREE.Object3D; from: THREE.Quaternion; to: THREE.Quaternion }[] = [];
+  private heldLeft = 0;
+  private heldTime = 0;
+  private heldFor: { key: string; aside: boolean } | undefined;
 
   constructor(
     private readonly viewer: Viewer,
@@ -55,10 +63,17 @@ export class WeaponViewmodel {
     private readonly firstPerson: FirstPersonControls,
     private readonly animator: Animator,
     private readonly content: GameContent,
+    /** Which custom reticle the class in play gives this weapon's optic (`LoadoutWeapon.reticle`); 0 for its own. */
+    private readonly reticleOf: (weapon: WeaponId) => number = () => 0,
   ) {}
 
   private get player(): Player {
     return this.firstPerson.player;
+  }
+
+  private drawnKey(): string {
+    const player = this.player;
+    return drawnKey(player, player.weaponId === null ? 0 : this.reticleOf(player.weaponId));
   }
 
   /**
@@ -103,7 +118,7 @@ export class WeaponViewmodel {
       });
       return;
     }
-    if (this.drawn !== null && drawnKey(player) !== this.drawn) {
+    if (this.drawn !== null && this.drawnKey() !== this.drawn) {
       this.showHeld();
     }
   }
@@ -115,11 +130,44 @@ export class WeaponViewmodel {
     vm.visible = this.shown && walking && !this.player.dead;
     vm.paused = this.animator.paused; // a held pose holds the arms too
     vm.update(dt, { camera: this.viewer.camera, turn: this.firstPerson.turn, movement: this.player.movement });
+    this.stepHeld(dt);
     const zoom = walking ? vm.zoom : 1;
     this.viewer.setZoom(zoom);
     // The aim is scaled by the same number the view is, so a scope does not cost
     // its own magnification in precision. See FirstPersonControls.zoom.
     this.firstPerson.setZoom(zoom);
+  }
+
+  /**
+   * A hybrid sight's magnifier: on its hinge while the other optic is in hand. The
+   * rig was just rebuilt, at rest, so a change of optic on the same gun swings it
+   * from where it was; anything else is simply there.
+   */
+  private holdAside(root: THREE.Object3D, attachments: readonly CarriedAttachment[], key: string, seconds: number | undefined): void {
+    const holds = attachments.find((a) => a.entry.alt?.holds)?.entry.alt?.holds;
+    const aside = this.player.altHeld;
+    const changed = this.heldFor?.key === key && this.heldFor.aside !== aside;
+    this.heldFor = { key, aside };
+    this.held = [];
+    this.heldLeft = changed ? (seconds ?? 0) : 0;
+    this.heldTime = this.heldLeft;
+    for (const [name, [x, y, z, w]] of Object.entries(holds ?? {})) {
+      const joint = root.getObjectByName(name);
+      if (joint) {
+        const rest = joint.quaternion.clone();
+        const away = rest.clone().set(x, y, z, w);
+        this.held.push({ joint, from: aside ? rest : away, to: aside ? away : rest });
+      }
+    }
+    this.stepHeld(0);
+  }
+
+  private stepHeld(dt: number): void {
+    this.heldLeft = Math.max(0, this.heldLeft - dt);
+    const t = this.heldTime > 0 ? 1 - this.heldLeft / this.heldTime : 1;
+    for (const { joint, from, to } of this.held) {
+      joint.quaternion.slerpQuaternions(from, to, t);
+    }
   }
 
   /** Throw `kind` from its own rig in place of the weapon; false when there is none to draw or a throw is under way. */
@@ -179,16 +227,18 @@ export class WeaponViewmodel {
     }
     const wanted = entry.attachments.filter((_, slot) => fitted.includes(slot));
     const optional = (model: string | undefined) => (model ? assets.gltf(attachmentModelUrl(entry.game, model)) : Promise.resolve(undefined));
+    // Every reticle an optic offers, not the one in use: a change of class on the
+    // same gun then redraws at once, rather than with empty hands until a fetch lands.
     const [weapon, models, reticles] = await Promise.all([
       assets.gltf(url),
       Promise.all(wanted.map((a) => optional(a.model))),
-      Promise.all(wanted.map((a) => optional(a.reticle))),
+      Promise.all(wanted.map((a) => Promise.all([a.reticle, ...(a.customReticles ?? [])].map(optional)))),
     ]);
     // A world left while this was on its way: its store has freed these.
     if (weapon && this.assets === assets) {
       this.carried.set(rigKey(id, fitted), {
         weapon,
-        attachments: wanted.map((entryFor, i) => ({ entry: entryFor, asset: models[i], reticle: reticles[i] })),
+        attachments: wanted.map((entryFor, i) => ({ entry: entryFor, asset: models[i], reticles: reticles[i]! })),
       });
     }
   }
@@ -247,7 +297,10 @@ export class WeaponViewmodel {
       const assets = this.assets;
       const rig = buildViewmodelRig(parts.weapon, this.hands, {
         def: weapon.def,
-        attachments: parts.attachments,
+        attachments: parts.attachments.map(({ reticles, ...fitted }): FittedAttachment => ({
+          ...fitted,
+          reticle: reticles[this.reticleOf(player.weaponId!)] ?? reticles[0],
+        })),
         // The game's own blend for a reticle, derived once in this world's store and freed with it.
         reticleMaterial: (source) => assets.blendFor(source, REFLEX_SIGHT),
       });
@@ -257,7 +310,8 @@ export class WeaponViewmodel {
       this.viewmodel.attach(rig, this.lights, weapon, overlay ? this.assets.picture(overlayImageUrl(weapon.def.game, overlay)) : undefined);
       // Joined the pass's scene after the quality level was applied to it.
       this.viewer.applyQualityTo(rig.root);
-      this.drawn = drawnKey(player);
+      this.holdAside(rig.root, parts.attachments, rigKey(player.weaponId, player.fitted), weapon.def.times.altRaise);
+      this.drawn = this.drawnKey();
       if (options.ready) {
         weapon.ready();
       }
@@ -277,8 +331,8 @@ export class WeaponViewmodel {
  * is the same model on a controller of its own, with its own clips — switching
  * re-attaches the rig to it, or the launcher would play the rifle's idle.
  */
-function drawnKey(player: { weaponId: WeaponId | null; fitted: readonly number[]; altHeld: boolean }): string {
-  return `${rigKey(player.weaponId, player.fitted)}|${player.altHeld ? "alt" : ""}`;
+function drawnKey(player: { weaponId: WeaponId | null; fitted: readonly number[]; altHeld: boolean }, reticle: number): string {
+  return `${rigKey(player.weaponId, player.fitted)}|${player.altHeld ? "alt" : ""}|${reticle}`;
 }
 
 /** A rig is per weapon *and* per fitted set: the same gun with an ACOG is a different thing to draw. */

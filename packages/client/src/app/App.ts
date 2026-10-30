@@ -4,6 +4,7 @@
 // (frame.ts) and the pipeline, what a world is is WorldSession, and every rule
 // lives with the piece it is about.
 
+import { getLoadout } from "@3d/shared/sim/loadout.js";
 import { setHeat } from "../engine/heat.js";
 import { parsePose } from "../engine/pose.js";
 import { nextQualityLevel } from "../engine/qualityLevel.js";
@@ -98,7 +99,11 @@ export class App {
     this.screens = new ScreenRouter(ui, input, () => this.playerSession.inLobby);
     this.pause = new PauseController(systems, ui, this.screens, this.current, this.toaster);
     this.settings = new Settings(systems, this.current, ui);
-    this.weapon = new WeaponViewmodel(viewer, systems.viewmodel, systems.firstPerson, systems.animator, this.content);
+    this.weapon = new WeaponViewmodel(viewer, systems.viewmodel, systems.firstPerson, systems.animator, this.content, (weapon) => {
+      const playing = ui.playingClass.value;
+      const loadout = playing === null ? undefined : getLoadout(ui.loadouts.value, playing);
+      return (loadout?.primary.weapon === weapon ? loadout.primary : loadout?.secondary.weapon === weapon ? loadout.secondary : undefined)?.reticle ?? 0;
+    });
     this.dev = new DevTools(
       {
         viewer,

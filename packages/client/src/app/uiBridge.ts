@@ -80,6 +80,8 @@ export type TeamChoice = "spawn" | "change";
 export interface UiAttachment {
   id: string;
   name: string;
+  /** How many custom reticles this optic offers a class. */
+  reticles: number;
 }
 
 /** One weapon a class may name. `kind` is the source game's own category (`rifle`, `smg`, ...). */

@@ -6,7 +6,7 @@
 import * as THREE from "three";
 import * as SkeletonUtils from "three/examples/jsm/utils/SkeletonUtils.js";
 import type { GltfAsset } from "./assets.js";
-import { REFLEX_SIGHT, techniqueOf } from "./importedMaterials.js";
+import { collimateReticle, REFLEX_SIGHT, reticleFrameOf, techniqueOf, type ReticleFrame } from "./importedMaterials.js";
 
 // The weapon's plain-data description lives in src/shared/ so the server can
 // read it without three.js; re-exported here because a viewmodel is how the
@@ -156,8 +156,12 @@ export function buildViewmodelRig(weapon: GltfAsset, hands: GltfAsset, options: 
     if (!(item instanceof THREE.Mesh)) {
       return;
     }
-    if (techniqueOf(firstMaterial(item)) === REFLEX_SIGHT) {
+    const frame = item.userData.reticleFrame as ReticleFrame | undefined;
+    if (frame || techniqueOf(firstMaterial(item)) === REFLEX_SIGHT) {
       item.material = options.reticleMaterial?.(firstMaterial(item)) ?? item.material;
+      if (frame) {
+        collimateReticle(firstMaterial(item), frame);
+      }
       // Last of the rig, over the optic's own glass.
       item.renderOrder = 1;
     }
@@ -360,6 +364,14 @@ function mountReticle(mount: THREE.Object3D, fitted: FittedAttachment): void {
       meshes.push(item);
     }
   });
+  // Every mesh of a reticle model is a reticle, whatever technique it names: one
+  // of the custom ones is a plain blended quad, and it is keyed out the same way.
+  for (const mesh of meshes) {
+    const frame = reticleFrameOf(mesh.geometry);
+    if (frame) {
+      mesh.userData.reticleFrame = frame;
+    }
+  }
   const holder = uprightRigid(meshes);
   holder.name = "reticle";
   joint.add(holder);

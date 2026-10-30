@@ -122,6 +122,8 @@ export interface AttachmentEntry {
    * premultiplied over whatever is behind the glass.
    */
   reticle?: string;
+  /** The others a class may choose instead (`LoadoutWeapon.reticle`), in the weapon file's order. Same quad. */
+  customReticles?: string[];
   /** Joints whose surfaces this hides, on top of the weapon's own `hideBones`: the iron sights under a scope. */
   hideBones?: string[];
   /** Joints the bare weapon hides and this reveals: the gun's own attachment meshes, in a game that carries them. */
@@ -158,6 +160,11 @@ export interface AltWeaponEntry extends Partial<WeaponDef> {
    * optic (`shareAmmoWithAlt`). Only its aiming clips, zoom and flip are its own.
    */
   shareAmmo?: boolean;
+  /**
+   * The attachment's own joints this optic holds aside, as local xyzw rotations:
+   * the magnifier's hinge. A gun's clips cannot carry them, the joints not being its.
+   */
+  holds?: Record<string, [number, number, number, number]>;
 }
 
 /** A weapon's catalogue address. The one place `<game>/<name>` is spelled. */
@@ -359,7 +366,8 @@ export function resolveAlt(entry: WeaponEntry, fitted: Fitted): { def: WeaponDef
     return null;
   }
   const host = resolveWeapon(entry, fitted);
-  const { stock, shareAmmo, ...rest } = alt;
+  // `holds` is the drawing's (client/app/weaponViewmodel.ts), and no number of the gun's.
+  const { stock, shareAmmo, holds: _holds, ...rest } = alt;
   // Only the clips the weapon's file holds. MW3 authors some of a launcher's aiming
   // clips as one still frame, which the exporter writes as no clip at all, and a
   // role naming one is a rig that cannot be built (the riot shield's rough edge).

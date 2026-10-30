@@ -44,7 +44,14 @@ const def = (weapon: string) =>
   }) as WeaponEntry["def"];
 
 const CATALOGUED: WeaponEntry[] = [
-  { id: "m4", game: "iw5", slot: "primary", class: "rifle", def: def("m4"), attachments: [{ id: "acog", type: "scope" }] },
+  {
+    id: "m4",
+    game: "iw5",
+    slot: "primary",
+    class: "rifle",
+    def: def("m4"),
+    attachments: [{ id: "acog", type: "scope", customReticles: ["viewmodel_reticle_custom1", "viewmodel_reticle_custom2"] }, { id: "silencer" }],
+  },
   { id: "usp", game: "iw5", slot: "secondary", class: "pistol", def: def("usp"), attachments: [] },
 ];
 
@@ -111,6 +118,21 @@ describe("a player's classes", () => {
     const player = await users.create("fitter", "hunter2hunter2");
     await loadouts.save(player.id, 0, { ...assault, secondary: { weapon: "iw5/usp", attachments: ["acog"] } });
     expect((await loadouts.forUser(player.id))[0]!.secondary).toEqual({ weapon: "iw5/usp", attachments: [] });
+  });
+
+  it("keeps a custom reticle the fitted optic offers, and no other", async () => {
+    const { loadouts, users } = serviceFor();
+    const player = await users.create("marksman", "hunter2hunter2");
+    const primary = (over: object) => ({ ...assault, primary: { weapon: "iw5/m4", attachments: ["acog"], ...over } });
+
+    await loadouts.save(player.id, 0, primary({ reticle: 2 }));
+    expect((await loadouts.forUser(player.id))[0]!.primary).toEqual({ weapon: "iw5/m4", attachments: ["acog"], reticle: 2 });
+
+    // Past what the optic offers, and on an attachment that offers none: its own.
+    await loadouts.save(player.id, 0, primary({ reticle: 3 }));
+    expect((await loadouts.forUser(player.id))[0]!.primary).toEqual({ weapon: "iw5/m4", attachments: ["acog"] });
+    await loadouts.save(player.id, 0, primary({ attachments: ["silencer"], reticle: 1 }));
+    expect((await loadouts.forUser(player.id))[0]!.primary).toEqual({ weapon: "iw5/m4", attachments: ["silencer"] });
   });
 
   it("empties a slot whose weapon the catalogue does not hold", async () => {

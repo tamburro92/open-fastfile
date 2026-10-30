@@ -84,8 +84,10 @@ export class Loadouts {
       game: loadout.game,
       primaryWeapon: first.weapon,
       primaryAttachment: first.attachments[0] ?? null,
+      primaryReticle: first.reticle ?? null,
       secondaryWeapon: second.weapon,
       secondaryAttachment: second.attachments[0] ?? null,
+      secondaryReticle: second.reticle ?? null,
       modifiedAt: this.clock.seconds(),
     };
     this.sqlite.db
@@ -129,14 +131,19 @@ function keep(choice: LoadoutWeapon, slot: LoadoutSlot, game: string | null, reg
     return { weapon: null, attachments: [] };
   }
   const offered = new Set(entry.attachments.map((a) => a.id));
-  return { weapon: choice.weapon, attachments: choice.attachments.filter((id) => offered.has(id)).slice(0, MAX_LOADOUT_ATTACHMENTS) };
+  const attachments = choice.attachments.filter((id) => offered.has(id)).slice(0, MAX_LOADOUT_ATTACHMENTS);
+  // A reticle belongs to the optic it was chosen on: another optic, or one that no longer offers it, is its own.
+  const customs = entry.attachments.find((a) => attachments.includes(a.id))?.customReticles?.length ?? 0;
+  const reticle = choice.reticle !== undefined && choice.reticle <= customs ? { reticle: choice.reticle } : {};
+  return { weapon: choice.weapon, attachments, ...reticle };
 }
 
 /** One row as a class, verbatim. The `_attachment` columns are single because a class carries one (MAX_LOADOUT_ATTACHMENTS). */
 function asLoadout(row: LoadoutRow): Loadout {
-  const weapon = (id: string | null, attachment: string | null): LoadoutWeapon => ({
+  const weapon = (id: string | null, attachment: string | null, reticle: number | null): LoadoutWeapon => ({
     weapon: id,
     attachments: attachment === null ? [] : [attachment],
+    ...(reticle === null ? {} : { reticle }),
   });
   return {
     name: row.name,
@@ -144,8 +151,8 @@ function asLoadout(row: LoadoutRow): Loadout {
     // from — the only one it can have been built from, since the menu listed
     // every game's weapons together and a player who mixed two loses one of them.
     game: row.game ?? gameOf(row.primaryWeapon) ?? gameOf(row.secondaryWeapon),
-    primary: weapon(row.primaryWeapon, row.primaryAttachment),
-    secondary: weapon(row.secondaryWeapon, row.secondaryAttachment),
+    primary: weapon(row.primaryWeapon, row.primaryAttachment, row.primaryReticle),
+    secondary: weapon(row.secondaryWeapon, row.secondaryAttachment, row.secondaryReticle),
   };
 }
 

@@ -13,7 +13,7 @@
 // class without it, and the menu shows that immediately.
 
 import * as z from "zod/mini";
-import { LOADOUT_COUNT, LOADOUT_NAME_MAX, MAX_LOADOUT_ATTACHMENTS, type Loadout } from "../../sim/loadout.js";
+import { LOADOUT_COUNT, LOADOUT_NAME_MAX, MAX_CUSTOM_RETICLES, MAX_LOADOUT_ATTACHMENTS, type Loadout } from "../../sim/loadout.js";
 import { defineRoute, json } from "../route.js";
 
 /**
@@ -29,6 +29,7 @@ const loadoutWeapon = z.object({
   weapon: z.nullable(weaponId),
   /** Capped here as well as stored capped: a body is untrusted, and the cap is a rule of the game. */
   attachments: z.array(attachmentId).check(z.maxLength(MAX_LOADOUT_ATTACHMENTS)),
+  reticle: z.optional(z.number().check(z.int(), z.gte(1), z.lte(MAX_CUSTOM_RETICLES))),
 });
 
 const perksSchema = z.object({

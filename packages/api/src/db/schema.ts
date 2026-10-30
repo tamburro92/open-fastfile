@@ -86,8 +86,11 @@ export const loadouts = sqliteTable(
     game: text("game"),
     primaryWeapon: text("primary_weapon"),
     primaryAttachment: text("primary_attachment"),
+    /** `LoadoutWeapon.reticle`: null for the optic's own. */
+    primaryReticle: integer("primary_reticle"),
     secondaryWeapon: text("secondary_weapon"),
     secondaryAttachment: text("secondary_attachment"),
+    secondaryReticle: integer("secondary_reticle"),
     modifiedAt: integer("modified_at").notNull(),
   },
   (table) => [primaryKey({ columns: [table.userId, table.index] })],

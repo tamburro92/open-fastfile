@@ -65,7 +65,11 @@ function weaponChoice(entry: WeaponEntry): UiWeapon {
     kind: entry.class ?? "",
     slot: entry.slot ?? null,
     category: weaponCategory(entry),
-    attachments: entry.attachments.map((attachment): UiAttachment => ({ id: attachment.id, name: readableName(attachment.display ?? "", attachment.id) })),
+    attachments: entry.attachments.map((attachment): UiAttachment => ({
+      id: attachment.id,
+      name: readableName(attachment.display ?? "", attachment.id),
+      reticles: attachment.customReticles?.length ?? 0,
+    })),
   };
 }
 

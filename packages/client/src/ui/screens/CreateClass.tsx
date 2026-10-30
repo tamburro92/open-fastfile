@@ -114,14 +114,17 @@ export function CreateClass() {
                     setPicking(picking ? slot !== which : true);
                     setHover(null);
                   }}
-                  onFit={(ids) => edit((was) => ({ ...was, [which]: { ...was[which], attachments: ids } }))}
+                  // A reticle belongs to the optic it was chosen on.
+                  onFit={(ids) => edit((was) => ({ ...was, [which]: { weapon: was[which].weapon, attachments: ids } }))}
+                  onReticle={(reticle) =>
+                    edit((was) => ({
+                      ...was,
+                      [which]: { weapon: was[which].weapon, attachments: was[which].attachments, ...(reticle === 0 ? {} : { reticle }) },
+                    }))
+                  }
                 />
               ))}
-              <EquipmentRow
-                loadout={loadout}
-                disabled={loadout.game === null}
-                onSelectLethal={(lethal) => edit((was) => ({ ...was, lethal }))}
-              />
+              <EquipmentRow loadout={loadout} disabled={loadout.game === null} onSelectLethal={(lethal) => edit((was) => ({ ...was, lethal }))} />
             </div>
             {picking && loadout.game !== null ? (
               <WeaponPicker
@@ -187,6 +190,7 @@ function SlotRow(props: {
   open: boolean;
   onOpen: () => void;
   onFit: (ids: string[]) => void;
+  onReticle: (reticle: number) => void;
 }) {
   const held = props.loadout[props.slot];
   const weapon = props.weapons.find((w) => w.id === held.weapon);
@@ -198,6 +202,7 @@ function SlotRow(props: {
         {weapon?.category && <span class={styles.kind}>{CATEGORY_LABEL[weapon.category]}</span>}
       </button>
       {weapon && weapon.attachments.length > 0 && <Attachments weapon={weapon} fitted={held.attachments} onFit={props.onFit} />}
+      {weapon && <Reticles weapon={weapon} fitted={held.attachments} chosen={held.reticle ?? 0} onChoose={props.onReticle} />}
     </section>
   );
 }
@@ -218,6 +223,24 @@ function Attachments(props: { weapon: UiWeapon; fitted: readonly string[]; onFit
       {props.weapon.attachments.map((attachment) => (
         <button key={attachment.id} class={styles.attachment} aria-pressed={props.fitted.includes(attachment.id)} onClick={() => fit(attachment.id)}>
           {attachment.name}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** The fitted optic's reticles: its own, then the custom ones. Nothing for a gun with no such optic. */
+function Reticles(props: { weapon: UiWeapon; fitted: readonly string[]; chosen: number; onChoose: (reticle: number) => void }) {
+  const list = useRef<HTMLDivElement>(null);
+  const customs = props.weapon.attachments.find((a) => props.fitted.includes(a.id))?.reticles ?? 0;
+  if (customs === 0) {
+    return null;
+  }
+  return (
+    <div class={styles.attachments} ref={list} role="group" aria-label="Reticle" onKeyDown={(e) => arrowKeys(e, list.current)}>
+      {Array.from({ length: customs + 1 }, (_, reticle) => (
+        <button key={reticle} class={styles.attachment} aria-pressed={props.chosen === reticle} onClick={() => props.onChoose(reticle)}>
+          {reticle === 0 ? "Default reticle" : `Reticle ${reticle}`}
         </button>
       ))}
     </div>
@@ -295,11 +318,7 @@ function Preview(props: { weapon: string | null; attachments: readonly string[] 
   );
 }
 
-function EquipmentRow(props: {
-  loadout: Loadout;
-  disabled: boolean;
-  onSelectLethal: (lethal: "frag_grenade_mp" | "semtex_mp") => void;
-}) {
+function EquipmentRow(props: { loadout: Loadout; disabled: boolean; onSelectLethal: (lethal: "frag_grenade_mp" | "semtex_mp") => void }) {
   const lethal = props.loadout.lethal ?? "frag_grenade_mp";
   return (
     <>

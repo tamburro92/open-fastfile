@@ -29,7 +29,12 @@ export interface LoadoutWeapon {
   weapon: WeaponId | null;
   /** Attachment ids, in no significant order — `resolveWeapon` applies them in the catalogue's. */
   attachments: AttachmentId[];
+  /** Which of the fitted optic's custom reticles: 1 for `customReticles[0]`. Absent for its own. */
+  reticle?: number;
 }
+
+/** How many custom reticles an optic offers at most. MW3's have seven. */
+export const MAX_CUSTOM_RETICLES = 7;
 
 /**
  * The games a class may be built from, in the order the menu offers them. A class
@@ -53,16 +58,7 @@ export type Perk3Id = "stalker" | "steady_aim" | "dead_silence" | "sitrep";
 
 export type StrikePackageId = "assault" | "support" | "specialist";
 
-export type KillstreakId =
-  | "uav"
-  | "predator_missile"
-  | "sentry_gun"
-  | "counter_uav"
-  | "sam_turret"
-  | "ims"
-  | "strafe_run"
-  | "reaper"
-  | "ac130";
+export type KillstreakId = "uav" | "predator_missile" | "sentry_gun" | "counter_uav" | "sam_turret" | "ims" | "strafe_run" | "reaper" | "ac130";
 
 export interface LoadoutPerks {
   perk1: Perk1Id;
@@ -248,9 +244,7 @@ export function defaultLoadout(index: number): Loadout {
     lethal: template.lethal,
     tactical: template.tactical,
     perks: template.perks ? { ...template.perks } : undefined,
-    strikePackage: template.strikePackage
-      ? { package: template.strikePackage.package, streaks: [...template.strikePackage.streaks] }
-      : undefined,
+    strikePackage: template.strikePackage ? { package: template.strikePackage.package, streaks: [...template.strikePackage.streaks] } : undefined,
   };
 }
 

@@ -22,6 +22,13 @@
       "when": 1790161648171,
       "tag": "0002_slimy_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793374490586,
+      "tag": "0003_flawless_joshua_kane",
+      "breakpoints": true
     }
   ]
 }

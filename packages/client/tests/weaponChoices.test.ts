@@ -69,6 +69,6 @@ describe("listing what a class may name", () => {
   });
 
   it("names each weapon's attachments too", () => {
-    expect(weaponChoices(registry)[1]!.attachments).toEqual([{ id: "acog", name: "ACOG" }]);
+    expect(weaponChoices(registry)[1]!.attachments).toEqual([{ id: "acog", name: "ACOG", reticles: 0 }]);
   });
 });

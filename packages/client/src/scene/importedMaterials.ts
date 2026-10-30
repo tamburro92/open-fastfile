@@ -69,11 +69,63 @@ export function applySortKey(mesh: THREE.Mesh, key: number): void {
 export const REFLEX_SIGHT = "reflexsight";
 
 /**
- * The red a reticle is lit in, linear. Not in any material: MW3's reticle masks
- * are white and the reflex-sight shader colours them, so this is the one value
- * here chosen by eye against the game rather than read from its files.
+ * A reticle's colour, linear. MW3's default masks are white while its custom
+ * reticles' textures are pure red under the same technique, so the shader keeps
+ * the red channel: this gives both the red the customs are authored in.
  */
-const RETICLE_COLOUR = [1.0, 0.08, 0.04] as const;
+const RETICLE_COLOUR = [1.0, 0.0, 0.0] as const;
+
+/**
+ * A reticle quad's image in its own space (`reticleFrameOf`): where the image's
+ * centre is, and how its U and V change per unit of distance.
+ */
+export interface ReticleFrame {
+  centre: THREE.Vector3;
+  u: THREE.Vector3;
+  v: THREE.Vector3;
+}
+
+/** The frame of a flat, linearly mapped quad, read off its first triangle; null where that has no area. */
+export function reticleFrameOf(geometry: THREE.BufferGeometry): ReticleFrame | null {
+  const position = geometry.getAttribute("position");
+  const uv = geometry.getAttribute("uv");
+  if (!position || !uv) {
+    return null;
+  }
+  const [a, b, c] = geometry.index ? [geometry.index.getX(0), geometry.index.getX(1), geometry.index.getX(2)] : [0, 1, 2];
+  const origin = new THREE.Vector3().fromBufferAttribute(position, a);
+  const e1 = new THREE.Vector3().fromBufferAttribute(position, b).sub(origin);
+  const e2 = new THREE.Vector3().fromBufferAttribute(position, c).sub(origin);
+  const [du1, dv1] = [uv.getX(b) - uv.getX(a), uv.getY(b) - uv.getY(a)];
+  const [du2, dv2] = [uv.getX(c) - uv.getX(a), uv.getY(c) - uv.getY(a)];
+  const [g11, g12, g22] = [e1.dot(e1), e1.dot(e2), e2.dot(e2)];
+  const inPlane = g11 * g22 - g12 * g12;
+  const inImage = du1 * dv2 - du2 * dv1;
+  if (Math.abs(inPlane) < 1e-12 || Math.abs(inImage) < 1e-12) {
+    return null;
+  }
+  // The gradient of a linear map over the plane, from its change along two edges.
+  const gradient = (d1: number, d2: number) =>
+    e1
+      .clone()
+      .multiplyScalar((d1 * g22 - d2 * g12) / inPlane)
+      .addScaledVector(e2, (d2 * g11 - d1 * g12) / inPlane);
+  const [toU, toV] = [0.5 - uv.getX(a), 0.5 - uv.getY(a)];
+  const centre = origin
+    .clone()
+    .addScaledVector(e1, (toU * dv2 - toV * du2) / inImage)
+    .addScaledVector(e2, (toV * du1 - toU * dv1) / inImage);
+  return { centre, u: gradient(du1, du2), v: gradient(dv1, dv2) };
+}
+
+/**
+ * Collimate a reticle: its image stays on the sight's axis as the eye moves off
+ * it, as a real sight's does, instead of sliding with the glass. Only for a
+ * lone quad: the hybrid sight's reticles are surfaces on an atlas, with no frame.
+ */
+export function collimateReticle(material: THREE.Material, frame: ReticleFrame): void {
+  material.userData.reticleFrame = frame;
+}
 
 /** The technique a material asks to be drawn with (`extras.technique`), if any. */
 export function techniqueOf(material: THREE.Material): string | undefined {
@@ -111,14 +163,47 @@ export function blendedMaterialFor(source: THREE.Material, mode: string): THREE.
     // shader supplies the colour: black keys out, the mark is the reticle's red.
     // Then ONE/INVSRCALPHA, the material's own blend, over a premultiplied result.
     mat.color = new THREE.Color(1, 1, 1);
+    // Whichever way a surface winds: the magnified EOTech's faces away from the eye.
+    mat.side = THREE.DoubleSide;
+    // The technique reads none: the magnified EOTech's reticle has black vertices.
+    mat.vertexColors = false;
     mat.blending = THREE.CustomBlending;
     mat.blendEquation = THREE.AddEquation;
     mat.blendSrc = THREE.OneFactor;
     mat.blendDst = THREE.OneMinusSrcAlphaFactor;
+    // Its UVs run past the image onto a black edge. Repeated, a collimated
+    // reticle would come back in from the other side of the glass.
+    if (mat.map) {
+      mat.map.wrapS = mat.map.wrapT = THREE.ClampToEdgeWrapping;
+      mat.map.needsUpdate = true;
+    }
     addPatch(mat, {
       name: "reflex-sight",
       key: "reflex-sight",
       apply: (shader) => {
+        const frame = mat.userData.reticleFrame as ReticleFrame | undefined;
+        shader.uniforms.reticleCollimated = { value: frame ? 1 : 0 };
+        shader.uniforms.reticleCentre = { value: frame?.centre ?? new THREE.Vector3() };
+        shader.uniforms.reticleU = { value: frame?.u ?? new THREE.Vector3() };
+        shader.uniforms.reticleV = { value: frame?.v ?? new THREE.Vector3() };
+        shader.vertexShader = `uniform float reticleCollimated;
+uniform vec3 reticleCentre;
+uniform vec3 reticleU;
+uniform vec3 reticleV;
+${shader.vertexShader}`.replace(
+          "#include <uv_vertex>",
+          `#include <uv_vertex>
+       #ifdef USE_MAP
+       if ( reticleCollimated > 0.5 ) {
+         // The image at a point is the one on the line through it parallel to the
+         // axis, so only the eye's offset across the quad moves it.
+         vec3 fromCentre = ( inverse( modelViewMatrix ) * vec4( 0.0, 0.0, 0.0, 1.0 ) ).xyz - reticleCentre;
+         vec3 axis = normalize( cross( reticleU, reticleV ) );
+         fromCentre -= axis * dot( fromCentre, axis );
+         vMapUv -= vec2( dot( reticleU, fromCentre ), dot( reticleV, fromCentre ) );
+       }
+       #endif`,
+        );
         shader.fragmentShader = shader.fragmentShader.replace(
           "#include <opaque_fragment>",
           `#include <opaque_fragment>

@@ -290,22 +290,27 @@ world into the same framebuffer with only the depth cleared (the `viewmodel`
   `ads_up` — put the optic's sight line on the eye. The reticle is IW5's
   `reticleViewModels[0]` (`viewmodel_reticle_eotech`), a 1.37-inch quad hung on
   the optic's `tag_reticle_attach` and stood up as a rigid scope is. **It is
-  drawn by its technique, not its blend**: every `mc_reflexsight` material is a
-  white mask on black with no alpha at all (DXT1), so `one`/`invsrcalpha` alone
-  is an opaque black square over the glass. The exporter marks those materials
-  (`extras.technique`, `pack.drawn_technique`) and the rig redraws every marked
-  one — the reticle model's, and the hybrid sight's two inside its own model —
-  with the mask as its coverage and the reticle's red as its colour, unlit, no
-  depth write, after the glass (`blendFor(…, REFLEX_SIGHT)`, owned by the
-  world's store). The red is the one number chosen by eye: the shader supplies
-  it, and no file says it. Its image fills the middle of the quad only, because
-  its UVs run past the clamped edge.
+  drawn by its technique, not its blend**: a `mc_reflexsight` material is a mask
+  on black with no alpha (DXT1), so `one`/`invsrcalpha` alone is an opaque black
+  square over the glass. The exporter marks those materials (`extras.technique`,
+  `pack.drawn_technique`) and the rig redraws them, and every mesh of a reticle
+  model, with the mask as coverage and its red as colour: unlit, double sided, no
+  depth write, no vertex colours (the magnified EOTech's are black), after the
+  glass (`blendFor(…, REFLEX_SIGHT)`, owned by the world's store). The red is
+  inferred, since the shader is not read: the default masks are white and the
+  custom reticles' textures pure red under one technique. **A reticle model is
+  collimated**: its image stays on the sight's axis as the eye moves off it
+  (`reticleFrameOf`), which is why its texture must clamp, or it comes back in
+  from the far side. A surface inside an optic's own model (the hybrid sights')
+  is skinned, and is not. A class may choose one of an optic's custom reticles
+  (`LoadoutWeapon.reticle`, `customReticles`), all fetched with the gun so a
+  change of class never draws empty hands. A hybrid sight's magnifier hinge is
+  not in the gun's skeleton, so its clips cannot turn it: `alt.holds` carries the
+  pose from `altAdjustAnim`, and `WeaponViewmodel.holdAside` swings it.
   `client/tests/testReflexClip.test.ts` projects every MW3 gun's every optic at
-  full aim and holds the reticle to the middle of the screen. What is not
-  built: the reflex technique's correction for an eye off the sight line (the
-  reticle is a flat quad, so it moves with the glass under sway), the seven
-  custom reticles a player could unlock, and the technique's `detailMap`, a
-  fine grain tiled forty times over the mark.
+  full aim and holds the reticle to the middle of the screen. What is not built:
+  the technique's `detailMap`, which is a fine grain whose combination only the
+  shader knows.
 - Two render calls a frame reset `renderer.info` twice, so the viewer turns
   `autoReset` off and resets once per frame; the draw counts cover both passes.
 

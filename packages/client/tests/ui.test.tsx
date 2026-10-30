@@ -873,7 +873,7 @@ describe("debug overlay", () => {
 });
 
 describe("create a class", () => {
-  const weapon = (id: string, name: string, game: string, category: WeaponCategory, attachments: { id: string; name: string }[] = []) => ({
+  const weapon = (id: string, name: string, game: string, category: WeaponCategory, attachments: { id: string; name: string; reticles: number }[] = []) => ({
     id,
     name,
     game,
@@ -883,8 +883,8 @@ describe("create a class", () => {
     attachments,
   });
   const M4 = weapon("iw5/iw5_m4_mp", "M4 Carbine", "iw5", "assault", [
-    { id: "acog", name: "ACOG" },
-    { id: "silencer", name: "Silencer" },
+    { id: "acog", name: "ACOG", reticles: 2 },
+    { id: "silencer", name: "Silencer", reticles: 0 },
   ]);
   const MP5 = weapon("iw5/iw5_mp5_mp", "MP5", "iw5", "smg");
   const USP = weapon("iw5/iw5_usp45_mp", "USP 45", "iw5", "handgun");
@@ -972,6 +972,20 @@ describe("create a class", () => {
     fireEvent.click(screen.getByRole("button", { name: "Assault" }));
     fireEvent.click(screen.getByRole("button", { name: "Silencer" }));
     expect(saved(commands)[1].primary.attachments).toEqual(["silencer"]);
+  });
+
+  it("offers a fitted optic's reticles, and forgets the choice with the optic", () => {
+    const { commands } = classes();
+    fireEvent.click(screen.getByRole("button", { name: "Assault" }));
+    expect(screen.getByRole("button", { name: "Default reticle", pressed: true })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reticle 2" }));
+    expect(saved(commands)[1].primary).toEqual({ weapon: M4.id, attachments: ["acog"], reticle: 2 });
+    fireEvent.click(screen.getByRole("button", { name: "Default reticle" }));
+    expect(saved(commands)[1].primary).toEqual({ weapon: M4.id, attachments: ["acog"] });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reticle 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Silencer" }));
+    expect(saved(commands)[1].primary).toEqual({ weapon: M4.id, attachments: ["silencer"] });
   });
 
   it("takes an attachment off when it is pressed again", () => {
