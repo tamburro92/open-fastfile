@@ -181,14 +181,14 @@ function setupMatch(options: { gametype?: GametypeDecl; friendlyFire?: boolean }
   const tails = new Map<PlayerId, GameEvent[]>();
   let latestPlayers: PlayerSnapshot[] = [];
 
-  const stepTick = (inputs: Record<PlayerId, PlayerInput>) => {
+  const stepTick = (inputs: Record<PlayerId, PlayerInput>, drawn: { tick: number; frac: number } = { tick: 0, frac: 0 }) => {
     for (const [id, input] of Object.entries(inputs)) {
       const msg: InputMessage = {
         seq: ++seq,
         dt: DT,
         input,
         claim: { x: 0, y: 0, z: 0 },
-        drawn: { tick: 0, frac: 0 },
+        drawn,
       };
       match.receive(id, msg);
     }
@@ -256,6 +256,47 @@ describe("MW3 Melee Combat", () => {
     }
   });
 
+  describe("judged where the attacker was drawing the target", () => {
+    /** Twenty ticks with the victim at `first`, then `after` ticks with it at `second`; the tick it was last at `first`. */
+    function moved(first: number, second: number, after: number) {
+      const sim = setupMatch();
+      sim.match.join("attacker", loadout());
+      sim.match.join("victim", loadout());
+      const idle = { attacker: idleInput(0, 0), victim: idleInput(Math.PI, 0) };
+      sim.match.place("attacker", { x: 0, y: 0, z: 0 }, 0, 0);
+      sim.match.place("victim", { x: 0, y: 0, z: first }, Math.PI, 0);
+      for (let i = 0; i < 20; i++) {
+        sim.stepTick(idle);
+      }
+      const tick = sim.match.snapshotFor("attacker", []).tick;
+      sim.match.place("victim", { x: 0, y: 0, z: second }, Math.PI, 0);
+      for (let i = 0; i < after; i++) {
+        sim.stepTick(idle);
+      }
+      const stab = (drawn: { tick: number; frac: number }) => sim.stepTick({ ...idle, attacker: { ...idle.attacker, melee: true } }, drawn);
+      return { sim, tick, stab };
+    }
+
+    it("lands on a target in reach on the attacker's screen, who has since moved out of it", () => {
+      const { sim, tick, stab } = moved(-1.2, -4, 6);
+      stab({ tick, frac: 0 });
+      expect(sim.getLatest("victim")?.state.dead).toBe(true);
+    });
+
+    it("misses a target who has only just come into reach, whom the attacker was not yet drawing there", () => {
+      const { sim, tick, stab } = moved(-4, -1.2, 6);
+      stab({ tick, frac: 0 });
+      expect(sim.getLatest("victim")?.state.dead).toBe(false);
+    });
+
+    it("reaches back no further than a round may: past that the target is judged a quarter second ago", () => {
+      const { sim, tick, stab } = moved(-1.2, -4, Math.round(TICK_RATE * 0.5));
+      stab({ tick, frac: 0 });
+      expect(sim.getLatest("victim")?.state.dead).toBe(false);
+      expect(sim.match.rewindReport().clamped).toBeGreaterThan(0);
+    });
+  });
+
   it("waits a weapon's own meleeTime between two stabs: 0.8 s where it names none", () => {
     const sim = setupMatch({ friendlyFire: true });
     sim.match.join("attacker", loadout());
@@ -265,6 +306,9 @@ describe("MW3 Melee Combat", () => {
     sim.match.place("attacker", { x: 0, y: 0, z: 0 }, 0, 0);
     sim.match.place("victim1", { x: 0, y: 0, z: -1.2 }, 0, 0);
     sim.match.place("victim2", { x: 0.5, y: 0, z: -1.2 }, 0, 0);
+
+    // A tick for each of them to have somewhere to be rewound to.
+    sim.stepTick({ attacker: idleInput(0, 0), victim1: idleInput(0, 0), victim2: idleInput(0, 0) });
 
     // First melee kills victim1
     sim.stepTick({

@@ -2,15 +2,18 @@
 //
 // Deal 135 damage (1-hit kill on standard 100 HP), reach 2.0 meters, cooldown 0.66s.
 // Traced authoritatively on the server, checking distance, facing cone, and line-of-sight
-// against level geometry.
+// against level geometry, with each target where the attacker was drawing them, as a
+// round is (rewind.ts): a knife is judged at the distance the player saw.
 
 import type { InputMessage } from "@3d/shared/net/messages/input.js";
 import type { CapsuleWorld, Vec3 } from "@3d/shared/sim/capsule.js";
+import { createMovement, type MovementState } from "@3d/shared/sim/movement.js";
 import { eyeHeight } from "@3d/shared/sim/stance.js";
 import { aimAngles, aimDirection } from "@3d/shared/sim/recoil.js";
 import type { MatchClock } from "./clock.js";
 import type { Damage } from "./damage.js";
 import type { EventOutbox } from "./outbox.js";
+import type { Rewinder } from "./rewind.js";
 import type { Member, Roster } from "./roster.js";
 
 /** Authentic MW3 melee parameters: */
@@ -22,6 +25,7 @@ export const MELEE_CONE_DOT = 0.5; // ~60 degree angle tolerance
 
 export class Melee {
   private readonly aimDir: Vec3 = { x: 0, y: 0, z: 0 };
+  private readonly rewound: MovementState = createMovement({ x: 0, y: 0, z: 0 }, 0, 0);
 
   constructor(
     private readonly clock: MatchClock,
@@ -29,12 +33,13 @@ export class Melee {
     private readonly damage: Damage,
     private readonly outbox: EventOutbox,
     private readonly collision: CapsuleWorld,
+    private readonly rewinder: Rewinder,
   ) {}
 
   /**
    * Execute a melee attack from `member` based on their current input step.
    */
-  attack(member: Member, _message: InputMessage): void {
+  attack(member: Member, message: InputMessage): void {
     if (member.player.dead) {
       return;
     }
@@ -53,6 +58,9 @@ export class Melee {
     const eye: Vec3 = { x: movement.feet.x, y: movement.feet.y + up, z: movement.feet.z };
     const aim = aimDirection(aimAngles(movement, null), this.aimDir);
 
+    // Once a stab, however many it is judged against: `target` counts what it clamps.
+    const at = this.rewinder.target(member.sentTick, message);
+
     let bestTarget: Member | null = null;
     let bestScore = -Infinity;
 
@@ -61,7 +69,10 @@ export class Melee {
         continue;
       }
 
-      const targetMovement = target.player.movement;
+      const targetMovement = this.rewinder.sample(target.history, at, this.rewound);
+      if (targetMovement === null) {
+        continue;
+      }
       const targetUp = eyeHeight(targetMovement) * 0.6;
       const targetCenter: Vec3 = {
         x: targetMovement.feet.x,

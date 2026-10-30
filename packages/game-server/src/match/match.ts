@@ -162,7 +162,7 @@ export class Match {
       (id) => this.leave(id),
     ));
     const use = new Interactions(world, gametype, collision, parts.presence, scripts, view, playing.partBounds);
-    const melee = (this.melee = new Melee(clock, roster, damage, outbox, collision));
+    const melee = (this.melee = new Melee(clock, roster, damage, outbox, collision, rewinder));
     const projectiles = (this.projectiles = new Projectiles(clock, roster, damage, outbox, collision));
     shots.launcher = (shooter, eye, aim, def, impact) => projectiles.launch(shooter, eye, aim, def, impact);
     const killstreaks = (this.killstreaks = new Killstreaks(clock, roster, outbox, damage, collision, () => projectiles.allocateId()));
