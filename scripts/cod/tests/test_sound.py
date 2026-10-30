@@ -94,7 +94,9 @@ def test_a_placed_alias_matches_the_zone_without_case():
 
 
 def test_two_aliases_differing_only_in_case_are_refused_rather_than_shadowed(tmp_path):
-    root = write(tmp_path, alias("Land_plr_dirt"), alias("land_plr_dirt"))
+    # In two folders: on a case-insensitive disk (APFS, NTFS) one file would overwrite the other.
+    root = write(tmp_path, alias("Land_plr_dirt"))
+    write(tmp_path / "sound_aliases" / "other", alias("land_plr_dirt"))
     with pytest.raises(ValueError, match="differ only in case"):
         sound.load_dump(root)
 
